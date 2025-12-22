@@ -27,6 +27,8 @@ services:
     depends_on:
       timescaledb:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       # Database configuration
       DB_HOST: ${DB_HOST:-timescaledb}
@@ -73,6 +75,11 @@ services:
     # Port not exposed to host - internal network only
     expose:
       - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
     networks:
       - stockbit-network
     restart: always
