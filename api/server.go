@@ -59,6 +59,25 @@ func (s *Server) Start(port int) error {
 	mux.HandleFunc("GET /api/patterns/timing/stream", s.handleTimeBasedStatsStream)
 	mux.HandleFunc("GET /api/patterns/symbol/stream", s.handleSymbolAnalysisStream)
 
+	// Dashboard Routes - Scalping Cockpit
+	mux.HandleFunc("GET /api/dashboard/live-trades", s.handleDashboardLiveTrades)
+	mux.HandleFunc("GET /api/dashboard/pressure-gauge", s.handleDashboardPressureGauge)
+	mux.HandleFunc("GET /api/dashboard/whale-detector", s.handleDashboardWhaleDetector)
+
+	// Dashboard Routes - Momentum & Anomaly Analysis
+	mux.HandleFunc("GET /api/dashboard/volume-spikes", s.handleDashboardVolumeSpikes)
+	mux.HandleFunc("GET /api/dashboard/zscore-ranking", s.handleDashboardZScoreRanking)
+	mux.HandleFunc("GET /api/dashboard/power-candles", s.handleDashboardPowerCandles)
+
+	// Dashboard Routes - Charting
+	mux.HandleFunc("GET /api/dashboard/candles/{symbol}", s.handleDashboardCandles)
+	mux.HandleFunc("GET /api/dashboard/vwap/{symbol}", s.handleDashboardVWAP)
+
+	// Dashboard Routes - Real-time Streams (SSE)
+	mux.HandleFunc("GET /api/dashboard/sse", s.handleDashboardSSE)                      // NEW: Comprehensive SSE for all dashboard data
+	mux.HandleFunc("GET /api/dashboard/trades/stream", s.handleDashboardTradesStream)   // Deprecated
+	mux.HandleFunc("GET /api/dashboard/metrics/stream", s.handleDashboardMetricsStream) // Deprecated
+
 	mux.HandleFunc("GET /health", s.handleHealth)
 
 	// Serve Static Files (Public UI)

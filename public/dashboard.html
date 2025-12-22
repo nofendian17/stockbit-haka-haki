@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Trading Dashboard - Scalping Cockpit 📊</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="dashboard.css" />
+    <!-- ApexCharts for Candlestick -->
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+  </head>
+  <body class="dashboard-body">
+    <div class="background-glow"></div>
+
+    <header class="dashboard-header">
+      <div class="logo">
+        <span class="icon">📊</span>
+        <div>
+          <h1>Scalping Cockpit</h1>
+          <span class="subtitle">Real-time Trading Dashboard</span>
+        </div>
+      </div>
+      <nav class="dashboard-nav">
+        <button class="nav-btn active" data-view="cockpit">🎯 Cockpit</button>
+        <button class="nav-btn" data-view="analysis">📈 Analysis</button>
+        <button class="nav-btn" data-view="charts">📊 Charts</button>
+        <a href="/" class="nav-btn">🐋 Whale Radar</a>
+      </nav>
+      <div class="status-indicator"><span class="dot"></span> Live</div>
+    </header>
+
+    <main class="dashboard-main">
+      <!-- SCALPING COCKPIT VIEW -->
+      <div id="cockpit-view" class="dashboard-view active">
+        <div class="dashboard-grid">
+          <!-- Live Running Trades Panel -->
+          <div class="dashboard-panel live-trades-panel">
+            <div class="panel-header">
+              <h3>🔴 Live Running Trades (RG)</h3>
+              <div class="panel-controls">
+                <input
+                  type="text"
+                  id="trade-symbol-filter"
+                  placeholder="Symbol..."
+                  class="mini-input"
+                />
+                <select id="trade-action-filter" class="mini-select">
+                  <option value="">All</option>
+                  <option value="BUY">BUY</option>
+                  <option value="SELL">SELL</option>
+                </select>
+              </div>
+            </div>
+            <div class="panel-body trades-scroll">
+              <div id="live-trades-list"></div>
+            </div>
+          </div>
+
+          <!-- HAKA Meter Panel -->
+          <div class="dashboard-panel pressure-panel">
+            <div class="panel-header">
+              <h3>⚖️ HAKA Meter (Pressure Gauge)</h3>
+              <select id="pressure-window" class="mini-select">
+                <option value="1">1 Min</option>
+                <option value="5" selected>5 Min</option>
+                <option value="15">15 Min</option>
+                <option value="30">30 Min</option>
+              </select>
+            </div>
+            <div class="panel-body">
+              <div id="pressure-gauge-visual" class="pressure-gauge">
+                <svg id="gauge-svg" width="100%" height="200"></svg>
+              </div>
+              <div id="pressure-metrics" class="pressure-metrics"></div>
+            </div>
+          </div>
+
+          <!-- Whale Detector Panel -->
+          <div class="dashboard-panel whale-panel">
+            <div class="panel-header">
+              <h3>🐋 Whale Detector</h3>
+              <div class="threshold-label">
+                Threshold: <span id="whale-threshold-display">500M</span>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div id="whale-alerts-list"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MOMENTUM ANALYSIS VIEW -->
+      <div id="analysis-view" class="dashboard-view">
+        <div class="dashboard-grid analysis-grid">
+          <!-- Volume Spikes -->
+          <div class="dashboard-panel">
+            <div class="panel-header">
+              <h3>🚀 Volume Spike Alerts</h3>
+              <button id="refresh-spikes-btn" class="mini-btn">Refresh</button>
+            </div>
+            <div class="panel-body">
+              <div id="volume-spikes-list"></div>
+            </div>
+          </div>
+
+          <!-- Z-Score Ranking -->
+          <div class="dashboard-panel">
+            <div class="panel-header">
+              <h3>📊 Statistical Outliers (Z-Score)</h3>
+              <select id="zscore-min" class="mini-select">
+                <option value="3" selected>Z > 3</option>
+                <option value="4">Z > 4</option>
+                <option value="5">Z > 5</option>
+              </select>
+            </div>
+            <div class="panel-body">
+              <div id="zscore-table-container"></div>
+            </div>
+          </div>
+
+          <!-- Power Candles -->
+          <div class="dashboard-panel">
+            <div class="panel-header">
+              <h3>⚡ Power Candle Detection</h3>
+              <button id="refresh-candles-btn" class="mini-btn">Refresh</button>
+            </div>
+            <div class="panel-body">
+              <div id="power-candles-list"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CHARTS VIEW -->
+      <div id="charts-view" class="dashboard-view">
+        <div class="chart-container-full">
+          <div class="chart-controls">
+            <input
+              type="text"
+              id="chart-symbol-input"
+              placeholder="Masukkan kode saham (contoh: BBRI, TLKM, ASII)"
+              class="chart-input"
+            />
+            <select id="chart-timeframe" class="chart-select">
+              <option value="1">1 Hour</option>
+              <option value="4" selected>4 Hours</option>
+              <option value="8">8 Hours</option>
+              <option value="24">1 Day</option>
+            </select>
+            <label class="chart-toggle">
+              <input type="checkbox" id="show-vwap" checked />
+              <span>Show VWAP</span>
+            </label>
+            <label class="chart-toggle">
+              <input type="checkbox" id="show-whales" checked />
+              <span>Show Whale Alerts</span>
+            </label>
+            <label class="chart-toggle">
+              <input type="checkbox" id="auto-refresh-chart" checked />
+              <span>🔄 Auto-refresh (30s)</span>
+            </label>
+            <button id="load-chart-btn" class="btn-primary">📊 Load Chart</button>
+          </div>
+          
+          <!-- Quick Examples -->
+          <div style="margin: 1rem 0; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <span style="color: rgba(255,255,255,0.6); font-size: 0.9rem;">💡 Coba:</span>
+            <button onclick="loadQuickSymbol('BBRI')" class="quick-symbol-btn">BBRI</button>
+            <button onclick="loadQuickSymbol('TLKM')" class="quick-symbol-btn">TLKM</button>
+            <button onclick="loadQuickSymbol('ASII')" class="quick-symbol-btn">ASII</button>
+            <button onclick="loadQuickSymbol('BBCA')" class="quick-symbol-btn">BBCA</button>
+          </div>
+          
+          <div id="main-chart" class="main-chart"></div>
+          <div id="chart-legend" class="chart-legend"></div>
+        </div>
+      </div>
+    </main>
+
+    <script src="dashboard.js"></script>
+  </body>
+</html>
