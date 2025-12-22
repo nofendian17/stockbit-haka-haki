@@ -143,17 +143,17 @@ function renderAlerts() {
 
         // Row Content
         row.innerHTML = `
-            <td class="col-time">${formatTime(alert.DetectedAt)}</td>
-            <td class="col-symbol">
+            <td data-label="Time" class="col-time">${formatTime(alert.DetectedAt)}</td>
+            <td data-label="Symbol" class="col-symbol">
                 ${alert.StockSymbol} 
                 <span style="font-size:0.7em; color:#666;">${(alert.ConfidenceScore||100).toFixed(0)}%</span>
                 ${messageHtml}
             </td>
-            <td><span class="badge ${badgeClass}">${alert.Action}</span></td>
-            <td class="col-price">${formatNumber(price)} ${priceDiff}</td>
-            <td class="text-right value-highlight">${formatCurrency(val)}</td>
-            <td class="text-right">${formatNumber(volume)} Lots</td>
-            <td>
+            <td data-label="Action"><span class="badge ${badgeClass}">${alert.Action}</span></td>
+            <td data-label="Price" class="col-price">${formatNumber(price)} ${priceDiff}</td>
+            <td data-label="Value" class="text-right value-highlight">${formatCurrency(val)}</td>
+            <td data-label="Volume" class="text-right">${formatNumber(volume)} Lots</td>
+            <td data-label="Details">
                 <span style="font-size:0.85em; color:var(--text-secondary);">${alert.MarketBoard}</span>
                 ${anomalyHtml}
             </td>
