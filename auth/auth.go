@@ -72,7 +72,7 @@ func NewAuthClient(creds Credentials) *AuthClient {
 	return &AuthClient{
 		credentials: creds,
 		httpClient: &http.Client{
-			Timeout: 10 * time.Second,
+			Timeout: 30 * time.Second, // Increased from 10s to 30s
 		},
 	}
 }
@@ -345,44 +345,63 @@ func (ac *AuthClient) GetUserInfo() error {
 
 // GetWebSocketKey fetches the WebSocket authentication key from the API
 func (ac *AuthClient) GetWebSocketKey() (string, error) {
-	// Use GetValidToken to ensure token is fresh and auto-refresh if needed
-	token, err := ac.GetValidToken()
-	if err != nil {
-		return "", fmt.Errorf("failed to get valid token: %w", err)
+	var lastErr error
+	maxRetries := 3
+
+	for i := 0; i < maxRetries; i++ {
+		if i > 0 {
+			log.Printf("🔄 Retrying to fetch WebSocket key (attempt %d/%d)...", i+1, maxRetries)
+			time.Sleep(time.Duration(i*2) * time.Second) // Exponential backoff sleep
+		}
+
+		// Use GetValidToken to ensure token is fresh and auto-refresh if needed
+		token, err := ac.GetValidToken()
+		if err != nil {
+			lastErr = fmt.Errorf("failed to get valid token: %w", err)
+			continue
+		}
+
+		// Create request
+		req, err := http.NewRequest("GET", "https://exodus.stockbit.com/auth/websocket/key", nil)
+		if err != nil {
+			return "", fmt.Errorf("failed to create request: %w", err)
+		}
+
+		// Set headers
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Content-Type", "application/json")
+
+		// Send request
+		resp, err := ac.httpClient.Do(req)
+		if err != nil {
+			lastErr = fmt.Errorf("failed to send request: %w", err)
+			continue
+		}
+		defer resp.Body.Close()
+
+		// Check status code
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			lastErr = fmt.Errorf("get websocket key failed with status %d: %s", resp.StatusCode, string(body))
+			// If it's a 401, token might be truly invalid, we should try a fresh login or just let the next retry handle it
+			if resp.StatusCode == http.StatusUnauthorized {
+				log.Println("⚠️  Unauthorized to get websocket key, might need re-login")
+			}
+			continue
+		}
+
+		// Parse response
+		var wsKeyResp struct {
+			Data struct {
+				Key string `json:"key"`
+			} `json:"data"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&wsKeyResp); err != nil {
+			return "", fmt.Errorf("failed to parse websocket key response: %w", err)
+		}
+
+		return wsKeyResp.Data.Key, nil
 	}
 
-	// Create request
-	req, err := http.NewRequest("GET", "https://exodus.stockbit.com/auth/websocket/key", nil)
-	if err != nil {
-		return "", fmt.Errorf("failed to create request: %w", err)
-	}
-
-	// Set headers
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Content-Type", "application/json")
-
-	// Send request
-	resp, err := ac.httpClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("failed to send request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// Check status code
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("get websocket key failed with status %d: %s", resp.StatusCode, string(body))
-	}
-
-	// Parse response
-	var wsKeyResp struct {
-		Data struct {
-			Key string `json:"key"`
-		} `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&wsKeyResp); err != nil {
-		return "", fmt.Errorf("failed to parse websocket key response: %w", err)
-	}
-
-	return wsKeyResp.Data.Key, nil
+	return "", fmt.Errorf("failed to get websocket key after %d attempts: %v", maxRetries, lastErr)
 }
