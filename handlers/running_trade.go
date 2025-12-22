@@ -168,6 +168,12 @@ func (h *RunningTradeHandler) ProcessTrade(t *pb.RunningTrade) {
 
 	// Simpan ke database jika repository tersedia
 	if h.tradeRepo != nil {
+		// Convert trade_number to pointer for nullable field
+		var tradeNumber *int64
+		if t.TradeNumber != 0 {
+			tradeNumber = &t.TradeNumber
+		}
+
 		trade := &database.Trade{
 			Timestamp:   time.Now(), // Stored in UTC
 			StockSymbol: t.Stock,
@@ -178,10 +184,20 @@ func (h *RunningTradeHandler) ProcessTrade(t *pb.RunningTrade) {
 			TotalAmount: totalAmount,
 			MarketBoard: boardType,
 			Change:      changePercentage,
+			TradeNumber: tradeNumber,
 		}
 
 		if err := h.tradeRepo.SaveTrade(trade); err != nil {
-			// Log error tapi jangan crash aplikasi
+			// Check if it's a duplicate key error (unique constraint violation)
+			// PostgreSQL error code 23505 = unique_violation
+			errMsg := err.Error()
+			if containsAny(errMsg, []string{"duplicate key", "unique constraint", "23505"}) {
+				// Duplicate trade detected - this is expected, log at debug level
+				// Don't spam logs with duplicate warnings
+				return
+			}
+
+			// Log unexpected errors
 			log.Printf("⚠️  Failed to save trade to database: %v", err)
 		}
 
@@ -305,4 +321,18 @@ func ptr(v float64) *float64 {
 
 func ptrInt(v int) *int {
 	return &v
+}
+
+// containsAny checks if string contains any of the substrings
+func containsAny(s string, substrs []string) bool {
+	for _, substr := range substrs {
+		if len(s) >= len(substr) {
+			for i := 0; i <= len(s)-len(substr); i++ {
+				if s[i:i+len(substr)] == substr {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }

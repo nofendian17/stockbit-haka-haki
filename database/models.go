@@ -28,6 +28,7 @@ type Trade struct {
 	TotalAmount float64   `gorm:"type:decimal(20,2);not null"` // price * volume
 	MarketBoard string    `gorm:"size:5;index"`                // RG, TN, NG
 	Change      *float64  `gorm:"type:decimal(10,4)"`
+	TradeNumber *int64    `gorm:"index"` // Unique trade identifier from Stockbit (resets daily)
 }
 
 // TableName specifies the table name for Trade

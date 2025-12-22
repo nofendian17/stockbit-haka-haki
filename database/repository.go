@@ -39,11 +39,33 @@ func (r *TradeRepository) InitSchema() error {
 			total_amount DOUBLE PRECISION NOT NULL,
 			market_board VARCHAR(10) NOT NULL,
 			change DOUBLE PRECISION,
+			trade_number BIGINT,
 			PRIMARY KEY (id, timestamp)
 		)
 	`).Error; err != nil {
 		return fmt.Errorf("failed to create running_trades table: %w", err)
 	}
+
+	// Add trade_number column if it doesn't exist (migration for existing databases)
+	r.db.db.Exec(`
+		ALTER TABLE running_trades 
+		ADD COLUMN IF NOT EXISTS trade_number BIGINT
+	`)
+
+	// Create unique index on (stock_symbol, trade_number, market_board, date)
+	// Trade numbers reset daily in Stockbit system, so we need to include the date
+	r.db.db.Exec(`
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_running_trades_unique_trade 
+		ON running_trades (stock_symbol, trade_number, market_board, DATE(timestamp))
+		WHERE trade_number IS NOT NULL
+	`)
+
+	// Create regular index on trade_number for faster lookups
+	r.db.db.Exec(`
+		CREATE INDEX IF NOT EXISTS idx_running_trades_trade_number 
+		ON running_trades (trade_number)
+		WHERE trade_number IS NOT NULL
+	`)
 
 	// Auto-migrate other tables
 	err := r.db.db.AutoMigrate(
