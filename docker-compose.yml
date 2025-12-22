@@ -6,8 +6,9 @@ services:
       POSTGRES_USER: ${DB_USER:-stockbit}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-stockbit123}
       POSTGRES_DB: ${DB_NAME:-stockbit_trades}
-    ports:
-      - "5432:5432"
+    # Port not exposed to host - internal network only
+    expose:
+      - "5432"
     volumes:
       - timescaledb_data:/var/lib/postgresql/data
     healthcheck:
@@ -54,6 +55,7 @@ services:
       LLM_MODEL: ${LLM_MODEL:-gpt4o}
     volumes:
       - token_cache:/app/cache
+    # Expose port to host for web access
     ports:
       - "8080:8080"
     networks:
@@ -63,8 +65,9 @@ services:
   redis:
     image: redis:7-alpine
     container_name: stockbit-redis
-    ports:
-      - "6380:6379"
+    # Port not exposed to host - internal network only
+    expose:
+      - "6379"
     networks:
       - stockbit-network
     restart: always
