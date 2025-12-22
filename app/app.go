@@ -125,11 +125,40 @@ func (a *App) Start() error {
 	}
 	fmt.Println("✅ Trading WebSocket connected!")
 
-	// 4. Get WebSocket key for subscription
+	// 4. Get WebSocket key for subscription (with retry on token expiry)
 	fmt.Println("🔑 Fetching WebSocket key...")
 	wsKey, err := a.authClient.GetWebSocketKey()
 	if err != nil {
-		return fmt.Errorf("failed to get websocket key: %w", err)
+		// If token expired, try to refresh and retry once
+		if strings.Contains(err.Error(), "401") || strings.Contains(err.Error(), "kedaluwarsa") {
+			log.Println("⚠️  WebSocket key fetch failed (token expired), refreshing token...")
+
+			// Try to refresh token
+			if refreshErr := a.authClient.RefreshToken(); refreshErr != nil {
+				log.Println("⚠️  Token refresh failed, re-authenticating...")
+				// If refresh fails, try full re-login
+				if loginErr := a.authClient.Login(); loginErr != nil {
+					return fmt.Errorf("failed to re-authenticate: %w", loginErr)
+				}
+				// Save new token to cache
+				_ = a.authClient.SaveTokenToFile(tokenCacheFile)
+			}
+
+			// Update WebSocket client with new token
+			accessToken := a.authClient.GetAccessToken()
+			a.tradingWS = websocket.NewClient(a.config.TradingWSURL, accessToken)
+			if err := a.tradingWS.Connect(); err != nil {
+				return fmt.Errorf("websocket reconnection failed: %w", err)
+			}
+
+			// Retry getting WebSocket key
+			wsKey, err = a.authClient.GetWebSocketKey()
+			if err != nil {
+				return fmt.Errorf("failed to get websocket key after token refresh: %w", err)
+			}
+		} else {
+			return fmt.Errorf("failed to get websocket key: %w", err)
+		}
 	}
 	fmt.Println("✅ WebSocket key obtained!")
 
