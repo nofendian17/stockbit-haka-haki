@@ -25,14 +25,30 @@ func (r *TradeRepository) InitSchema() error {
 		fmt.Printf("⚠️ Warning: Failed to drop view candle_1min: %v\n", err)
 	}
 
-	// Manually add 'change' column if it doesn't exist (since we disabled AutoMigrate for Trade)
-	// We use float8 for the pointer to float64
-	r.db.db.Exec("ALTER TABLE running_trades ADD COLUMN IF NOT EXISTS change DOUBLE PRECISION")
+	// Create running_trades table manually if not exists (before converting to hypertable)
+	// GORM AutoMigrate fails on Hypertables with Views, so we manage schema manually
+	if err := r.db.db.Exec(`
+		CREATE TABLE IF NOT EXISTS running_trades (
+			id BIGSERIAL,
+			timestamp TIMESTAMPTZ NOT NULL,
+			stock_symbol VARCHAR(10) NOT NULL,
+			action VARCHAR(10) NOT NULL,
+			price DOUBLE PRECISION NOT NULL,
+			volume BIGINT NOT NULL,
+			volume_lot DOUBLE PRECISION NOT NULL,
+			total_amount DOUBLE PRECISION NOT NULL,
+			market_board VARCHAR(10) NOT NULL,
+			change DOUBLE PRECISION,
+			PRIMARY KEY (id, timestamp)
+		)
+	`).Error; err != nil {
+		return fmt.Errorf("failed to create running_trades table: %w", err)
+	}
 
-	// Auto-migrate all tables
+	// Auto-migrate other tables
 	err := r.db.db.AutoMigrate(
-		// &Trade{}, // GORM AutoMigrate fails on Hypertables with Views. Schema managed manually.
-		// &Candle{}, // Managed manually as a TimescaleDB Continuous Aggregate
+		// &Trade{}, // Managed manually above
+		// &Candle{}, // Managed as TimescaleDB Continuous Aggregate
 		&WhaleAlert{},
 		&WhaleWebhook{},
 		&WhaleWebhookLog{},
