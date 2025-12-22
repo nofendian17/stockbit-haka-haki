@@ -1,0 +1,120 @@
+syntax = "proto3";
+
+package stockbit.datafeed.v1;
+
+option go_package = "github.com/beni/stockbit-analysis/proto/datafeed";
+
+import "google/protobuf/timestamp.proto";
+
+// Enums
+enum TradeType {
+  TRADE_TYPE_UNSPECIFIED = 0;
+  TRADE_TYPE_BUY = 1;
+  TRADE_TYPE_SELL = 2;
+}
+
+enum BoardType {
+  BOARD_TYPE_UNSPECIFIED = 0;
+  BOARD_TYPE_RG = 1; // Regular
+  BOARD_TYPE_TN = 2; // Cash
+  BOARD_TYPE_NG = 3; // Negotiated
+}
+
+// Supporting Messages
+message Change {
+  double value = 1;
+  double percentage = 2;
+}
+
+message RunningTrade {
+  google.protobuf.Timestamp websocket_time = 1;
+  string stock = 2;
+  double price = 3;
+  double volume = 4;
+  TradeType action = 5;
+  bool is_global = 6;
+  google.protobuf.Timestamp time = 7;
+  Change change = 8;
+  int64 trade_number = 9;
+  BoardType market_board = 10;
+}
+
+message RunningTradeBatch {
+  repeated RunningTrade trades = 1;
+}
+
+message LivePrice {
+  string stock = 1;
+  double price = 2;
+  Change change = 3;
+  google.protobuf.Timestamp time = 4;
+}
+
+message Orderbook {
+  string stock = 1;
+  repeated OrderbookEntry bids = 2;
+  repeated OrderbookEntry asks = 3;
+  string body = 4; // Legacy: pipe-delimited text format
+}
+
+message OrderbookEntry {
+  double price = 1;
+  double volume = 2;
+  int32 orders = 3;
+}
+
+// Pure protobuf orderbook (preferred)
+message OrderBookBody {
+  string stock_symbol = 1;
+  repeated Bid bid = 2;
+  repeated Offer offer = 3;
+  google.protobuf.Timestamp time = 4;
+}
+
+message Bid {
+  double price = 1;
+  double lot = 2;
+}
+
+message Offer {
+  double price = 1;
+  double lot = 2;
+}
+
+message PingResponse {
+  google.protobuf.Timestamp timestamp = 1;
+}
+
+// Response Wrapper
+message WebsocketWrapMessageChannel {
+  oneof message_channel {
+    RunningTrade running_trade = 1;
+    PingResponse ping = 2;
+    OrderBookBody orderbook_body = 6;  // Pure protobuf orderbook
+    RunningTradeBatch running_trade_batch = 8;
+    LivePrice liveprice = 9;
+    Orderbook orderbook = 10;  // Hybrid orderbook (text body)
+  }
+}
+
+// Request Messages
+message PingRequest {
+  google.protobuf.Timestamp timestamp = 1;
+}
+
+message WebsocketChannel {
+  repeated string watchlist = 1;
+  repeated string order_book = 2;
+  repeated string running_trade = 3;
+  // Note: tag 4 is likely reserved/unused
+  repeated string running_trade_batch = 5;
+  repeated string liveprice = 6;
+  repeated string orderbook_body = 7;  // Subscribe to pure protobuf orderbook
+}
+
+message WebsocketRequest {
+  string user_id = 1;
+  WebsocketChannel channel = 2;
+  string key = 3;
+  PingRequest ping = 4;
+}

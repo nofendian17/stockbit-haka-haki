@@ -1,0 +1,37 @@
+# Environment files
+.env
+.env.*
+
+# Token cache
+.token_cache.json
+token_cache/
+
+# Binaries
+stockbit-analysis
+stockbit-haka-haki
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+!README.md
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Test files
+*_test.go
+
+# OS files
+.DS_Store
+Thumbs.db

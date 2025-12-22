@@ -1,0 +1,25 @@
+# Environment variables
+.env
+
+# Token cache
+.token_cache.json
+
+# Backup files
+*.sql
+*.sql.gz
+backups/*.sql
+backups/*.sql.gz
+
+# Build artifacts
+stockbit-analysis
+stockbit-haka-haki
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db

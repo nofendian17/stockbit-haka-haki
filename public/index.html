@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stockbit Whale Radar 🐋</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="background-glow"></div>
+
+    <header>
+      <div class="logo">
+        <span class="icon">🐋</span>
+        <div>
+          <h1>Whale Radar</h1>
+          <span class="subtitle">Real-time Big Fund Flow</span>
+        </div>
+      </div>
+      <div class="stats-ticker" id="stats-ticker">
+        <div class="stat-item">
+          <span class="label">Total Alerts</span>
+          <span class="value" id="total-alerts">0</span>
+        </div>
+        <div class="stat-item">
+          <span class="label">Today's Volume</span>
+          <span class="value" id="total-volume">0</span>
+        </div>
+        <div class="stat-item">
+          <span class="label">Largest Value</span>
+          <span class="value" id="largest-value">0</span>
+        </div>
+      </div>
+      <div class="status-indicator"><span class="dot"></span> Live</div>
+    </header>
+
+    <main>
+      <div class="controls">
+        <input
+          type="text"
+          id="search"
+          placeholder="Search Symbol (e.g. BBCA)..."
+        />
+        <select id="filter-action">
+          <option value="ALL">All Actions</option>
+          <option value="BUY">Accumulation (BUY)</option>
+          <option value="SELL">Distribution (SELL)</option>
+        </select>
+        <select id="filter-amount">
+          <option value="0">Min Value: All</option>
+          <option value="100000000">> 100 Juta</option>
+          <option value="500000000">> 500 Juta</option>
+          <option value="1000000000">> 1 Miliar</option>
+          <option value="5000000000">> 5 Miliar</option>
+        </select>
+        <select id="filter-board">
+          <option value="ALL">All Boards</option>
+          <option value="RG">Regular (RG)</option>
+          <option value="TN">Tunai (TN)</option>
+          <option value="NG">Negosiasi (NG)</option>
+        </select>
+        <button id="refresh-btn">Refresh</button>
+      </div>
+
+      <!-- Pattern Analysis Section -->
+      <div class="pattern-analysis-section" id="pattern-analysis">
+        <div class="pattern-header">
+          <h2>🤖 AI Pattern Analysis</h2>
+          <div class="pattern-status">
+            <span id="llm-status" class="status-badge">Ready</span>
+          </div>
+        </div>
+        
+        <div class="pattern-tabs">
+          <button class="tab-btn active" data-type="accumulation">
+            <span class="tab-icon">📈</span>
+            <span>Akumulasi</span>
+          </button>
+          <button class="tab-btn" data-type="anomalies">
+            <span class="tab-icon">⚡</span>
+            <span>Anomali</span>
+          </button>
+          <button class="tab-btn" data-type="timing">
+            <span class="tab-icon">⏰</span>
+            <span>Timing</span>
+          </button>
+          <button class="tab-btn" data-type="symbol">
+            <span class="tab-icon">🎯</span>
+            <span>Symbol</span>
+          </button>
+        </div>
+
+        <div class="pattern-content">
+          <div id="symbol-input-container" class="symbol-input-container" style="display:none;">
+            <input 
+              type="text" 
+              id="symbol-input" 
+              placeholder="Masukkan kode saham (contoh: BBCA, TLKM)" 
+              maxlength="4"
+              style="text-transform: uppercase;"
+            />
+          </div>
+          <div id="llm-stream-output" class="stream-output">
+            <div class="placeholder">
+              <span class="placeholder-icon">🧠</span>
+              <p>Click "Start Analysis" untuk memulai analisis AI real-time</p>
+            </div>
+          </div>
+          <div class="pattern-controls">
+            <button id="start-analysis-btn" class="btn-primary">
+              <span class="btn-icon">▶</span> Start Analysis
+            </button>
+            <button id="stop-analysis-btn" class="btn-secondary" style="display:none;">
+              <span class="btn-icon">⏹</span> Stop
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Symbol</th>
+                    <th>Action</th>
+                    <th>Price</th>
+                    <th class="text-right">Value</th>
+                    <th class="text-right">Volume</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody id="alerts-table-body">
+                <!-- Rows injected here -->
+            </tbody>
+        </table>
+        <div id="loading" class="loading">Loading whale activity...</div>
+      </div>
+    </main>
+
+    <footer>
+      <p>Stockbit Whale Analysis System &copy; 2025</p>
+    </footer>
+
+    <script src="script.js"></script>
+  </body>
+</html>

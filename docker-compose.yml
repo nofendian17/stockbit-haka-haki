@@ -1,0 +1,78 @@
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: stockbit-timescaledb
+    environment:
+      POSTGRES_USER: ${DB_USER:-stockbit}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-stockbit123}
+      POSTGRES_DB: ${DB_NAME:-stockbit_trades}
+    ports:
+      - "5432:5432"
+    volumes:
+      - timescaledb_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stockbit"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - stockbit-network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stockbit-app
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    environment:
+      # Database configuration
+      DB_HOST: ${DB_HOST:-timescaledb}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-stockbit_trades}
+      DB_USER: ${DB_USER:-stockbit}
+      DB_PASSWORD: ${DB_PASSWORD:-stockbit123}
+
+      # Redis configuration
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+
+      # Stockbit credentials (override with .env file)
+      STOCKBIT_PLAYER_ID: ${STOCKBIT_PLAYER_ID}
+      STOCKBIT_USERNAME: ${STOCKBIT_USERNAME}
+      STOCKBIT_PASSWORD: ${STOCKBIT_PASSWORD}
+
+      # WebSocket URL
+      TRADING_WS_URL: ${TRADING_WS_URL:-wss://wss-trading.stockbit.com/ws}
+
+      # LLM configuration
+      LLM_ENABLED: ${LLM_ENABLED:-false}
+      LLM_ENDPOINT: ${LLM_ENDPOINT:-https://api.openai.com/v1}
+      LLM_API_KEY: ${LLM_API_KEY}
+      LLM_MODEL: ${LLM_MODEL:-gpt4o}
+    volumes:
+      - token_cache:/app/cache
+    ports:
+      - "8080:8080"
+    networks:
+      - stockbit-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: stockbit-redis
+    ports:
+      - "6380:6379"
+    networks:
+      - stockbit-network
+    restart: always
+
+volumes:
+  timescaledb_data:
+  token_cache:
+
+networks:
+  stockbit-network:
+    driver: bridge
