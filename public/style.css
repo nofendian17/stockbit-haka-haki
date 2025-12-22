@@ -662,6 +662,30 @@ footer {
         text-transform: uppercase;
         content: attr(data-label);
     }
+
+    /* Make pattern control buttons responsive */
+    .pattern-controls {
+        flex-direction: column;
+    }
+
+    .btn-primary,
+    .btn-secondary {
+        width: 100%;
+        justify-content: center;
+        padding: 1rem 1.5rem; /* Larger touch target */
+    }
+
+    /* Ensure pattern header is responsive */
+    .pattern-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    /* Make symbol input full width on mobile */
+    .symbol-input-container input {
+        max-width: 100%;
+    }
 }
 
 @media (max-width: 480px) {
