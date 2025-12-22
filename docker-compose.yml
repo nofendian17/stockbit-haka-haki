@@ -58,6 +58,11 @@ services:
     # Expose port to host for web access
     ports:
       - "8080:8080"
+    # Custom DNS servers to fix DNS resolution issues
+    dns:
+      - 8.8.8.8 # Google DNS
+      - 8.8.4.4 # Google DNS Secondary
+      - 1.1.1.1 # Cloudflare DNS
     networks:
       - stockbit-network
     restart: unless-stopped
