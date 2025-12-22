@@ -77,23 +77,23 @@ func safeFloat64(ptr *float64, defaultValue float64) float64 {
 // FormatAccumulationPrompt creates a prompt for LLM to analyze accumulation/distribution patterns
 func FormatAccumulationPrompt(patterns []database.AccumulationPattern) string {
 	var sb strings.Builder
-	sb.Grow(512 + len(patterns)*150) // Pre-allocate capacity
+	sb.Grow(1024 + len(patterns)*150) // Use larger buffer
 
-	sb.WriteString("Analisis pola trading whale berikut yang terdeteksi di pasar saham Indonesia:\n\n")
+	sb.WriteString("Anda adalah analis pasar saham expert spesialis Bandarlogy (Analisis Arus Dana Institusi). Analisis pola berikut:\n\n")
 
 	for i, p := range patterns {
 		duration := p.LastAlertTime.Sub(p.FirstAlertTime).Minutes()
-		sb.WriteString(fmt.Sprintf("%d. %s - %s\n", i+1, p.StockSymbol, p.Action))
-		sb.WriteString(fmt.Sprintf("   - Alert: %d kali dalam %.0f menit\n", p.AlertCount, duration))
-		sb.WriteString(fmt.Sprintf("   - Total Nilai: Rp %.2f\n", p.TotalValue/billionDivisor))
-		sb.WriteString(fmt.Sprintf("   - Rata-rata Z-Score: %.2f\n\n", p.AvgZScore))
+		sb.WriteString(fmt.Sprintf("%d. **%s** (%s)\n", i+1, p.StockSymbol, p.Action))
+		sb.WriteString(fmt.Sprintf("   - Intensitas: %d kali 'HAKA' dalam %.0f menit\n", p.AlertCount, duration))
+		sb.WriteString(fmt.Sprintf("   - Total Value: Rp %.2f Miliar\n", p.TotalValue/billionDivisor))
+		sb.WriteString(fmt.Sprintf("   - Rata-rata Kekuatan (Z-Score): %.2f\n\n", p.AvgZScore))
 	}
 
-	sb.WriteString("Berikan:\n")
-	sb.WriteString("1. Insight utama - apakah ini pola akumulasi atau distribusi?\n")
-	sb.WriteString("2. Rekomendasi actionable untuk trader retail\n")
-	sb.WriteString("3. Penilaian risiko\n")
-	sb.WriteString(fmt.Sprintf("\nJawaban maksimal %d kata. Ringkas dan actionable.", maxPromptWords))
+	sb.WriteString("Tugas Analisis:\n")
+	sb.WriteString("1. **Identifikasi Fase**: Apakah ini fase Akumulasi (markup awal) atau Distribusi (markdown)?\n")
+	sb.WriteString("2. **Validasi Kekuatan**: Apakah Z-Score mendukung kenaikan harga yang berkelanjutan atau hanya 'fake pump'?\n")
+	sb.WriteString("3. **Rencana Trading**: Entry point ideal dan stop loss rasional berdasarkan volatilitas ini.\n")
+	sb.WriteString(fmt.Sprintf("\nJawab dalam Bahasa Indonesia yang tajam, to-the-point, dan profesional. Maksimal %d kata.", maxPromptWords))
 
 	return sb.String()
 }
@@ -101,9 +101,9 @@ func FormatAccumulationPrompt(patterns []database.AccumulationPattern) string {
 // FormatAnomalyPrompt creates a prompt for analyzing extreme Z-score events
 func FormatAnomalyPrompt(anomalies []database.WhaleAlert) string {
 	var sb strings.Builder
-	sb.Grow(512 + len(anomalies)*200) // Pre-allocate capacity
+	sb.Grow(1024 + len(anomalies)*200)
 
-	sb.WriteString("Analisis anomali trading whale ekstrem berikut (Z-Score > 5.0 = probabilitas 0.00003%):\n\n")
+	sb.WriteString("Anda mendeteksi anomali statistik ekstrem (Black Swan Event) di pasar saham. Analisis data berikut:\n\n")
 
 	for i, a := range anomalies {
 		if i >= maxAnomalies {
@@ -114,16 +114,18 @@ func FormatAnomalyPrompt(anomalies []database.WhaleAlert) string {
 		volPct := safeFloat64(a.VolumeVsAvgPct, 0.0)
 		timeSince := time.Since(a.DetectedAt).Minutes()
 
-		sb.WriteString(fmt.Sprintf("%d. %s %s - %.0f menit yang lalu\n", i+1, a.StockSymbol, a.Action, timeSince))
-		sb.WriteString(fmt.Sprintf("   - Z-Score: %.2f (%.0f%% vs volume rata-rata)\n", zScore, volPct))
-		sb.WriteString(fmt.Sprintf("   - Nilai: Rp %.2f Juta di harga %.0f\n\n", a.TriggerValue/millionDivisor, a.TriggerPrice))
+		sb.WriteString(fmt.Sprintf("%d. **%s** - %s Ekstrem!\n", i+1, a.StockSymbol, a.Action))
+		sb.WriteString(fmt.Sprintf("   - Waktu: %.0f menit yang lalu\n", timeSince))
+		sb.WriteString(fmt.Sprintf("   - Deviasi Standar (Z-Score): %.2f (Sangat Langka)\n", zScore))
+		sb.WriteString(fmt.Sprintf("   - Ledakan Volume: %.0f%% diatas rata-rata\n", volPct))
+		sb.WriteString(fmt.Sprintf("   - Nilai Transaksi: Rp %.2f Juta di harga %.0f\n\n", a.TriggerValue/millionDivisor, a.TriggerPrice))
 	}
 
-	sb.WriteString("Apa yang diindikasikan oleh anomali ekstrem ini? Apakah:\n")
-	sb.WriteString("1. Posisi institusional?\n")
-	sb.WriteString("2. Potensi manipulasi?\n")
-	sb.WriteString("3. Reaksi berita?\n")
-	sb.WriteString("\nBerikan analisis singkat dan actionable maksimal 150 kata.")
+	sb.WriteString("Berikan Analisis Forensik:\n")
+	sb.WriteString("1. **Penyebab Anomali**: Apakah ini 'Crossing' besar, 'Panic Selling', atau 'Aggressive Buying'?\n")
+	sb.WriteString("2. **Psikologi Pasar**: Apa yang sedang dipikirkan pelaku pasar (FOMO vs FEAR)?\n")
+	sb.WriteString("3. **Keputusan Cepat**: Ikuti arus (Follow the Whale) atau hindari volatilitas (Wait and See)?\n")
+	sb.WriteString("\nBerikan insight seolah-olah Anda adalah hedge fund manager. Singkat & padat.")
 
 	return sb.String()
 }
@@ -131,21 +133,22 @@ func FormatAnomalyPrompt(anomalies []database.WhaleAlert) string {
 // FormatTimingPrompt creates a prompt for time-based pattern analysis
 func FormatTimingPrompt(stats []database.TimeBasedStat) string {
 	var sb strings.Builder
-	sb.Grow(512 + len(stats)*100) // Pre-allocate capacity
+	sb.Grow(1024 + len(stats)*100)
 
-	sb.WriteString("Distribusi aktivitas whale berdasarkan jam dalam sehari:\n\n")
+	sb.WriteString("Analisis kebiasaan waktu transaksi (Time-Series Behavior) dari Big Player:\n\n")
 
 	for _, s := range stats {
 		hour := s.TimeBucket
-		sb.WriteString(fmt.Sprintf("Jam %s:00 - %d alert (Beli: %d, Jual: %d), Nilai: Rp %.1fM\n",
-			hour, s.AlertCount, s.BuyCount, s.SellCount, s.TotalValue/billionDivisor))
+		sb.WriteString(fmt.Sprintf("🕒 **Jam %s:00**\n", hour))
+		sb.WriteString(fmt.Sprintf("   - Aktivitas: %d alert (Beli: %d | Jual: %d)\n", s.AlertCount, s.BuyCount, s.SellCount))
+		sb.WriteString(fmt.Sprintf("   - Total Perputaran Uang: Rp %.1f Miliar\n", s.TotalValue/billionDivisor))
 	}
 
-	sb.WriteString("\nAnalisis:\n")
-	sb.WriteString("1. Kapan whale paling aktif?\n")
-	sb.WriteString("2. Interpretasi pola (posisi pembukaan, sepi saat makan siang, aksi closing?)\n")
-	sb.WriteString("3. Waktu terbaik untuk trader retail memantau\n")
-	sb.WriteString("\nMaksimal 150 kata.")
+	sb.WriteString("\nEvaluasi Strategis:\n")
+	sb.WriteString("1. **Jam Krusial**: Kapan waktu paling berbahaya (volatilitas tinggi) dan kapan waktu teraman?\n")
+	sb.WriteString("2. **Pola Intraday**: Apakah ada pola 'Morning Push' atau 'Closing Dump'?\n")
+	sb.WriteString("3. **Taktik Timing**: Kapan trader retail sebaiknya masuk untuk menghindari 'gap' harga?\n")
+	sb.WriteString("\nJawab dengan gaya mentoring trading profesional.")
 
 	return sb.String()
 }
@@ -153,23 +156,37 @@ func FormatTimingPrompt(stats []database.TimeBasedStat) string {
 // AnalyzeSymbolContext generates LLM insights for a specific stock
 func AnalyzeSymbolContext(client *Client, symbol string, alerts []database.WhaleAlert) (string, error) {
 	if len(alerts) == 0 {
-		return "", fmt.Errorf("tidak ada alert untuk dianalisis")
+		return "", fmt.Errorf("tidak ada data aktivitas whale yang cukup untuk analisis %s", symbol)
 	}
 
 	var sb strings.Builder
-	sb.Grow(512) // Pre-allocate capacity
-	sb.WriteString(fmt.Sprintf("Aktivitas whale terbaru untuk %s:\n\n", symbol))
+	sb.Grow(1024)
+	sb.WriteString(fmt.Sprintf("Lakukan Bedah Saham (Stock Opname) untuk **%s** berdasarkan aliran dana Bandar:\n\n", symbol))
 
 	counts := countAlerts(alerts, false)
 
-	sb.WriteString(fmt.Sprintf("- %d alert BUY (Rp %.2fM)\n", counts.buyCount, counts.totalBuyValue/billionDivisor))
-	sb.WriteString(fmt.Sprintf("- %d alert SELL (Rp %.2fM)\n", counts.sellCount, counts.totalSellValue/billionDivisor))
+	sb.WriteString(fmt.Sprintf("- 🟢 **Tekanan Beli (Accumulation)**: %d transaksi (Total Rp %.2f M)\n", counts.buyCount, counts.totalBuyValue/billionDivisor))
+	sb.WriteString(fmt.Sprintf("- 🔴 **Tekanan Jual (Distribution)**: %d transaksi (Total Rp %.2f M)\n", counts.sellCount, counts.totalSellValue/billionDivisor))
 	if counts.unknownCount > 0 {
-		sb.WriteString(fmt.Sprintf("- %d alert NEGO/UNKNOWN (Rp %.2fM)\n", counts.unknownCount, counts.totalUnknownValue/billionDivisor))
+		sb.WriteString(fmt.Sprintf("- ⚪ **Netral/Crossing**: %d transaksi (Total Rp %.2f M)\n", counts.unknownCount, counts.totalUnknownValue/billionDivisor))
 	}
-	sb.WriteString("\nApa sentimen marketnya? Bullish/Bearish? Berikan analisis singkat (<100 kata).")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// Add trend context if available
+	if counts.totalBuyValue > counts.totalSellValue*1.5 {
+		sb.WriteString("\nKonteks: Dominasi BUY sangat kuat (>1.5x Sell).\n")
+	} else if counts.totalSellValue > counts.totalBuyValue*1.5 {
+		sb.WriteString("\nKonteks: Dominasi SELL sangat kuat (>1.5x Buy).\n")
+	} else {
+		sb.WriteString("\nKonteks: Pertarungan seimbang (Konsolidasi).\n")
+	}
+
+	sb.WriteString("\nKesimpulan Cepat (Micro-Analysis):\n")
+	sb.WriteString("1. Siapa yang memegang kendali (Buyer vs Seller)?\n")
+	sb.WriteString("2. Prediksi pergerakan jangka pendek (Bounce/Breakdown)?\n")
+	sb.WriteString("3. Skor Potensi (1-10)?\n")
+	sb.WriteString("Jawab <100 kata.")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second) // Increased timeout slightly
 	defer cancel()
 
 	return client.Analyze(ctx, sb.String())
@@ -178,55 +195,49 @@ func AnalyzeSymbolContext(client *Client, symbol string, alerts []database.Whale
 // FormatSymbolAnalysisPrompt creates a detailed prompt for symbol-specific streaming analysis
 func FormatSymbolAnalysisPrompt(symbol string, alerts []database.WhaleAlert) string {
 	var sb strings.Builder
-	sb.Grow(1024 + len(alerts)*50) // Pre-allocate capacity
+	sb.Grow(2048 + len(alerts)*50)
 
-	sb.WriteString(fmt.Sprintf("Analisis mendalam aktivitas whale untuk saham **%s**:\n\n", symbol))
+	sb.WriteString(fmt.Sprintf("Anda adalah AI Quantum Trader. Lakukan Deep Dive Analysis pada saham **%s**:\n\n", symbol))
 
 	if len(alerts) == 0 {
-		sb.WriteString("Tidak ada aktivitas whale terdeteksi dalam periode ini.\n")
+		sb.WriteString("Tidak ada jejak aktivitas Big Player terdeteksi saat ini. Market sepi/Retail dominan.\n")
 		return sb.String()
 	}
 
 	counts := countAlerts(alerts, true)
+	totalVal := counts.totalBuyValue + counts.totalSellValue + counts.totalUnknownValue
 
-	// Summary
-	sb.WriteString(fmt.Sprintf("📊 **Ringkasan (%d alert terakhir)**:\n", len(alerts)))
-	sb.WriteString(fmt.Sprintf("- BUY: %d transaksi (Total: Rp %.1fM)\n", counts.buyCount, counts.totalBuyValue/millionDivisor))
-	sb.WriteString(fmt.Sprintf("- SELL: %d transaksi (Total: Rp %.1fM)\n", counts.sellCount, counts.totalSellValue/millionDivisor))
-	if counts.unknownCount > 0 {
-		sb.WriteString(fmt.Sprintf("- NEGO/UNKNOWN: %d transaksi (Total: Rp %.1fM)\n", counts.unknownCount, counts.totalUnknownValue/millionDivisor))
-	}
+	// Summary Statistic
+	sb.WriteString(fmt.Sprintf("📊 **Peta Kekuatan Bandar (%d Transaksi Terakhir)**:\n", len(alerts)))
+	sb.WriteString(fmt.Sprintf("Volume Total: Rp %.1f Miliar\n", totalVal/billionDivisor))
+	sb.WriteString(fmt.Sprintf("- 🐂 Bulls (Buy): %d ord | Rp %.1f M\n", counts.buyCount, counts.totalBuyValue/millionDivisor))
+	sb.WriteString(fmt.Sprintf("- 🐻 Bears (Sell): %d ord | Rp %.1f M\n", counts.sellCount, counts.totalSellValue/millionDivisor))
 	sb.WriteString("\n")
 
-	// Largest transactions
+	// Whale Tracking
+	sb.WriteString("🐋 **Whale Tracking (Transaksi Raksasa)**:\n")
 	if counts.maxBuyValue > 0 {
-		sb.WriteString(fmt.Sprintf("💰 **Akumulasi Terbesar**: Rp %.1fM", counts.maxBuyValue/millionDivisor))
+		sb.WriteString(fmt.Sprintf("✅ **Top Buy**: Rp %.1f M", counts.maxBuyValue/millionDivisor))
 		if counts.maxBuyAlert.ZScore != nil {
-			sb.WriteString(fmt.Sprintf(" (Z-Score: %.2f)", *counts.maxBuyAlert.ZScore))
+			sb.WriteString(fmt.Sprintf(" (Power Z: %.2f)", *counts.maxBuyAlert.ZScore))
 		}
 		sb.WriteString("\n")
 	}
 	if counts.maxSellValue > 0 {
-		sb.WriteString(fmt.Sprintf("📉 **Distribusi Terbesar**: Rp %.1fM", counts.maxSellValue/millionDivisor))
+		sb.WriteString(fmt.Sprintf("❌ **Top Sell**: Rp %.1f M", counts.maxSellValue/millionDivisor))
 		if counts.maxSellAlert.ZScore != nil {
-			sb.WriteString(fmt.Sprintf(" (Z-Score: %.2f)", *counts.maxSellAlert.ZScore))
-		}
-		sb.WriteString("\n")
-	}
-	if counts.maxUnknownValue > 0 {
-		sb.WriteString(fmt.Sprintf("❓ **Transaksi NEGO/UNKNOWN Terbesar**: Rp %.1fM", counts.maxUnknownValue/millionDivisor))
-		if counts.maxUnknownAlert.ZScore != nil {
-			sb.WriteString(fmt.Sprintf(" (Z-Score: %.2f)", *counts.maxUnknownAlert.ZScore))
+			sb.WriteString(fmt.Sprintf(" (Power Z: %.2f)", *counts.maxSellAlert.ZScore))
 		}
 		sb.WriteString("\n")
 	}
 
-	sb.WriteString("\n**Analisis**:\n")
-	sb.WriteString("1. Apa sentimen dominan (Bullish/Bearish/Netral)?\n")
-	sb.WriteString("2. Apakah whale sedang akumulasi atau distribusi?\n")
-	sb.WriteString("3. Level support/resistance potensial berdasarkan aktivitas?\n")
-	sb.WriteString("4. Rekomendasi untuk trader retail\n")
-	sb.WriteString(fmt.Sprintf("\nMaksimal %d kata, gunakan bahasa yang mudah dipahami.", maxPromptWords))
+	sb.WriteString("\n**Executive Summary & Strategy**:\n")
+	sb.WriteString("1. **Diagnosa Trend**: Apakah Bandar sedang Akumulasi diam-diam, Markup harga, atau Distribusi muatan?\n")
+	sb.WriteString("2. **Key Levels**: Di harga berapa 'smart money' banyak masuk? (Jadikan ini support kuat).\n")
+	sb.WriteString("3. **Trading Plan**: \n")
+	sb.WriteString("   - **Action**: BUY / WAIT / SELL / AVOID\n")
+	sb.WriteString("   - **Reason**: Alasan logis berdasarkan data arus uang di atas.\n")
+	sb.WriteString(fmt.Sprintf("\nBerikan analisis mendalam namun mudah dicerna untuk trader profesional. Maksimal %d kata.", maxPromptWords))
 
 	return sb.String()
 }

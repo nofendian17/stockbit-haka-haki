@@ -131,6 +131,21 @@ type WhaleWebhookLog struct {
 	RetryAttempt   int `gorm:"default:0"`
 }
 
+// TradingSignal represents a generated trading strategy signal
+type TradingSignal struct {
+	StockSymbol  string    `json:"stock_symbol"`
+	Timestamp    time.Time `json:"timestamp"`
+	Strategy     string    `json:"strategy"` // "VOLUME_BREAKOUT", "MEAN_REVERSION", "FAKEOUT_FILTER"
+	Decision     string    `json:"decision"` // "BUY", "SELL", "WAIT", "NO_TRADE"
+	PriceZScore  float64   `json:"price_z_score"`
+	VolumeZScore float64   `json:"volume_z_score"`
+	Price        float64   `json:"price"`
+	Volume       float64   `json:"volume"`
+	Change       float64   `json:"change"`
+	Confidence   float64   `json:"confidence"`
+	Reason       string    `json:"reason"`
+}
+
 // WhaleStats represents aggregated statistics for whale activity
 type WhaleStats struct {
 	StockSymbol       string  `json:"stock_symbol"`

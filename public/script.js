@@ -332,8 +332,11 @@ function startPatternAnalysis(type) {
 
         streamText += chunk;
         
+        // Parse markdown using marked.js
+        const htmlContent = marked.parse(streamText);
+
         // Update output with streaming cursor
-        outputDiv.innerHTML = `<div class="streaming-text">${streamText}<span class="streaming-cursor"></span></div>`;
+        outputDiv.innerHTML = `<div class="streaming-text">${htmlContent}<span class="streaming-cursor"></span></div>`;
         
         // Auto-scroll to bottom
         outputDiv.scrollTop = outputDiv.scrollHeight;
@@ -341,7 +344,7 @@ function startPatternAnalysis(type) {
 
     streamEventSource.addEventListener('done', () => {
         // Remove cursor and update status
-        outputDiv.innerHTML = `<div class="streaming-text">${streamText}</div>`;
+        outputDiv.innerHTML = `<div class="streaming-text">${marked.parse(streamText)}</div>`;
         statusBadge.textContent = 'Completed';
         statusBadge.className = 'status-badge';
         streamEventSource.close();

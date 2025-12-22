@@ -11,6 +11,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="style.css" />
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   </head>
   <body>
     <div class="background-glow"></div>
@@ -123,6 +124,33 @@
         </div>
       </div>
 
+      <!-- Strategy Signals Section -->
+      <div class="strategy-signals-section" id="strategy-signals">
+        <div class="strategy-header">
+          <h2>🎯 Trading Strategies</h2>
+          <div class="strategy-status">
+            <span id="strategy-live-indicator" class="dot"></span> 
+            <span id="strategy-connection-status">Connecting...</span>
+          </div>
+        </div>
+        
+        <div class="strategy-tabs">
+          <button class="strategy-tab active" data-strategy="ALL">All Signals</button>
+          <button class="strategy-tab" data-strategy="VOLUME_BREAKOUT">Volume Breakout</button>
+          <button class="strategy-tab" data-strategy="MEAN_REVERSION">Mean Reversion</button>
+          <button class="strategy-tab" data-strategy="FAKEOUT_FILTER">Fakeout Filter</button>
+        </div>
+        
+        <div class="strategy-content">
+          <div id="signals-container" class="signals-container">
+            <div class="placeholder">
+              <span class="placeholder-icon">📡</span>
+              <p>Waiting for trading signals...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="table-container">
         <table>
             <thead>
@@ -149,5 +177,6 @@
     </footer>
 
     <script src="script.js"></script>
+    <script src="strategy.js"></script>
   </body>
 </html>

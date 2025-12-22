@@ -59,6 +59,10 @@ func (s *Server) Start(port int) error {
 	mux.HandleFunc("GET /api/patterns/timing/stream", s.handleTimeBasedStatsStream)
 	mux.HandleFunc("GET /api/patterns/symbol/stream", s.handleSymbolAnalysisStream)
 
+	// Trading Strategy Routes
+	mux.HandleFunc("GET /api/strategies/signals", s.handleGetStrategySignals)
+	mux.HandleFunc("GET /api/strategies/signals/stream", s.handleStrategySignalsStream)
+
 	mux.HandleFunc("GET /health", s.handleHealth)
 
 	// Serve Static Files (Public UI)

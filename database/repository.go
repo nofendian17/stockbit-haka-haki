@@ -516,3 +516,272 @@ func (r *TradeRepository) GetRecentAlertsBySymbol(symbol string, limit int) ([]W
 
 	return alerts, err
 }
+
+// ZScoreData holds z-score calculations for price and volume
+type ZScoreData struct {
+	PriceZScore  float64
+	VolumeZScore float64
+	MeanPrice    float64
+	StdDevPrice  float64
+	MeanVolume   float64
+	StdDevVolume float64
+	SampleCount  int64
+	PriceChange  float64
+	VolumeChange float64
+}
+
+// GetPriceVolumeZScores calculates real-time z-scores for a stock
+// Returns z-scores for current price and volume compared to historical baseline
+func (r *TradeRepository) GetPriceVolumeZScores(symbol string, currentPrice, currentVolume float64, lookbackMinutes int) (*ZScoreData, error) {
+	var result struct {
+		MeanPrice    float64
+		StdDevPrice  float64
+		MeanVolume   float64
+		StdDevVolume float64
+		SampleCount  int64
+		MinPrice     float64
+		MaxPrice     float64
+	}
+
+	// Calculate statistics from candle_1min view
+	query := `
+		SELECT 
+			COALESCE(AVG(close), 0) as mean_price,
+			COALESCE(STDDEV(close), 0) as std_dev_price,
+			COALESCE(AVG(volume_lots), 0) as mean_volume,
+			COALESCE(STDDEV(volume_lots), 0) as std_dev_volume,
+			COUNT(*) as sample_count,
+			COALESCE(MIN(close), 0) as min_price,
+			COALESCE(MAX(close), 0) as max_price
+		FROM candle_1min
+		WHERE stock_symbol = ? 
+		AND bucket >= NOW() - INTERVAL '1 minute' * ?
+	`
+
+	err := r.db.db.Raw(query, symbol, lookbackMinutes).Scan(&result).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// Calculate z-scores (handle zero standard deviation)
+	var priceZScore, volumeZScore float64
+
+	if result.StdDevPrice > 0 {
+		priceZScore = (currentPrice - result.MeanPrice) / result.StdDevPrice
+	}
+
+	if result.StdDevVolume > 0 {
+		volumeZScore = (currentVolume - result.MeanVolume) / result.StdDevVolume
+	}
+
+	// Calculate percentage changes
+	priceChange := 0.0
+	volumeChange := 0.0
+	if result.MeanPrice > 0 {
+		priceChange = ((currentPrice - result.MeanPrice) / result.MeanPrice) * 100
+	}
+	if result.MeanVolume > 0 {
+		volumeChange = ((currentVolume - result.MeanVolume) / result.MeanVolume) * 100
+	}
+
+	return &ZScoreData{
+		PriceZScore:  priceZScore,
+		VolumeZScore: volumeZScore,
+		MeanPrice:    result.MeanPrice,
+		StdDevPrice:  result.StdDevPrice,
+		MeanVolume:   result.MeanVolume,
+		StdDevVolume: result.StdDevVolume,
+		SampleCount:  result.SampleCount,
+		PriceChange:  priceChange,
+		VolumeChange: volumeChange,
+	}, nil
+}
+
+// EvaluateVolumeBreakoutStrategy implements Volume Breakout Validation strategy
+// Logic: Price increase (>2%) + explosive volume (z-score > 3) = BUY signal
+func (r *TradeRepository) EvaluateVolumeBreakoutStrategy(alert *WhaleAlert, zscores *ZScoreData) *TradingSignal {
+	signal := &TradingSignal{
+		StockSymbol:  alert.StockSymbol,
+		Timestamp:    alert.DetectedAt,
+		Strategy:     "VOLUME_BREAKOUT",
+		PriceZScore:  zscores.PriceZScore,
+		VolumeZScore: zscores.VolumeZScore,
+		Price:        alert.TriggerPrice,
+		Volume:       alert.TriggerVolumeLots,
+		Change:       zscores.PriceChange,
+	}
+
+	// Check conditions: change > 2% AND volume_z_score > 3
+	if zscores.PriceChange > 2.0 && zscores.VolumeZScore > 3.0 {
+		signal.Decision = "BUY"
+		signal.Confidence = calculateConfidence(zscores.VolumeZScore, 3.0, 6.0)
+		signal.Reason = fmt.Sprintf("Kenaikan harga %.2f%% didukung volume meledak (Z=%.2f). Entry valid ✓",
+			zscores.PriceChange, zscores.VolumeZScore)
+	} else if zscores.PriceChange > 2.0 && zscores.VolumeZScore <= 3.0 {
+		signal.Decision = "WAIT"
+		signal.Confidence = 0.3
+		signal.Reason = fmt.Sprintf("Harga naik %.2f%% tapi volume biasa saja (Z=%.2f). Tunggu konfirmasi.",
+			zscores.PriceChange, zscores.VolumeZScore)
+	} else {
+		signal.Decision = "NO_TRADE"
+		signal.Confidence = 0.1
+		signal.Reason = "Tidak ada breakout signifikan"
+	}
+
+	return signal
+}
+
+// EvaluateMeanReversionStrategy implements Mean Reversion (Contrarian) strategy
+// Logic: Extreme price (z-score > 4) + declining volume = SELL signal (overbought)
+func (r *TradeRepository) EvaluateMeanReversionStrategy(alert *WhaleAlert, zscores *ZScoreData, prevVolumeZScore float64) *TradingSignal {
+	signal := &TradingSignal{
+		StockSymbol:  alert.StockSymbol,
+		Timestamp:    alert.DetectedAt,
+		Strategy:     "MEAN_REVERSION",
+		PriceZScore:  zscores.PriceZScore,
+		VolumeZScore: zscores.VolumeZScore,
+		Price:        alert.TriggerPrice,
+		Volume:       alert.TriggerVolumeLots,
+		Change:       zscores.PriceChange,
+	}
+
+	// Detect volume divergence
+	volumeDeclining := zscores.VolumeZScore < prevVolumeZScore
+
+	// Check conditions: price_z_score > 4 AND volume declining
+	if zscores.PriceZScore > 4.0 && volumeDeclining {
+		signal.Decision = "SELL"
+		signal.Confidence = calculateConfidence(zscores.PriceZScore, 4.0, 7.0)
+		signal.Reason = fmt.Sprintf("Harga overextended (Z=%.2f), volume menurun. Mean reversion imminent ⚠️",
+			zscores.PriceZScore)
+	} else if zscores.PriceZScore > 4.0 {
+		signal.Decision = "WAIT"
+		signal.Confidence = 0.5
+		signal.Reason = fmt.Sprintf("Harga overbought (Z=%.2f) tapi volume masih kuat. Monitor divergence.",
+			zscores.PriceZScore)
+	} else if zscores.PriceZScore < -4.0 {
+		signal.Decision = "BUY"
+		signal.Confidence = calculateConfidence(-zscores.PriceZScore, 4.0, 7.0)
+		signal.Reason = fmt.Sprintf("Harga oversold (Z=%.2f). Potential bounce 📈",
+			zscores.PriceZScore)
+	} else {
+		signal.Decision = "NO_TRADE"
+		signal.Confidence = 0.1
+		signal.Reason = "Harga dalam range normal"
+	}
+
+	return signal
+}
+
+// EvaluateFakeoutFilterStrategy implements Fakeout Filter (Defense) strategy
+// Logic: Price breakout + low volume (z-score < 1) = NO_TRADE (likely bull trap)
+func (r *TradeRepository) EvaluateFakeoutFilterStrategy(alert *WhaleAlert, zscores *ZScoreData) *TradingSignal {
+	signal := &TradingSignal{
+		StockSymbol:  alert.StockSymbol,
+		Timestamp:    alert.DetectedAt,
+		Strategy:     "FAKEOUT_FILTER",
+		PriceZScore:  zscores.PriceZScore,
+		VolumeZScore: zscores.VolumeZScore,
+		Price:        alert.TriggerPrice,
+		Volume:       alert.TriggerVolumeLots,
+		Change:       zscores.PriceChange,
+	}
+
+	// Detect potential breakout (price moving significantly)
+	isBreakout := zscores.PriceChange > 3.0 || zscores.PriceZScore > 2.0
+
+	// Check volume strength
+	if isBreakout && zscores.VolumeZScore < 1.0 {
+		signal.Decision = "NO_TRADE"
+		signal.Confidence = 0.8 // High confidence to AVOID
+		signal.Reason = fmt.Sprintf("⚠️ FAKEOUT DETECTED! Breakout tanpa volume (Z=%.2f). Bull trap!",
+			zscores.VolumeZScore)
+	} else if isBreakout && zscores.VolumeZScore >= 2.0 {
+		signal.Decision = "BUY"
+		signal.Confidence = calculateConfidence(zscores.VolumeZScore, 2.0, 5.0)
+		signal.Reason = fmt.Sprintf("✓ Breakout valid dengan volume kuat (Z=%.2f). Safe entry.",
+			zscores.VolumeZScore)
+	} else if isBreakout {
+		signal.Decision = "WAIT"
+		signal.Confidence = 0.4
+		signal.Reason = fmt.Sprintf("Breakout dengan volume moderate (Z=%.2f). Tunggu konfirmasi.",
+			zscores.VolumeZScore)
+	} else {
+		signal.Decision = "NO_TRADE"
+		signal.Confidence = 0.1
+		signal.Reason = "Tidak ada breakout terdeteksi"
+	}
+
+	return signal
+}
+
+// GetStrategySignals evaluates recent whale alerts and generates trading signals
+func (r *TradeRepository) GetStrategySignals(lookbackMinutes int, minConfidence float64, strategyFilter string) ([]TradingSignal, error) {
+	// Get recent whale alerts
+	var alerts []WhaleAlert
+	err := r.db.db.Where("detected_at >= NOW() - INTERVAL '1 minute' * ?", lookbackMinutes).
+		Order("detected_at DESC").
+		Limit(50).
+		Find(&alerts).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	var signals []TradingSignal
+
+	// Track previous volume z-scores for divergence detection
+	prevVolumeZScores := make(map[string]float64)
+
+	for _, alert := range alerts {
+		// Calculate z-scores
+		volumeLots := alert.TriggerVolumeLots
+		zscores, err := r.GetPriceVolumeZScores(alert.StockSymbol, alert.TriggerPrice, volumeLots, 60)
+		if err != nil || zscores.SampleCount < 10 {
+			continue // Skip if insufficient data
+		}
+
+		// Evaluate each strategy
+		strategies := []string{"VOLUME_BREAKOUT", "MEAN_REVERSION", "FAKEOUT_FILTER"}
+		if strategyFilter != "" && strategyFilter != "ALL" {
+			strategies = []string{strategyFilter}
+		}
+
+		for _, strategy := range strategies {
+			var signal *TradingSignal
+
+			switch strategy {
+			case "VOLUME_BREAKOUT":
+				signal = r.EvaluateVolumeBreakoutStrategy(&alert, zscores)
+			case "MEAN_REVERSION":
+				prevZScore := prevVolumeZScores[alert.StockSymbol]
+				signal = r.EvaluateMeanReversionStrategy(&alert, zscores, prevZScore)
+			case "FAKEOUT_FILTER":
+				signal = r.EvaluateFakeoutFilterStrategy(&alert, zscores)
+			}
+
+			// Only include signals meeting confidence threshold
+			if signal != nil && signal.Confidence >= minConfidence && signal.Decision != "NO_TRADE" {
+				signals = append(signals, *signal)
+			}
+		}
+
+		// Update previous volume z-score
+		prevVolumeZScores[alert.StockSymbol] = zscores.VolumeZScore
+	}
+
+	return signals, nil
+}
+
+// calculateConfidence converts z-score range to confidence percentage
+func calculateConfidence(value, minThreshold, maxThreshold float64) float64 {
+	if value < minThreshold {
+		return 0.0
+	}
+	if value >= maxThreshold {
+		return 1.0
+	}
+	// Linear interpolation between min and max
+	confidence := (value - minThreshold) / (maxThreshold - minThreshold)
+	return confidence
+}
