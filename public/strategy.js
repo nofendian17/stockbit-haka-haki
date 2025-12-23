@@ -9,7 +9,66 @@ const MAX_VISIBLE_SIGNALS = 50;
 
 function initStrategySystem() {
     setupStrategyTabs();
+    fetchInitialSignals(); // Fetch initial data
     connectStrategySSE();
+}
+
+async function fetchInitialSignals() {
+    const container = document.getElementById('signals-container');
+    // Don't clear if it's the first load, but show loading if needed
+    if (!container.querySelector('.signal-card') && !container.querySelector('.placeholder')) {
+         container.innerHTML = `
+            <div class="placeholder">
+                <span class="placeholder-icon">⏳</span>
+                <p>Loading recent signals...</p>
+            </div>
+        `;
+    }
+
+    try {
+        let url = '/api/strategies/signals?lookback=60';
+        if (activeStrategyFilter !== 'ALL') {
+            url += `&strategy=${activeStrategyFilter}`;
+        }
+
+        const res = await fetch(url);
+        const data = await res.json();
+        
+        if (data.signals && data.signals.length > 0) {
+            // Remove placeholder if exists
+            const placeholder = container.querySelector('.placeholder');
+            if (placeholder) placeholder.remove();
+
+            // Reverse to show oldest first, so they are prepended in correct order (newest on top)
+            // Actually renderSignalCardRefactored prepends, so we should process from oldest to newest
+            // to end up with newest on top.
+            // Assuming API returns newest first? Let's check api/server.go...
+            // Standard SQL/GORM usually returns arbitrary unless ordered.
+            // Let's assume we need to sort or just render.
+            // If renderSignalCardRefactored prepends, we want to render the OLDEST first, 
+            // so the newest ends up at the top.
+            
+            // Let's just process them.
+            // If the API returns sorted by time desc (newest first), we should iterate in reverse.
+            
+            const signals = data.signals.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+            signals.forEach(signal => {
+                renderSignalCardRefactored(signal);
+            });
+        } else {
+             if (!contatiner.querySelector('.signal-card')) {
+                container.innerHTML = `
+                    <div class="placeholder">
+                        <span class="placeholder-icon">📡</span>
+                        <p>No recent signals found.</p>
+                    </div>
+                `;
+            }
+        }
+    } catch (err) {
+        console.error("Failed to fetch initial signals:", err);
+    }
 }
 
 function setupStrategyTabs() {
@@ -54,6 +113,7 @@ function setupStrategyTabs() {
                 `;
                 container.style.opacity = '1';
                 renderedSignalIds.clear();
+                fetchInitialSignals(); // Fetch for new filter
             }, 200);
         });
     });

@@ -24,19 +24,19 @@ type WebhookManager struct {
 
 // WebhookPayload represents the JSON payload sent to webhooks
 type WebhookPayload struct {
-	AlertID         int64                  `json:"alert_id"`
-	AlertType       string                 `json:"alert_type"`
-	DetectedAt      time.Time              `json:"detected_at"`
-	StockSymbol     string                 `json:"stock_symbol"`
-	Action          string                 `json:"action"`
-	Price           float64                `json:"price"`
-	VolumeLots      float64                `json:"volume_lots"`
-	TotalValue      float64                `json:"total_value"`
-	AvgPrice        float64                `json:"avg_price"`
-	ConfidenceScore float64                `json:"confidence_score"`
-	MarketBoard     string                 `json:"market_board"`
-	Message         string                 `json:"message"`
-	Metadata        map[string]interface{} `json:"metadata,omitempty"`
+	AlertID         int64                  `json:"AlertID"`
+	AlertType       string                 `json:"AlertType"`
+	DetectedAt      time.Time              `json:"DetectedAt"`
+	StockSymbol     string                 `json:"StockSymbol"`
+	Action          string                 `json:"Action"`
+	Price           float64                `json:"Price"`
+	VolumeLots      float64                `json:"VolumeLots"`
+	TotalValue      float64                `json:"TotalValue"`
+	AvgPrice        float64                `json:"AvgPrice"`
+	ConfidenceScore float64                `json:"ConfidenceScore"`
+	MarketBoard     string                 `json:"MarketBoard"`
+	Message         string                 `json:"Message"`
+	Metadata        map[string]interface{} `json:"Metadata,omitempty"`
 }
 
 // NewWebhookManager creates a new webhook manager
