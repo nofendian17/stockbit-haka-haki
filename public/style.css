@@ -549,6 +549,13 @@ td {
   margin-top: 2rem;
 }
 
+/* Force whale alerts table to be scrollable */
+.whale-alerts-section .table-container {
+  max-height: 600px; /* Fixed height to ensure scrollability */
+  overflow-y: scroll; /* Always show scrollbar */
+  min-height: 400px; /* Minimum height */
+}
+
 /* Table Header Icons */
 .th-icon {
   margin-right: 4px;
