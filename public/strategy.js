@@ -74,7 +74,7 @@ async function fetchInitialSignals() {
             const signals = data.signals.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
             signals.forEach(signal => {
-                renderSignalRow(signal);
+                renderSignalRow(signal, true); // true = initial load, append to end
             });
         } else {
             if (placeholder && tbody.children.length === 0) {
@@ -165,7 +165,7 @@ function connectStrategySSE() {
 }
 
 // ===== RENDERING FUNCTIONS =====
-function renderSignalRow(signal) {
+function renderSignalRow(signal, isInitialLoad = false) {
     const tbody = safeGetElement('signals-table-body', 'Render');
     const placeholder = safeGetElement('signals-placeholder', 'Render');
     
@@ -223,11 +223,17 @@ function renderSignalRow(signal) {
     row.style.opacity = '0';
     row.style.transform = 'translateY(-10px)';
     
-    // Insert at the beginning (newest first)
-    if (tbody.firstChild) {
-        tbody.insertBefore(row, tbody.firstChild);
-    } else {
+    // Insert position depends on context:
+    // - Initial load: append to end (signals already sorted DESC)
+    // - Real-time SSE: prepend to beginning (newest on top)
+    if (isInitialLoad) {
         tbody.appendChild(row);
+    } else {
+        if (tbody.firstChild) {
+            tbody.insertBefore(row, tbody.firstChild);
+        } else {
+            tbody.appendChild(row);
+        }
     }
 
     // Trigger animation
