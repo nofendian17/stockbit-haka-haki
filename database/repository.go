@@ -417,13 +417,14 @@ func (r *TradeRepository) GetStockStats(symbol string, lookbackMinutes int) (*St
 
 // AccumulationPattern represents detected accumulation/distribution pattern
 type AccumulationPattern struct {
-	StockSymbol    string
-	Action         string
-	AlertCount     int64
-	TotalValue     float64
-	FirstAlertTime time.Time
-	LastAlertTime  time.Time
-	AvgZScore      float64
+	StockSymbol     string
+	Action          string
+	AlertCount      int64
+	TotalValue      float64
+	TotalVolumeLots float64 // Added for average price calculation
+	FirstAlertTime  time.Time
+	LastAlertTime   time.Time
+	AvgZScore       float64
 }
 
 // GetAccumulationPattern detects BUY/SELL sequences (accumulation/distribution)
@@ -441,6 +442,7 @@ func (r *TradeRepository) GetAccumulationPattern(hoursBack int, minAlerts int) (
 			action,
 			COUNT(*) as alert_count,
 			SUM(trigger_value) as total_value,
+			SUM(trigger_volume_lots) as total_volume_lots,
 			MIN(detected_at) as first_alert_time,
 			MAX(detected_at) as last_alert_time,
 			AVG(COALESCE(z_score, 0)) as avg_z_score
