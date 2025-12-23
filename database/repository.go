@@ -526,8 +526,8 @@ func (r *TradeRepository) GetAccumulationDistributionSummary(hoursBack int) ([]A
 				ELSE 0 
 			END as sell_percentage,
 			CASE 
-				WHEN buy_count > sell_count AND (buy_count::DECIMAL / NULLIF(total_count, 0)) > 0.6 THEN 'ACCUMULATION'
-				WHEN sell_count > buy_count AND (sell_count::DECIMAL / NULLIF(total_count, 0)) > 0.6 THEN 'DISTRIBUTION'
+				WHEN buy_count > sell_count AND (buy_count::DECIMAL / NULLIF(total_count, 0)) > 0.55 THEN 'ACCUMULATION'
+				WHEN sell_count > buy_count AND (sell_count::DECIMAL / NULLIF(total_count, 0)) > 0.55 THEN 'DISTRIBUTION'
 				ELSE 'NEUTRAL'
 			END as status,
 			buy_value - sell_value as net_value

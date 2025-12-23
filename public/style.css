@@ -697,6 +697,40 @@ td {
   color: var(--text-secondary);
 }
 
+/* Summary Section */
+.summary-section {
+  background: var(--table-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.summary-section .section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.info-badge {
+  font-size: 0.75rem;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-weight: 600;
+  background: rgba(14, 203, 129, 0.1);
+  color: var(--accent-buy);
+  border: 1px solid rgba(14, 203, 129, 0.2);
+}
+
+.badge.neutral {
+  color: var(--accent-neutral);
+  background: rgba(112, 122, 138, 0.1);
+}
+
 footer {
   text-align: center;
   padding: 2rem;

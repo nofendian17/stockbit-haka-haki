@@ -391,7 +391,7 @@ function renderAccumulationSummary(summaries) {
 }
 
 // ===== PATTERN ANALYSIS =====
-let currentPatternType = 'summary';
+let currentPatternType = 'accumulation';
 let streamEventSource = null;
 
 function setupPatternAnalysis() {
@@ -401,7 +401,6 @@ function setupPatternAnalysis() {
     const outputDiv = document.getElementById('llm-stream-output');
     const statusBadge = document.getElementById('llm-status');
     const symbolInputContainer = document.getElementById('symbol-input-container');
-    const summaryContainer = document.getElementById('summary-container');
 
     // Tab switching
     tabs.forEach(tab => {
@@ -416,33 +415,15 @@ function setupPatternAnalysis() {
             // Update current type
             currentPatternType = tab.dataset.type;
 
-            // Handle visibility based on tab type
-            if (currentPatternType === 'summary') {
-                // Show summary table, hide LLM output and controls
-                if (summaryContainer) summaryContainer.style.display = 'block';
-                if (outputDiv) outputDiv.style.display = 'none';
-                if (symbolInputContainer) symbolInputContainer.style.display = 'none';
-                if (startBtn) startBtn.style.display = 'none';
-                if (stopBtn) stopBtn.style.display = 'none';
-                
-                // Refresh summary data
-                fetchAccumulationSummary();
+            // Show/hide symbol input based on tab
+            if (currentPatternType === 'symbol') {
+                symbolInputContainer.style.display = 'block';
             } else {
-                // Hide summary table, show LLM output and controls
-                if (summaryContainer) summaryContainer.style.display = 'none';
-                if (outputDiv) outputDiv.style.display = 'block';
-                if (startBtn) startBtn.style.display = 'flex';
-                
-                // Show/hide symbol input based on tab
-                if (currentPatternType === 'symbol') {
-                    symbolInputContainer.style.display = 'block';
-                } else {
-                    symbolInputContainer.style.display = 'none';
-                }
-
-                // Reset output
-                resetOutput();
+                symbolInputContainer.style.display = 'none';
             }
+
+            // Reset output
+            resetOutput();
         });
     });
 
