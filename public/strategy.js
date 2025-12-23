@@ -1,15 +1,39 @@
+// ===== CONFIGURATION =====
+const STRATEGY_CONFIG = {
+    MAX_VISIBLE_SIGNALS: 100,
+    ANIMATION_DELAY: 10,
+    TRANSITION_DURATION: 300,
+    LOOKBACK_MINUTES: 60
+};
+
+// ===== STATE =====
+let strategyEventSource = null;
+let activeStrategyFilter = 'ALL';
+let renderedSignalIds = new Set();
+
+// ===== UTILITY FUNCTIONS =====
+/**
+ * Safely get DOM element with error logging
+ * @param {string} id - Element ID
+ * @param {string} context - Context for error message
+ * @returns {HTMLElement|null}
+ */
+function safeGetElement(id, context = 'Strategy') {
+    const element = document.getElementById(id);
+    if (!element) {
+        console.error(`[${context}] Element not found: ${id}`);
+    }
+    return element;
+}
+
+// ===== INITIALIZATION =====
 document.addEventListener('DOMContentLoaded', () => {
     initStrategySystem();
 });
 
-let strategyEventSource = null;
-let activeStrategyFilter = 'ALL';
-let renderedSignalIds = new Set();
-const MAX_VISIBLE_SIGNALS = 100;
-
 function initStrategySystem() {
     // Verify critical elements exist before initializing
-    const tbody = document.getElementById('signals-table-body');
+    const tbody = safeGetElement('signals-table-body', 'Init');
     if (!tbody) {
         console.error('Critical element missing: signals-table-body not found in DOM');
         return;
@@ -20,14 +44,14 @@ function initStrategySystem() {
     connectStrategySSE();
 }
 
+// ===== API FUNCTIONS =====
 async function fetchInitialSignals() {
-    const tbody = document.getElementById('signals-table-body');
-    const placeholder = document.getElementById('signals-placeholder');
-    const loading = document.getElementById('signals-loading');
+    const tbody = safeGetElement('signals-table-body', 'FetchSignals');
+    const placeholder = safeGetElement('signals-placeholder', 'FetchSignals');
+    const loading = safeGetElement('signals-loading', 'FetchSignals');
     
-    // Check if elements exist
+    // Check if tbody exists
     if (!tbody) {
-        console.error('signals-table-body element not found');
         return;
     }
     
@@ -35,7 +59,7 @@ async function fetchInitialSignals() {
     if (loading) loading.style.display = 'flex';
 
     try {
-        let url = '/api/strategies/signals?lookback=60';
+        let url = `/api/strategies/signals?lookback=${STRATEGY_CONFIG.LOOKBACK_MINUTES}`;
         if (activeStrategyFilter !== 'ALL') {
             url += `&strategy=${activeStrategyFilter}`;
         }
@@ -64,6 +88,7 @@ async function fetchInitialSignals() {
     }
 }
 
+// ===== UI SETUP FUNCTIONS =====
 function setupStrategyTabs() {
     const tabs = document.querySelectorAll('.strategy-tab');
     
@@ -79,7 +104,7 @@ function setupStrategyTabs() {
             activeStrategyFilter = tab.dataset.strategy;
             
             // Clear table and reconnect
-            const tbody = document.getElementById('signals-table-body');
+            const tbody = safeGetElement('signals-table-body', 'TabSwitch');
             if (tbody) {
                 tbody.innerHTML = '';
             }
@@ -92,13 +117,16 @@ function setupStrategyTabs() {
     });
 }
 
+// ===== SSE CONNECTION =====
 function connectStrategySSE() {
     if (strategyEventSource) {
         strategyEventSource.close();
     }
 
-    const statusEl = document.getElementById('strategy-connection-status');
-    const indicatorEl = document.getElementById('strategy-live-indicator');
+    const statusEl = safeGetElement('strategy-connection-status', 'SSE');
+    const indicatorEl = safeGetElement('strategy-live-indicator', 'SSE');
+    
+    if (!statusEl || !indicatorEl) return;
     
     statusEl.textContent = 'Connecting...';
     indicatorEl.style.backgroundColor = '#FFD700';
@@ -116,7 +144,7 @@ function connectStrategySSE() {
         indicatorEl.style.backgroundColor = '#0ECB81';
         indicatorEl.style.animation = 'none';
         
-        const placeholder = document.getElementById('signals-placeholder');
+        const placeholder = safeGetElement('signals-placeholder', 'SSE');
         if (placeholder) placeholder.style.display = 'none';
     });
 
@@ -136,13 +164,13 @@ function connectStrategySSE() {
     });
 }
 
+// ===== RENDERING FUNCTIONS =====
 function renderSignalRow(signal) {
-    const tbody = document.getElementById('signals-table-body');
-    const placeholder = document.getElementById('signals-placeholder');
+    const tbody = safeGetElement('signals-table-body', 'Render');
+    const placeholder = safeGetElement('signals-placeholder', 'Render');
     
     // Check if tbody exists
     if (!tbody) {
-        console.error('signals-table-body element not found');
         return;
     }
     
@@ -204,19 +232,20 @@ function renderSignalRow(signal) {
 
     // Trigger animation
     setTimeout(() => {
-        row.style.transition = 'all 0.3s ease';
+        row.style.transition = `all ${STRATEGY_CONFIG.TRANSITION_DURATION}ms ease`;
         row.style.opacity = '1';
         row.style.transform = 'translateY(0)';
-    }, 10);
+    }, STRATEGY_CONFIG.ANIMATION_DELAY);
 
     renderedSignalIds.add(signalId);
 
     // Limit number of rows
-    if (tbody.children.length > MAX_VISIBLE_SIGNALS) {
+    if (tbody.children.length > STRATEGY_CONFIG.MAX_VISIBLE_SIGNALS) {
         tbody.removeChild(tbody.lastChild);
     }
 }
 
+// ===== HELPER FUNCTIONS =====
 function formatStrategyName(strategy) {
     return strategy.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
 }

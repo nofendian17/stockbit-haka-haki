@@ -1,13 +1,26 @@
-const API_BASE = '/api';
+// ===== CONFIGURATION CONSTANTS =====
+const CONFIG = {
+  API_BASE: '/api',
+  PAGE_SIZE: 50,
+  MAX_ALERTS_CACHE: 200,
+  STATS_POLL_INTERVAL: 10000, // 10 seconds
+  SCROLL_THRESHOLD: 200, // pixels from bottom to trigger load
+  CURRENCY_BILLION_THRESHOLD: 1_000_000_000,
+  CURRENCY_MILLION_THRESHOLD: 1_000_000,
+  TIME_SECOND: 1000,
+  TIME_MINUTE: 60,
+  TIME_HOUR: 3600
+};
 
-// Formatters
+const API_BASE = CONFIG.API_BASE;
+// ===== FORMATTERS =====
 const formatCurrency = (val) => {
     // Compact format for large values (e.g. 1.5M, 2.3B)
-    if (val >= 1_000_000_000) {
-        return 'Rp ' + (val / 1_000_000_000).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' B';
+    if (val >= CONFIG.CURRENCY_BILLION_THRESHOLD) {
+        return 'Rp ' + (val / CONFIG.CURRENCY_BILLION_THRESHOLD).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' B';
     }
-    if (val >= 1_000_000) {
-        return 'Rp ' + (val / 1_000_000).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' M';
+    if (val >= CONFIG.CURRENCY_MILLION_THRESHOLD) {
+        return 'Rp ' + (val / CONFIG.CURRENCY_MILLION_THRESHOLD).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' M';
     }
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
 };
@@ -20,23 +33,22 @@ const formatTime = (isoString) => {
     const date = new Date(isoString);
     const now = new Date();
     const diffMs = now - date;
-    const diffSec = Math.floor(diffMs / 1000);
+    const diffSec = Math.floor(diffMs / CONFIG.TIME_SECOND);
     
-    if (diffSec < 60) return `${diffSec}s ago`;
-    if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
+    if (diffSec < CONFIG.TIME_MINUTE) return `${diffSec}s ago`;
+    if (diffSec < CONFIG.TIME_HOUR) return `${Math.floor(diffSec / CONFIG.TIME_MINUTE)}m ago`;
     
     return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 };
 
-// State
+// ===== STATE =====
 let alerts = [];
 let stats = {};
 let currentOffset = 0;
 let isLoading = false;
 let hasMore = true;
-const PAGE_SIZE = 50;
 
-// Fetch Data
+// ===== API FUNCTIONS =====
 async function fetchAlerts(reset = false) {
     if (isLoading) return;
     if (!reset && !hasMore) return;
@@ -47,7 +59,7 @@ async function fetchAlerts(reset = false) {
     
     try {
         const offset = reset ? 0 : currentOffset;
-        const res = await fetch(`${API_BASE}/whales?limit=${PAGE_SIZE}&offset=${offset}`);
+        const res = await fetch(`${API_BASE}/whales?limit=${CONFIG.PAGE_SIZE}&offset=${offset}`);
         const response = await res.json();
         
         // Handle new paginated response format
@@ -82,7 +94,7 @@ async function fetchStats() {
     }
 }
 
-// Rendering
+// ===== RENDERING FUNCTIONS =====
 function renderAlerts() {
     const tbody = document.getElementById('alerts-table-body');
     const loadingDiv = document.getElementById('loading');
@@ -185,9 +197,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const newAlert = msg.payload;
                 // Prepend new alert
                 alerts.unshift(newAlert);
-                // Keep limit at 200 for performance
-                if (alerts.length > 200) alerts.pop();
-                currentOffset = Math.min(currentOffset + 1, 200); // Update offset
+                // Keep limit for performance
+                if (alerts.length > CONFIG.MAX_ALERTS_CACHE) alerts.pop();
+                currentOffset = Math.min(currentOffset + 1, CONFIG.MAX_ALERTS_CACHE); // Update offset
                 
                 renderAlerts();
                 
@@ -205,7 +217,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // Keep stats polling for aggregated values that might change from other sources
-    setInterval(fetchStats, 10000); 
+    setInterval(fetchStats, CONFIG.STATS_POLL_INTERVAL); 
 
     document.getElementById('refresh-btn').addEventListener('click', () => {
         currentOffset = 0;
@@ -224,8 +236,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (tableContainer) {
         tableContainer.addEventListener('scroll', () => {
             const { scrollTop, scrollHeight, clientHeight } = tableContainer;
-            // Trigger load more when scroll within 200px of bottom
-            if (scrollHeight - scrollTop - clientHeight < 200 && hasMore && !isLoading) {
+            // Trigger load more when scroll within threshold of bottom
+            if (scrollHeight - scrollTop - clientHeight < CONFIG.SCROLL_THRESHOLD && hasMore && !isLoading) {
                 fetchAlerts(false); // false = append mode
             }
         });
@@ -235,7 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupPatternAnalysis();
 });
 
-// Pattern Analysis Setup
+// ===== PATTERN ANALYSIS =====
 let currentPatternType = 'accumulation';
 let streamEventSource = null;
 
