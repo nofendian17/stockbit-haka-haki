@@ -490,9 +490,14 @@ type AccumulationDistributionSummary struct {
 }
 
 // GetAccumulationDistributionSummary returns top 20 symbols with accumulation/distribution stats
-// Data is calculated from today's market open (09:00 WIB) to current time
+// Data is calculated from last 24 hours by default
 func (r *TradeRepository) GetAccumulationDistributionSummary(hoursBack int) ([]AccumulationDistributionSummary, error) {
 	var summaries []AccumulationDistributionSummary
+
+	// Default to 24 hours if not specified
+	if hoursBack <= 0 {
+		hoursBack = 24
+	}
 
 	query := `
 		WITH symbol_stats AS (
@@ -505,7 +510,7 @@ func (r *TradeRepository) GetAccumulationDistributionSummary(hoursBack int) ([]A
 				COUNT(*) as total_count,
 				SUM(trigger_value) as total_value
 			FROM whale_alerts
-			WHERE detected_at >= (CURRENT_DATE AT TIME ZONE 'Asia/Jakarta' + INTERVAL '9 hours') AT TIME ZONE 'Asia/Jakarta'
+			WHERE detected_at >= NOW() - INTERVAL '1 hour' * $1
 			GROUP BY stock_symbol
 		)
 		SELECT 
@@ -535,7 +540,7 @@ func (r *TradeRepository) GetAccumulationDistributionSummary(hoursBack int) ([]A
 		LIMIT 20
 	`
 
-	err := r.db.db.Raw(query).Scan(&summaries).Error
+	err := r.db.db.Raw(query, hoursBack).Scan(&summaries).Error
 	return summaries, err
 }
 
