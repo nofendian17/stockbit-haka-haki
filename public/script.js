@@ -47,8 +47,28 @@ let stats = {};
 let currentOffset = 0;
 let isLoading = false;
 let hasMore = true;
+let currentFilters = {
+    search: '',
+    action: 'ALL',
+    amount: 0,
+    board: 'ALL'
+};
 
 // ===== API FUNCTIONS =====
+function buildFilterQuery() {
+    const params = new URLSearchParams();
+    
+    // Only send filters that API supports (symbol and type/action)
+    if (currentFilters.search) {
+        params.append('symbol', currentFilters.search);
+    }
+    if (currentFilters.action !== 'ALL') {
+        params.append('type', currentFilters.action);
+    }
+    // Board and amount filtering done client-side (not supported by API)
+    
+    return params.toString();
+}
 async function fetchAlerts(reset = false) {
     if (isLoading) return;
     if (!reset && !hasMore) return;
@@ -59,7 +79,9 @@ async function fetchAlerts(reset = false) {
     
     try {
         const offset = reset ? 0 : currentOffset;
-        const res = await fetch(`${API_BASE}/whales?limit=${CONFIG.PAGE_SIZE}&offset=${offset}`);
+        const filterQuery = buildFilterQuery();
+        const url = `${API_BASE}/whales?limit=${CONFIG.PAGE_SIZE}&offset=${offset}${filterQuery ? '&' + filterQuery : ''}`;
+        const res = await fetch(url);
         const response = await res.json();
         
         // Handle new paginated response format
@@ -99,21 +121,18 @@ function renderAlerts() {
     const tbody = document.getElementById('alerts-table-body');
     const loadingDiv = document.getElementById('loading');
     
-    const filterAction = document.getElementById('filter-action').value;
+    // Client-side filters for board and amount (not supported by API)
     const filterAmount = parseFloat(document.getElementById('filter-amount').value);
     const filterBoard = document.getElementById('filter-board').value;
-    const searchText = document.getElementById('search').value.toUpperCase();
 
     // Reset
     tbody.innerHTML = '';
     
-    // Filtering
+    // Filter by board and amount (symbol and action handled server-side)
     const filtered = alerts.filter(a => {
-        const matchesAction = filterAction === 'ALL' || (a.Action && a.Action === filterAction);
-        const matchesSearch = (a.StockSymbol && a.StockSymbol.includes(searchText)) || false;
         const matchesAmount = (a.TriggerValue || 0) >= filterAmount;
         const matchesBoard = filterBoard === 'ALL' || (a.MarketBoard && a.MarketBoard === filterBoard);
-        return matchesAction && matchesSearch && matchesAmount && matchesBoard;
+        return matchesAmount && matchesBoard;
     });
 
     if (filtered.length === 0) {
@@ -220,16 +239,31 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(fetchStats, CONFIG.STATS_POLL_INTERVAL); 
 
     document.getElementById('refresh-btn').addEventListener('click', () => {
+        updateFilters();
         currentOffset = 0;
         hasMore = true;
-        fetchAlerts(true); // true = reset mode
+        fetchAlerts(true);
         fetchStats();
     });
 
-    document.getElementById('search').addEventListener('input', renderAlerts);
-    document.getElementById('filter-action').addEventListener('change', renderAlerts);
-    document.getElementById('filter-amount').addEventListener('change', renderAlerts);
-    document.getElementById('filter-board').addEventListener('change', renderAlerts);
+    // Update filters and refetch data from server
+    document.getElementById('search').addEventListener('input', () => {
+        updateFilters();
+        currentOffset = 0;
+        hasMore = true;
+        fetchAlerts(true);
+    });
+    
+    document.getElementById('filter-action').addEventListener('change', () => {
+        updateFilters();
+        currentOffset = 0;
+        hasMore = true;
+        fetchAlerts(true);
+    });
+    
+    document.getElementById('filter-amount').addEventListener('change', renderAlerts); // Client-side only
+    
+    document.getElementById('filter-board').addEventListener('change', renderAlerts); // Client-side only
 
     // Infinite scroll: detect when user scrolls near bottom
     const whaleTableContainer = document.querySelector('.whale-alerts-section .table-container');
@@ -425,4 +459,11 @@ function resetOutput() {
     
     statusBadge.textContent = 'Ready';
     statusBadge.className = 'status-badge';
+}
+
+function updateFilters() {
+    currentFilters.search = document.getElementById('search').value.toUpperCase();
+    currentFilters.action = document.getElementById('filter-action').value;
+    currentFilters.amount = parseFloat(document.getElementById('filter-amount').value);
+    currentFilters.board = document.getElementById('filter-board').value;
 }
