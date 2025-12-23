@@ -8,6 +8,13 @@ let renderedSignalIds = new Set();
 const MAX_VISIBLE_SIGNALS = 100;
 
 function initStrategySystem() {
+    // Verify critical elements exist before initializing
+    const tbody = document.getElementById('signals-table-body');
+    if (!tbody) {
+        console.error('Critical element missing: signals-table-body not found in DOM');
+        return;
+    }
+    
     setupStrategyTabs();
     fetchInitialSignals();
     connectStrategySSE();
