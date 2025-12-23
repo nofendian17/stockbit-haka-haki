@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="style.css?v=5" />
+    <link rel="stylesheet" href="style.css?v=7" />
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   </head>
   <body>
@@ -105,6 +105,42 @@
         </div>
       </div>
 
+      <!-- Enhanced Whale Alerts Table -->
+      <div class="whale-alerts-section">
+        <div class="section-header">
+          <div class="header-content">
+            <h2>
+              <span class="section-icon">🐋</span>
+              Whale Alerts Feed
+            </h2>
+            <p class="section-subtitle">Real-time large transaction monitoring</p>
+          </div>
+        </div>
+        
+        <div class="table-container">
+          <table>
+              <thead>
+                  <tr>
+                      <th><span class="th-icon">⏰</span> Time</th>
+                      <th><span class="th-icon">📈</span> Symbol</th>
+                      <th><span class="th-icon">⚡</span> Action</th>
+                      <th><span class="th-icon">💵</span> Price</th>
+                      <th class="text-right"><span class="th-icon">💰</span> Value</th>
+                      <th class="text-right"><span class="th-icon">📊</span> Volume</th>
+                      <th><span class="th-icon">ℹ️</span> Details</th>
+                  </tr>
+              </thead>
+              <tbody id="alerts-table-body">
+                  <!-- Rows injected here -->
+              </tbody>
+          </table>
+          <div id="loading" class="loading">
+            <div class="loading-spinner"></div>
+            <p>Loading whale activity...</p>
+          </div>
+        </div>
+      </div>
+
       <!-- Accumulation/Distribution Summary Section -->
       <div class="summary-section" id="accumulation-summary-section">
         <div class="section-header">
@@ -117,62 +153,65 @@
           </div>
         </div>
         
-        <!-- Top 20 Accumulation Table -->
-        <div class="summary-subsection">
-          <h3 class="subsection-title">
-            <span class="subsection-icon">📈</span>
-            Top 20 Akumulasi (BUY Dominan)
-            <span id="accumulation-count" class="count-badge">0</span>
-          </h3>
-          <div class="table-container">
-            <table id="accumulation-table">
-              <thead>
-                <tr>
-                  <th><span class="th-icon">📊</span> Symbol</th>
-                  <th class="text-right"><span class="th-icon">📈</span> BUY %</th>
-                  <th class="text-right"><span class="th-icon">📉</span> SELL %</th>
-                  <th class="text-right"><span class="th-icon">💰</span> Net Value</th>
-                  <th class="text-right"><span class="th-icon">🔔</span> Alerts</th>
-                  <th class="text-right"><span class="th-icon">💵</span> Total Value</th>
-                </tr>
-              </thead>
-              <tbody id="accumulation-table-body">
-                <!-- Rows will be injected here -->
-              </tbody>
-            </table>
-            <div id="accumulation-placeholder" class="placeholder" style="display: none;">
-              <span class="placeholder-icon">📈</span>
-              <p>Tidak ada data akumulasi</p>
+        <!-- 2 Column Grid Layout -->
+        <div class="summary-grid">
+          <!-- Top 20 Accumulation Table -->
+          <div class="summary-subsection">
+            <h3 class="subsection-title">
+              <span class="subsection-icon">📈</span>
+              Top 20 Akumulasi
+              <span id="accumulation-count" class="count-badge">0</span>
+            </h3>
+            <div class="table-container">
+              <table id="accumulation-table">
+                <thead>
+                  <tr>
+                    <th><span class="th-icon">📊</span> Symbol</th>
+                    <th class="text-right"><span class="th-icon">📈</span> BUY %</th>
+                    <th class="text-right"><span class="th-icon">📉</span> SELL %</th>
+                    <th class="text-right"><span class="th-icon">💰</span> Net Value</th>
+                    <th class="text-right"><span class="th-icon">🔔</span> Alerts</th>
+                    <th class="text-right"><span class="th-icon">💵</span> Total Value</th>
+                  </tr>
+                </thead>
+                <tbody id="accumulation-table-body">
+                  <!-- Rows will be injected here -->
+                </tbody>
+              </table>
+              <div id="accumulation-placeholder" class="placeholder" style="display: none;">
+                <span class="placeholder-icon">📈</span>
+                <p>Tidak ada data akumulasi</p>
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- Top 20 Distribution Table -->
-        <div class="summary-subsection">
-          <h3 class="subsection-title">
-            <span class="subsection-icon">📉</span>
-            Top 20 Distribusi (SELL Dominan)
-            <span id="distribution-count" class="count-badge">0</span>
-          </h3>
-          <div class="table-container">
-            <table id="distribution-table">
-              <thead>
-                <tr>
-                  <th><span class="th-icon">📊</span> Symbol</th>
-                  <th class="text-right"><span class="th-icon">📈</span> BUY %</th>
-                  <th class="text-right"><span class="th-icon">📉</span> SELL %</th>
-                  <th class="text-right"><span class="th-icon">💰</span> Net Value</th>
-                  <th class="text-right"><span class="th-icon">🔔</span> Alerts</th>
-                  <th class="text-right"><span class="th-icon">💵</span> Total Value</th>
-                </tr>
-              </thead>
-              <tbody id="distribution-table-body">
-                <!-- Rows will be injected here -->
-              </tbody>
-            </table>
-            <div id="distribution-placeholder" class="placeholder" style="display: none;">
-              <span class="placeholder-icon">📉</span>
-              <p>Tidak ada data distribusi</p>
+          <!-- Top 20 Distribution Table -->
+          <div class="summary-subsection">
+            <h3 class="subsection-title">
+              <span class="subsection-icon">📉</span>
+              Top 20 Distribusi
+              <span id="distribution-count" class="count-badge">0</span>
+            </h3>
+            <div class="table-container">
+              <table id="distribution-table">
+                <thead>
+                  <tr>
+                    <th><span class="th-icon">📊</span> Symbol</th>
+                    <th class="text-right"><span class="th-icon">📈</span> BUY %</th>
+                    <th class="text-right"><span class="th-icon">📉</span> SELL %</th>
+                    <th class="text-right"><span class="th-icon">💰</span> Net Value</th>
+                    <th class="text-right"><span class="th-icon">🔔</span> Alerts</th>
+                    <th class="text-right"><span class="th-icon">💵</span> Total Value</th>
+                  </tr>
+                </thead>
+                <tbody id="distribution-table-body">
+                  <!-- Rows will be injected here -->
+                </tbody>
+              </table>
+              <div id="distribution-placeholder" class="placeholder" style="display: none;">
+                <span class="placeholder-icon">📉</span>
+                <p>Tidak ada data distribusi</p>
+              </div>
             </div>
           </div>
         </div>
@@ -307,40 +346,6 @@
         </div>
       </div>
 
-      <!-- Enhanced Whale Alerts Table -->
-      <div class="whale-alerts-section">
-        <div class="section-header">
-          <div class="header-content">
-            <h2>
-              <span class="section-icon">🐋</span>
-              Whale Alerts Feed
-            </h2>
-            <p class="section-subtitle">Real-time large transaction monitoring</p>
-          </div>
-        </div>
-        
-        <div class="table-container">
-          <table>
-              <thead>
-                  <tr>
-                      <th><span class="th-icon">⏰</span> Time</th>
-                      <th><span class="th-icon">📈</span> Symbol</th>
-                      <th><span class="th-icon">⚡</span> Action</th>
-                      <th><span class="th-icon">💵</span> Price</th>
-                      <th class="text-right"><span class="th-icon">💰</span> Value</th>
-                      <th class="text-right"><span class="th-icon">📊</span> Volume</th>
-                      <th><span class="th-icon">ℹ️</span> Details</th>
-                  </tr>
-              </thead>
-              <tbody id="alerts-table-body">
-                  <!-- Rows injected here -->
-              </tbody>
-          </table>
-          <div id="loading" class="loading">
-            <div class="loading-spinner"></div>
-            <p>Loading whale activity...</p>
-          </div>
-        </div>
       </div>
     </main>
 
@@ -348,7 +353,7 @@
       <p>Stockbit Whale Analysis System &copy; 2025</p>
     </footer>
 
-    <script src="script.js?v=5"></script>
-    <script src="strategy.js?v=5"></script>
+    <script src="script.js?v=9"></script>
+    <script src="strategy.js?v=9"></script>
   </body>
 </html>
