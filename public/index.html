@@ -44,6 +44,7 @@
     <main>
       <!-- Enhanced Filter Controls -->
       <div class="controls-section">
+      <div class="controls-section">
         <div class="section-title-small">
           <span class="icon-accent">🔍</span>
           <h3>Filters & Search</h3>
@@ -137,6 +138,72 @@
           <div id="loading" class="loading">
             <div class="loading-spinner"></div>
             <p>Loading whale activity...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Enhanced Strategy Signals Section -->
+      <div class="strategy-signals-section" id="strategy-signals">
+        <div class="strategy-header">
+          <div class="header-content">
+            <h2>
+              <span class="section-icon">🎯</span>
+              Trading Strategies
+            </h2>
+            <p class="section-subtitle">AI-powered trading signals and pattern detection</p>
+          </div>
+          <div class="strategy-status">
+            <span id="strategy-live-indicator" class="dot"></span> 
+            <span id="strategy-connection-status">Connecting...</span>
+          </div>
+        </div>
+        
+        <div class="strategy-tabs">
+          <button class="strategy-tab active" data-strategy="ALL">
+            <span class="tab-icon">📋</span>
+            All Signals
+          </button>
+          <button class="strategy-tab" data-strategy="VOLUME_BREAKOUT">
+            <span class="tab-icon">🚀</span>
+            Volume Breakout
+          </button>
+          <button class="strategy-tab" data-strategy="MEAN_REVERSION">
+            <span class="tab-icon">↩️</span>
+            Mean Reversion
+          </button>
+          <button class="strategy-tab" data-strategy="FAKEOUT_FILTER">
+            <span class="tab-icon">🛡️</span>
+            Fakeout Filter
+          </button>
+        </div>
+        
+        <div class="strategy-content">
+          <div class="table-container">
+            <table id="signals-table">
+              <thead>
+                <tr>
+                  <th><span class="th-icon">⏰</span> Time</th>
+                  <th><span class="th-icon">📊</span> Symbol</th>
+                  <th><span class="th-icon">🎯</span> Strategy</th>
+                  <th><span class="th-icon">⚡</span> Action</th>
+                  <th><span class="th-icon">💵</span> Price</th>
+                  <th class="text-right"><span class="th-icon">📈</span> Change</th>
+                  <th class="text-right"><span class="th-icon">🎲</span> Confidence</th>
+                  <th><span class="th-icon">💡</span> Reason</th>
+                </tr>
+              </thead>
+              <tbody id="signals-table-body">
+                <!-- Rows will be injected here -->
+              </tbody>
+            </table>
+            <div id="signals-loading" class="loading" style="display: none;">
+              <div class="loading-spinner"></div>
+              <p>Loading signals...</p>
+            </div>
+            <div id="signals-placeholder" class="placeholder">
+              <span class="placeholder-icon">📡</span>
+              <p>Waiting for trading signals...</p>
+            </div>
           </div>
         </div>
       </div>
@@ -280,71 +347,6 @@
         </div>
       </div>
 
-      <!-- Enhanced Strategy Signals Section -->
-      <div class="strategy-signals-section" id="strategy-signals">
-        <div class="strategy-header">
-          <div class="header-content">
-            <h2>
-              <span class="section-icon">🎯</span>
-              Trading Strategies
-            </h2>
-            <p class="section-subtitle">AI-powered trading signals and pattern detection</p>
-          </div>
-          <div class="strategy-status">
-            <span id="strategy-live-indicator" class="dot"></span> 
-            <span id="strategy-connection-status">Connecting...</span>
-          </div>
-        </div>
-        
-        <div class="strategy-tabs">
-          <button class="strategy-tab active" data-strategy="ALL">
-            <span class="tab-icon">📋</span>
-            All Signals
-          </button>
-          <button class="strategy-tab" data-strategy="VOLUME_BREAKOUT">
-            <span class="tab-icon">🚀</span>
-            Volume Breakout
-          </button>
-          <button class="strategy-tab" data-strategy="MEAN_REVERSION">
-            <span class="tab-icon">↩️</span>
-            Mean Reversion
-          </button>
-          <button class="strategy-tab" data-strategy="FAKEOUT_FILTER">
-            <span class="tab-icon">🛡️</span>
-            Fakeout Filter
-          </button>
-        </div>
-        
-        <div class="strategy-content">
-          <div class="table-container">
-            <table id="signals-table">
-              <thead>
-                <tr>
-                  <th><span class="th-icon">⏰</span> Time</th>
-                  <th><span class="th-icon">📊</span> Symbol</th>
-                  <th><span class="th-icon">🎯</span> Strategy</th>
-                  <th><span class="th-icon">⚡</span> Action</th>
-                  <th><span class="th-icon">💵</span> Price</th>
-                  <th class="text-right"><span class="th-icon">📈</span> Change</th>
-                  <th class="text-right"><span class="th-icon">🎲</span> Confidence</th>
-                  <th><span class="th-icon">💡</span> Reason</th>
-                </tr>
-              </thead>
-              <tbody id="signals-table-body">
-                <!-- Rows will be injected here -->
-              </tbody>
-            </table>
-            <div id="signals-loading" class="loading" style="display: none;">
-              <div class="loading-spinner"></div>
-              <p>Loading signals...</p>
-            </div>
-            <div id="signals-placeholder" class="placeholder">
-              <span class="placeholder-icon">📡</span>
-              <p>Waiting for trading signals...</p>
-            </div>
-          </div>
-        </div>
-      </div>
 
       </div>
     </main>
@@ -353,7 +355,7 @@
       <p>Stockbit Whale Analysis System &copy; 2025</p>
     </footer>
 
-    <script src="script.js?v=9"></script>
-    <script src="strategy.js?v=9"></script>
+    <script src="script.js?v=10"></script>
+    <script src="strategy.js?v=10"></script>
   </body>
 </html>
