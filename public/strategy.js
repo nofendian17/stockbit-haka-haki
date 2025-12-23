@@ -1,170 +1,211 @@
-function renderSignalCardRefactored(signal) {
+document.addEventListener('DOMContentLoaded', () => {
+    initStrategySystem();
+});
+
+let strategyEventSource = null;
+let activeStrategyFilter = 'ALL';
+let renderedSignalIds = new Set();
+const MAX_VISIBLE_SIGNALS = 50;
+
+function initStrategySystem() {
+    setupStrategyTabs();
+    fetchInitialSignals();
+    connectStrategySSE();
+}
+
+async function fetchInitialSignals() {
+    const container = document.getElementById('signals-container');
+    if (!container.querySelector('.signal-card') && !container.querySelector('.placeholder')) {
+         container.innerHTML = `
+            <div class="placeholder">
+                <span class="placeholder-icon">⏳</span>
+                <p>Loading recent signals...</p>
+            </div>
+        `;
+    }
+
+    try {
+        let url = '/api/strategies/signals?lookback=60';
+        if (activeStrategyFilter !== 'ALL') {
+            url += `&strategy=${activeStrategyFilter}`;
+        }
+
+        const res = await fetch(url);
+        const data = await res.json();
+        
+        if (data.signals && data.signals.length > 0) {
+            const placeholder = container.querySelector('.placeholder');
+            if (placeholder) placeholder.remove();
+
+            const signals = data.signals.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+            signals.forEach(signal => {
+                renderSignalCard(signal);
+            });
+        } else {
+             if (!container.querySelector('.signal-card')) {
+                container.innerHTML = `
+                    <div class="placeholder">
+                        <span class="placeholder-icon">📡</span>
+                        <p>No recent signals found.</p>
+                    </div>
+                `;
+            }
+        }
+    } catch (err) {
+        console.error("Failed to fetch initial signals:", err);
+    }
+}
+
+function setupStrategyTabs() {
+    const tabs = document.querySelectorAll('.strategy-tab');
+    
+    const icons = {
+        'ALL': '📋',
+        'VOLUME_BREAKOUT': '🚀',
+        'MEAN_REVERSION': '↩️',
+        'FAKEOUT_FILTER': '🛡️'
+    };
+
+    tabs.forEach(tab => {
+        const strategy = tab.dataset.strategy;
+        if (!tab.innerHTML.includes('icon')) {
+            const icon = icons[strategy] || '📊';
+            const text = tab.innerText;
+            tab.innerHTML = `<span>${icon}</span> ${text}`;
+        }
+
+        tab.addEventListener('click', () => {
+            tabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            activeStrategyFilter = tab.dataset.strategy;
+            connectStrategySSE();
+            
+            const container = document.getElementById('signals-container');
+            container.style.opacity = '0.5';
+            setTimeout(() => {
+                container.innerHTML = `
+                    <div class="placeholder">
+                        <span class="placeholder-icon">📡</span>
+                        <p>Filtering signals...</p>
+                    </div>
+                `;
+                container.style.opacity = '1';
+                renderedSignalIds.clear();
+                fetchInitialSignals();
+            }, 200);
+        });
+    });
+}
+
+function connectStrategySSE() {
+    if (strategyEventSource) {
+        strategyEventSource.close();
+    }
+
+    const statusEl = document.getElementById('strategy-connection-status');
+    const indicatorEl = document.getElementById('strategy-live-indicator');
+    
+    statusEl.textContent = 'Connecting...';
+    indicatorEl.style.backgroundColor = '#FFD700';
+    indicatorEl.style.animation = 'pulse 2s infinite';
+
+    let url = '/api/strategies/signals/stream';
+    if (activeStrategyFilter !== 'ALL') {
+        url += `?strategy=${activeStrategyFilter}`;
+    }
+
+    strategyEventSource = new EventSource(url);
+
+    strategyEventSource.addEventListener('connected', (e) => {
+        statusEl.textContent = 'Live';
+        indicatorEl.style.backgroundColor = '#0ECB81';
+        indicatorEl.style.animation = 'none';
+        
+        const container = document.getElementById('signals-container');
+        if (container.querySelector('.placeholder')) {
+            container.innerHTML = '';
+        }
+    });
+
+    strategyEventSource.addEventListener('signal', (e) => {
+        try {
+            const signal = JSON.parse(e.data);
+            renderSignalCard(signal);
+        } catch (err) {
+            console.error('Error parsing signal:', err);
+        }
+    });
+
+    strategyEventSource.addEventListener('error', (e) => {
+        statusEl.textContent = 'Reconnecting';
+        indicatorEl.style.backgroundColor = '#F6465D';
+        indicatorEl.style.animation = 'pulse 1s infinite';
+    });
+}
+
+function renderSignalCard(signal) {
     const container = document.getElementById('signals-container');
     
     const signalId = `${signal.stock_symbol}-${signal.strategy}-${signal.timestamp}`;
     if (renderedSignalIds.has(signalId)) return;
 
-    // Determine colors and labels
+    // Determine colors
     let actionColor = '#707a8a';
-    let actionLabel = signal.decision;
-    let actionIcon = '⚪';
     let cardClass = '';
-    let badgeClass = '';
 
     if (signal.decision === 'BUY') {
         actionColor = '#0ECB81';
-        actionIcon = '🟢';
         cardClass = 'buy-signal';
-        badgeClass = 'buy-badge';
     } else if (signal.decision === 'SELL') {
         actionColor = '#F6465D';
-        actionIcon = '🔴';
         cardClass = 'sell-signal';
-        badgeClass = 'sell-badge';
     } else if (signal.decision === 'WAIT') {
         actionColor = '#FFD700';
-        actionIcon = '🟡';
         cardClass = 'wait-signal';
-        badgeClass = 'wait-badge';
     }
 
-    // Strategy icon mapping
-    const strategyIcons = {
-        'VOLUME_BREAKOUT': '🚀',
-        'MEAN_REVERSION': '↩️',
-        'FAKEOUT_FILTER': '🛡️'
-    };
-    const strategyIcon = strategyIcons[signal.strategy] || '📊';
-
-    // Format Data
-    const priceFormatted = new Intl.NumberFormat('id-ID').format(signal.price);
-    const changeFormatted = Math.abs(signal.change).toFixed(2);
-    const changeSign = signal.change >= 0 ? '+' : '-';
+    // Format data
+    const price = new Intl.NumberFormat('id-ID').format(signal.price);
+    const change = signal.change.toFixed(2);
+    const changeSign = signal.change >= 0 ? '+' : '';
     const changeColor = signal.change >= 0 ? '#0ECB81' : '#F6465D';
-    const changeIcon = signal.change >= 0 ? '📈' : '📉';
+    const confidence = Math.round(signal.confidence * 100);
     
-    // Confidence Calc
-    const confidencePercent = Math.round(signal.confidence * 100);
-    
-    // Confidence level text
-    let confidenceLevel = 'Low';
-    let confidenceLevelClass = 'conf-low';
-    if (confidencePercent >= 80) {
-        confidenceLevel = 'Very High';
-        confidenceLevelClass = 'conf-very-high';
-    } else if (confidencePercent >= 60) {
-        confidenceLevel = 'High';
-        confidenceLevelClass = 'conf-high';
-    } else if (confidencePercent >= 40) {
-        confidenceLevel = 'Medium';
-        confidenceLevelClass = 'conf-medium';
-    }
-
-    // SVG Circle params for confidence ring
-    const radius = 20;
-    const circumference = 2 * Math.PI * radius;
-    const offset = circumference - (signal.confidence * circumference);
-
-    // Simplified Reason (Extract key info)
-    let simpleReason = signal.reason;
-    // Highlight key terms with better formatting
-    simpleReason = simpleReason.replace(/(Z=[-]?\d+\.?\d*)/g, '<strong class="reason-highlight">$1</strong>');
-    simpleReason = simpleReason.replace(/(\d+\.?\d*%)/g, '<strong class="reason-highlight">$1</strong>');
-    simpleReason = simpleReason.replace(/(volume|price|breakout|support|resistance)/gi, '<em class="reason-keyword">$1</em>');
-
-    // Time Ago
+    // Time
     const timeAgo = getTimeAgo(new Date(signal.timestamp));
-    const timestamp = new Date(signal.timestamp).toLocaleString('id-ID', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        day: '2-digit',
-        month: 'short'
-    });
 
     const card = document.createElement('div');
     card.className = `signal-card ${cardClass}`;
     
     card.innerHTML = `
-        <div class="card-top-stripe"></div>
-        
-        <div class="card-header-enhanced">
-            <div class="symbol-section">
-                <div class="symbol-main">
-                    <span class="symbol-icon">📊</span>
-                    <h3 class="card-symbol">${signal.stock_symbol}</h3>
-                </div>
-                <div class="strategy-badge">
-                    <span class="strategy-icon">${strategyIcon}</span>
-                    <span class="strategy-name">${formatStrategyName(signal.strategy)}</span>
-                </div>
-            </div>
-            <div class="action-badge-enhanced ${badgeClass}">
-                <span class="action-icon">${actionIcon}</span>
-                <span class="action-text">${actionLabel}</span>
+        <div class="card-header">
+            <div class="card-symbol">${signal.stock_symbol}</div>
+            <div class="card-action" style="background: ${actionColor}20; color: ${actionColor}; border-color: ${actionColor}40">
+                ${signal.decision}
             </div>
         </div>
         
-        <div class="card-metrics">
-            <div class="metric-item price-metric">
-                <div class="metric-label">
-                    <span class="metric-icon">💵</span>
-                    <span>Price</span>
+        <div class="card-body">
+            <div class="card-info">
+                <div class="info-item">
+                    <span class="info-label">Price</span>
+                    <span class="info-value">Rp ${price}</span>
                 </div>
-                <div class="metric-value price-value">Rp ${priceFormatted}</div>
-            </div>
-            
-            <div class="metric-divider"></div>
-            
-            <div class="metric-item change-metric">
-                <div class="metric-label">
-                    <span class="metric-icon">${changeIcon}</span>
-                    <span>Change</span>
+                <div class="info-item">
+                    <span class="info-label">Change</span>
+                    <span class="info-value" style="color: ${changeColor}">${changeSign}${change}%</span>
                 </div>
-                <div class="metric-value change-value" style="color: ${changeColor}">
-                    ${changeSign}${changeFormatted}%
-                </div>
-            </div>
-            
-            <div class="metric-divider"></div>
-            
-            <div class="metric-item confidence-metric">
-                <div class="metric-label">
-                    <span class="metric-icon">🎯</span>
-                    <span>Confidence</span>
-                </div>
-                <div class="confidence-display">
-                    <svg width="50" height="50" class="confidence-ring">
-                        <circle class="conf-bg" stroke-width="4" fill="transparent" r="${radius}" cx="25" cy="25"></circle>
-                        <circle class="conf-fg" stroke="${actionColor}" stroke-width="4" fill="transparent" 
-                                r="${radius}" cx="25" cy="25" 
-                                style="stroke-dasharray: ${circumference}; stroke-dashoffset: ${offset}; transform: rotate(-90deg); transform-origin: center;">
-                        </circle>
-                        <text x="50%" y="50%" class="conf-percent" fill="${actionColor}" text-anchor="middle" dominant-baseline="middle">
-                            ${confidencePercent}%
-                        </text>
-                    </svg>
-                    <div class="confidence-label ${confidenceLevelClass}">${confidenceLevel}</div>
+                <div class="info-item">
+                    <span class="info-label">Confidence</span>
+                    <span class="info-value" style="color: ${actionColor}">${confidence}%</span>
                 </div>
             </div>
         </div>
 
-        <div class="card-reason">
-            <div class="reason-header">
-                <span class="reason-icon">💡</span>
-                <span class="reason-title">Analysis</span>
-            </div>
-            <div class="reason-content">
-                ${simpleReason}
-            </div>
-        </div>
-
-        <div class="card-footer-enhanced">
-            <div class="time-info">
-                <span class="time-icon">🕐</span>
-                <span class="time-relative">${timeAgo}</span>
-                <span class="time-separator">•</span>
-                <span class="time-absolute">${timestamp}</span>
-            </div>
+        <div class="card-footer">
+            <span class="card-strategy">${formatStrategyName(signal.strategy)}</span>
+            <span class="card-time">${timeAgo}</span>
         </div>
     `;
 
