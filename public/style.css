@@ -1250,132 +1250,113 @@ footer {
   opacity: 0.7;
 }
 
-/* ===== SIMPLE CARD STYLES ===== */
-
-.signal-card {
-  background: rgba(30, 34, 41, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
-  padding: 1.2rem;
-  transition: all 0.3s ease;
-  animation: slideIn 0.4s ease;
+/* Strategy Signals Table */
+#signals-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
 }
 
-.signal-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-}
-
-/* Card Header */
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-  padding-bottom: 0.8rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.card-symbol {
-  font-size: 1.6rem;
-  font-weight: 800;
-  color: var(--text-primary);
-  letter-spacing: 0.5px;
-}
-
-.card-action {
-  padding: 0.4rem 0.9rem;
-  border-radius: 6px;
-  font-size: 0.75rem;
-  font-weight: 700;
+#signals-table thead th {
+  background: #1e2229;
+  color: var(--text-secondary);
+  font-weight: 600;
   text-transform: uppercase;
+  font-size: 0.75rem;
   letter-spacing: 0.5px;
-  border: 1px solid;
+  padding: 1rem 1.5rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
-/* Card Body */
-.card-body {
-  margin-bottom: 1rem;
+#signals-table tbody tr {
+  border-bottom: 1px solid var(--border-color);
+  transition: background 0.1s;
 }
 
-.card-info {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
+#signals-table tbody tr:last-child {
+  border-bottom: none;
 }
 
-.info-item {
+#signals-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+#signals-table td {
+  padding: 1rem 1.5rem;
+  vertical-align: middle;
+}
+
+.reason-cell {
+  max-width: 400px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+#signals-loading {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+}
+
+#signals-placeholder {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
-}
-
-.info-label {
-  font-size: 0.7rem;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  font-weight: 600;
-}
-
-.info-value {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  font-family: monospace;
-}
-
-/* Card Footer */
-.card-footer {
-  display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding-top: 0.8rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  justify-content: center;
+  padding: 3rem;
 }
 
-.card-strategy {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  font-weight: 600;
-}
-
-.card-time {
-  font-size: 0.7rem;
-  color: var(--text-secondary);
-  opacity: 0.7;
-}
-
-/* Mobile Responsive */
+/* Mobile responsive for signals table */
 @media (max-width: 768px) {
-  .card-info {
-    grid-template-columns: 1fr;
-    gap: 0.8rem;
+  #signals-table thead {
+    display: none;
   }
-  
-  .info-item {
-    flex-direction: row;
+
+  #signals-table,
+  #signals-table tbody,
+  #signals-table tr {
+    display: block;
+  }
+
+  #signals-table tr {
+    margin-bottom: 1rem;
+    background: #1E2229;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0.5rem;
+  }
+
+  #signals-table td {
+    display: flex;
     justify-content: space-between;
     align-items: center;
+    padding: 0.5rem 1rem !important;
+    text-align: right !important;
+    border: none;
   }
-}
 
-@media (max-width: 480px) {
-  .signal-card {
-    padding: 1rem;
+  #signals-table td:before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    text-align: left;
   }
-  
-  .card-symbol {
-    font-size: 1.4rem;
-  }
-  
-  .card-footer {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.5rem;
+
+  .reason-cell {
+    max-width: 100%;
+    white-space: normal;
   }
 }
 

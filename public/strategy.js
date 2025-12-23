@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
 let strategyEventSource = null;
 let activeStrategyFilter = 'ALL';
 let renderedSignalIds = new Set();
-const MAX_VISIBLE_SIGNALS = 50;
+const MAX_VISIBLE_SIGNALS = 100;
 
 function initStrategySystem() {
     setupStrategyTabs();
@@ -14,15 +14,12 @@ function initStrategySystem() {
 }
 
 async function fetchInitialSignals() {
-    const container = document.getElementById('signals-container');
-    if (!container.querySelector('.signal-card') && !container.querySelector('.placeholder')) {
-         container.innerHTML = `
-            <div class="placeholder">
-                <span class="placeholder-icon">⏳</span>
-                <p>Loading recent signals...</p>
-            </div>
-        `;
-    }
+    const tbody = document.getElementById('signals-table-body');
+    const placeholder = document.getElementById('signals-placeholder');
+    const loading = document.getElementById('signals-loading');
+    
+    if (placeholder) placeholder.style.display = 'none';
+    if (loading) loading.style.display = 'flex';
 
     try {
         let url = '/api/strategies/signals?lookback=60';
@@ -33,27 +30,24 @@ async function fetchInitialSignals() {
         const res = await fetch(url);
         const data = await res.json();
         
+        if (loading) loading.style.display = 'none';
+        
         if (data.signals && data.signals.length > 0) {
-            const placeholder = container.querySelector('.placeholder');
-            if (placeholder) placeholder.remove();
-
-            const signals = data.signals.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            // Sort by timestamp descending (newest first)
+            const signals = data.signals.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
             signals.forEach(signal => {
-                renderSignalCard(signal);
+                renderSignalRow(signal);
             });
         } else {
-             if (!container.querySelector('.signal-card')) {
-                container.innerHTML = `
-                    <div class="placeholder">
-                        <span class="placeholder-icon">📡</span>
-                        <p>No recent signals found.</p>
-                    </div>
-                `;
+            if (placeholder && tbody.children.length === 0) {
+                placeholder.style.display = 'flex';
             }
         }
     } catch (err) {
         console.error("Failed to fetch initial signals:", err);
+        if (loading) loading.style.display = 'none';
+        if (placeholder) placeholder.style.display = 'flex';
     }
 }
 
@@ -79,21 +73,14 @@ function setupStrategyTabs() {
             tabs.forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
             activeStrategyFilter = tab.dataset.strategy;
-            connectStrategySSE();
             
-            const container = document.getElementById('signals-container');
-            container.style.opacity = '0.5';
-            setTimeout(() => {
-                container.innerHTML = `
-                    <div class="placeholder">
-                        <span class="placeholder-icon">📡</span>
-                        <p>Filtering signals...</p>
-                    </div>
-                `;
-                container.style.opacity = '1';
-                renderedSignalIds.clear();
-                fetchInitialSignals();
-            }, 200);
+            // Clear and reconnect
+            const tbody = document.getElementById('signals-table-body');
+            tbody.innerHTML = '';
+            renderedSignalIds.clear();
+            
+            connectStrategySSE();
+            fetchInitialSignals();
         });
     });
 }
@@ -122,16 +109,14 @@ function connectStrategySSE() {
         indicatorEl.style.backgroundColor = '#0ECB81';
         indicatorEl.style.animation = 'none';
         
-        const container = document.getElementById('signals-container');
-        if (container.querySelector('.placeholder')) {
-            container.innerHTML = '';
-        }
+        const placeholder = document.getElementById('signals-placeholder');
+        if (placeholder) placeholder.style.display = 'none';
     });
 
     strategyEventSource.addEventListener('signal', (e) => {
         try {
             const signal = JSON.parse(e.data);
-            renderSignalCard(signal);
+            renderSignalRow(signal);
         } catch (err) {
             console.error('Error parsing signal:', err);
         }
@@ -144,94 +129,86 @@ function connectStrategySSE() {
     });
 }
 
-function renderSignalCard(signal) {
-    const container = document.getElementById('signals-container');
+function renderSignalRow(signal) {
+    const tbody = document.getElementById('signals-table-body');
+    const placeholder = document.getElementById('signals-placeholder');
     
     const signalId = `${signal.stock_symbol}-${signal.strategy}-${signal.timestamp}`;
     if (renderedSignalIds.has(signalId)) return;
 
-    // Determine colors
-    let actionColor = '#707a8a';
-    let cardClass = '';
+    // Hide placeholder if visible
+    if (placeholder) placeholder.style.display = 'none';
 
+    // Determine colors and classes
+    let badgeClass = 'badge';
     if (signal.decision === 'BUY') {
-        actionColor = '#0ECB81';
-        cardClass = 'buy-signal';
+        badgeClass = 'badge buy';
     } else if (signal.decision === 'SELL') {
-        actionColor = '#F6465D';
-        cardClass = 'sell-signal';
+        badgeClass = 'badge sell';
     } else if (signal.decision === 'WAIT') {
-        actionColor = '#FFD700';
-        cardClass = 'wait-signal';
+        badgeClass = 'badge unknown';
     }
 
     // Format data
     const price = new Intl.NumberFormat('id-ID').format(signal.price);
     const change = signal.change.toFixed(2);
     const changeSign = signal.change >= 0 ? '+' : '';
-    const changeColor = signal.change >= 0 ? '#0ECB81' : '#F6465D';
+    const changeClass = signal.change >= 0 ? 'diff-positive' : 'diff-negative';
     const confidence = Math.round(signal.confidence * 100);
     
-    // Time
-    const timeAgo = getTimeAgo(new Date(signal.timestamp));
-
-    const card = document.createElement('div');
-    card.className = `signal-card ${cardClass}`;
+    // Confidence level
+    let confidenceClass = '';
+    if (confidence >= 80) {
+        confidenceClass = 'value-highlight';
+    }
     
-    card.innerHTML = `
-        <div class="card-header">
-            <div class="card-symbol">${signal.stock_symbol}</div>
-            <div class="card-action" style="background: ${actionColor}20; color: ${actionColor}; border-color: ${actionColor}40">
-                ${signal.decision}
-            </div>
-        </div>
-        
-        <div class="card-body">
-            <div class="card-info">
-                <div class="info-item">
-                    <span class="info-label">Price</span>
-                    <span class="info-value">Rp ${price}</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Change</span>
-                    <span class="info-value" style="color: ${changeColor}">${changeSign}${change}%</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Confidence</span>
-                    <span class="info-value" style="color: ${actionColor}">${confidence}%</span>
-                </div>
-            </div>
-        </div>
+    // Time formatting
+    const timestamp = new Date(signal.timestamp);
+    const timeStr = timestamp.toLocaleTimeString('id-ID', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        second: '2-digit'
+    });
 
-        <div class="card-footer">
-            <span class="card-strategy">${formatStrategyName(signal.strategy)}</span>
-            <span class="card-time">${timeAgo}</span>
-        </div>
+    // Create row
+    const row = document.createElement('tr');
+    row.innerHTML = `
+        <td class="col-time">${timeStr}</td>
+        <td class="col-symbol">${signal.stock_symbol}</td>
+        <td>${formatStrategyName(signal.strategy)}</td>
+        <td><span class="${badgeClass}">${signal.decision}</span></td>
+        <td class="col-price">Rp ${price}</td>
+        <td class="text-right"><span class="${changeClass}">${changeSign}${change}%</span></td>
+        <td class="text-right ${confidenceClass}">${confidence}%</td>
+        <td class="reason-cell">${signal.reason || '-'}</td>
     `;
 
-    if (container.firstChild) {
-        container.insertBefore(card, container.firstChild);
+    // Add animation
+    row.style.opacity = '0';
+    row.style.transform = 'translateY(-10px)';
+    
+    // Insert at the beginning (newest first)
+    if (tbody.firstChild) {
+        tbody.insertBefore(row, tbody.firstChild);
     } else {
-        container.appendChild(card);
+        tbody.appendChild(row);
     }
+
+    // Trigger animation
+    setTimeout(() => {
+        row.style.transition = 'all 0.3s ease';
+        row.style.opacity = '1';
+        row.style.transform = 'translateY(0)';
+    }, 10);
 
     renderedSignalIds.add(signalId);
 
-    if (container.children.length > MAX_VISIBLE_SIGNALS) {
-        if (container.lastChild) container.removeChild(container.lastChild);
+    // Limit number of rows
+    if (tbody.children.length > MAX_VISIBLE_SIGNALS) {
+        tbody.removeChild(tbody.lastChild);
     }
 }
 
 function formatStrategyName(strategy) {
     return strategy.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
-}
-
-function getTimeAgo(date) {
-    const seconds = Math.floor((new Date() - date) / 1000);
-    if (seconds < 60) return 'Just now';
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-    return date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
 }

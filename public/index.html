@@ -196,13 +196,31 @@
         </div>
         
         <div class="strategy-content">
-          <div id="signals-container" class="signals-container">
-            <div class="placeholder enhanced-placeholder">
-              <div class="placeholder-animation">
-                <span class="placeholder-icon">📡</span>
-              </div>
-              <h4>Waiting for Trading Signals</h4>
-              <p>Real-time strategy signals will appear here when detected</p>
+          <div class="table-container">
+            <table id="signals-table">
+              <thead>
+                <tr>
+                  <th><span class="th-icon">⏰</span> Time</th>
+                  <th><span class="th-icon">📊</span> Symbol</th>
+                  <th><span class="th-icon">🎯</span> Strategy</th>
+                  <th><span class="th-icon">⚡</span> Action</th>
+                  <th><span class="th-icon">💵</span> Price</th>
+                  <th class="text-right"><span class="th-icon">📈</span> Change</th>
+                  <th class="text-right"><span class="th-icon">🎲</span> Confidence</th>
+                  <th><span class="th-icon">💡</span> Reason</th>
+                </tr>
+              </thead>
+              <tbody id="signals-table-body">
+                <!-- Rows will be injected here -->
+              </tbody>
+            </table>
+            <div id="signals-loading" class="loading" style="display: none;">
+              <div class="loading-spinner"></div>
+              <p>Loading signals...</p>
+            </div>
+            <div id="signals-placeholder" class="placeholder">
+              <span class="placeholder-icon">📡</span>
+              <p>Waiting for trading signals...</p>
             </div>
           </div>
         </div>
