@@ -505,8 +505,7 @@ func (r *TradeRepository) GetAccumulationDistributionSummary(hoursBack int) ([]A
 				COUNT(*) as total_count,
 				SUM(trigger_value) as total_value
 			FROM whale_alerts
-			WHERE detected_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'Asia/Jakarta') + INTERVAL '9 hours'
-			  AND detected_at < DATE_TRUNC('day', NOW() AT TIME ZONE 'Asia/Jakarta') + INTERVAL '1 day' + INTERVAL '9 hours'
+			WHERE detected_at >= (CURRENT_DATE AT TIME ZONE 'Asia/Jakarta' + INTERVAL '9 hours') AT TIME ZONE 'Asia/Jakarta'
 			GROUP BY stock_symbol
 		)
 		SELECT 
