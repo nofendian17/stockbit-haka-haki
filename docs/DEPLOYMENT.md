@@ -114,7 +114,7 @@ nano .env
 
 ```ini
 # Stockbit Credentials
-STOCKBIT_PLAYER_ID=your_production_player_id
+STOCKBIT_PLAYER_ID=your_production_player_id  # Required: ambil dari cookie browser
 STOCKBIT_USERNAME=your_production_email
 STOCKBIT_PASSWORD=your_secure_password
 
@@ -426,6 +426,7 @@ sudo systemctl status stockbit-analysis
 
 **Required:**
 
+- `STOCKBIT_PLAYER_ID`
 - `STOCKBIT_USERNAME`
 - `STOCKBIT_PASSWORD`
 - `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`

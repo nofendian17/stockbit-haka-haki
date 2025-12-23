@@ -192,6 +192,42 @@ When a whale is detected, your webhook URL will receive a `POST` request with th
 }
 ```
 
+#### 5. SSE Real-time Events
+
+Subscribe ke whale alerts real-time.
+
+**Endpoint:** `GET /api/events`
+
+**Response:** Server-Sent Events stream dengan whale alerts real-time
+
+#### 6. Trading Strategy Signals
+
+Mendapatkan sinyal strategi trading (VOLUME_BREAKOUT, MEAN_REVERSION, FAKEOUT_FILTER).
+
+**REST Endpoint:** `GET /api/strategies/signals`
+
+**SSE Streaming:** `GET /api/strategies/signals/stream`
+
+**Query Parameters:**
+| Parameter | Type | Description | Default |  
+| :--- | :--- | :--- | :--- |
+| `lookback` | int | Lookback period (menit) | 60 |
+| `min_confidence` | float | Minimum confidence (0.0-1.0) | 0.3 |
+| `strategy` | string | Filter by strategy type | ALL |
+
+#### 7. Accumulation/Distribution Summary
+
+Top 20 saham dengan akumulasi (BUY) dan distribusi (SELL) terbanyak.
+
+**Endpoint:** `GET /api/accumulation-summary`
+
+**Query Parameters:**
+| Parameter | Type | Description | Default |
+| :--- | :--- | :--- | :--- |
+| `hours` | int | Hours lookback | 24 |
+
+**Response:** Dua list terpisah (accumulation & distribution) dengan statistik whale activity
+
 ### 🤖 LLM Pattern Analysis Endpoints
 
 > **Note:** LLM endpoints require `LLM_ENABLED=true` in `.env` configuration
@@ -200,7 +236,7 @@ When a whale is detected, your webhook URL will receive a `POST` request with th
 
 Detect continuous buy/sell accumulation or distribution patterns.
 
-**Endpoint:** `GET /api/llm/accumulation`
+**Endpoint:** `GET /api/patterns/accumulation`
 
 **Query Parameters:**
 | Parameter | Type | Description | Default |
@@ -212,7 +248,7 @@ Detect continuous buy/sell accumulation or distribution patterns.
 
 Real-time streaming analysis of accumulation patterns.
 
-**Endpoint:** `GET /api/llm/accumulation/stream`
+**Endpoint:** `GET /api/patterns/accumulation/stream`
 
 **Query Parameters:** Same as non-streaming version
 
@@ -221,7 +257,9 @@ Real-time streaming analysis of accumulation patterns.
 **Example Client (JavaScript):**
 
 ```javascript
-const eventSource = new EventSource("/api/llm/accumulation/stream?hours=24");
+const eventSource = new EventSource(
+  "/api/patterns/accumulation/stream?hours=24"
+);
 eventSource.onmessage = (event) => {
   console.log("Chunk:", event.data);
 };
@@ -231,19 +269,19 @@ eventSource.onmessage = (event) => {
 
 Identify extreme trading anomalies (Z-Score >= 4.0).
 
-**Endpoint:** `GET /api/llm/anomalies`
+**Endpoint:** `GET /api/patterns/anomalies`
 
 **Query Parameters:**
 | Parameter | Type | Description | Default |
 | :--- | :--- | :--- | :--- |
 | `hours` | int | Hours to look back | 24 |
-| `min_zscore` | float | Minimum Z-Score threshold | 4.0 |
+| `min_zscore` | float | Minimum Z-Score threshold | 5.0 |
 
 #### 9. Extreme Anomalies Stream (SSE)
 
 Real-time streaming analysis of extreme anomalies.
 
-**Endpoint:** `GET /api/llm/anomalies/stream`
+**Endpoint:** `GET /api/patterns/anomalies/stream`
 
 **Query Parameters:** Same as non-streaming version
 
@@ -251,7 +289,7 @@ Real-time streaming analysis of extreme anomalies.
 
 Analyze whale activity patterns by time of day.
 
-**Endpoint:** `GET /api/llm/time-stats`
+**Endpoint:** `GET /api/patterns/timing`
 
 **Query Parameters:**
 | Parameter | Type | Description | Default |
@@ -262,7 +300,7 @@ Analyze whale activity patterns by time of day.
 
 Real-time streaming time-based analysis.
 
-**Endpoint:** `GET /api/llm/time-stats/stream`
+**Endpoint:** `GET /api/patterns/timing/stream`
 
 **Query Parameters:** Same as non-streaming version
 
@@ -270,7 +308,7 @@ Real-time streaming time-based analysis.
 
 Deep analysis for a specific stock symbol.
 
-**Endpoint:** `GET /api/llm/symbol/stream`
+**Endpoint:** `GET /api/patterns/symbol/stream`
 
 **Query Parameters:**
 | Parameter | Type | Description | Required |
@@ -431,7 +469,7 @@ Currently, all alerts have a **Confidence Score of 100%** as the statistical mod
 
     ```ini
     # Stockbit Credentials
-    STOCKBIT_PLAYER_ID=your_id      # Opsional, bisa dikosongkan
+    STOCKBIT_PLAYER_ID=your_id      # Required
     STOCKBIT_USERNAME=your_email    # Required
     STOCKBIT_PASSWORD=your_password # Required
 
@@ -552,7 +590,7 @@ stockbit-analysis/
 | -------------------- | ------------------------------------ | ----------------------------------- | --------------- |
 | `STOCKBIT_USERNAME`  | Your Stockbit email/username         | -                                   | ✅              |
 | `STOCKBIT_PASSWORD`  | Your Stockbit password               | -                                   | ✅              |
-| `STOCKBIT_PLAYER_ID` | Your Stockbit player ID              | -                                   | ❌              |
+| `STOCKBIT_PLAYER_ID` | Your Stockbit player ID              | -                                   | ✅              |
 | `TRADING_WS_URL`     | Stockbit Trading WebSocket URL       | `wss://wss-trading.stockbit.com/ws` | ✅              |
 | `DB_HOST`            | Database hostname                    | `timescaledb`                       | ✅              |
 | `DB_PORT`            | Database port                        | `5432`                              | ✅              |

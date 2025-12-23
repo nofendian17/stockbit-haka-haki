@@ -257,9 +257,9 @@ For technical issues:
 
 | Document         | Version | Last Updated | Status     |
 | ---------------- | ------- | ------------ | ---------- |
-| README.md        | 2.0     | 2024-12-22   | ✅ Current |
-| ARCHITECTURE.md  | 1.0     | 2024-12-22   | ✅ Current |
-| API.md           | 1.0     | 2024-12-22   | ✅ Current |
+| README.md        | 2.1     | 2025-12-23   | ✅ Current |
+| ARCHITECTURE.md  | 1.1     | 2025-12-23   | ✅ Current |
+| API.md           | 2.0     | 2025-12-23   | ✅ Current |
 | DEPLOYMENT.md    | 1.0     | 2024-12-22   | ✅ Current |
 | DOCUMENTATION.md | 1.0     | 2024-12-22   | ✅ Current |
 
@@ -348,4 +348,4 @@ Help us improve this documentation!
 **Happy coding! 🚀**
 
 _Documentation maintained by the Stockbit Analysis Team_  
-_Last reviewed: 2025-12-22_
+_Last reviewed: 2025-12-23_

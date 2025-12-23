@@ -222,10 +222,10 @@ type WhaleWebhook struct {
 
 **SSE Streaming API:**
 
-- `GET /api/llm/accumulation/stream`: Stream accumulation analysis
-- `GET /api/llm/anomalies/stream`: Stream anomaly analysis
-- `GET /api/llm/time-stats/stream`: Stream time-based analysis
-- `GET /api/llm/symbol/stream`: Stream symbol-specific analysis
+- `GET /api/patterns/accumulation/stream`: Stream accumulation analysis
+- `GET /api/patterns/anomalies/stream`: Stream anomaly analysis
+- `GET /api/patterns/timing/stream`: Stream time-based analysis
+- `GET /api/patterns/symbol/stream`: Stream symbol-specific analysis
 
 **SSE Implementation:**
 
@@ -391,7 +391,7 @@ session:{user_id} → Session data
 - connectSSE(): SSE connection management
 
 // SSE implementation
-const eventSource = new EventSource('/api/llm/.../stream');
+const eventSource = new EventSource('/api/patterns/.../stream');
 eventSource.onmessage = (event) => {
     // Append streaming chunks ke output
     outputElement.innerHTML += event.data;
@@ -432,7 +432,7 @@ eventSource.onmessage = (event) => {
 ### Alur Streaming SSE
 
 ```
-1. Client → GET /api/llm/.../stream
+1. Client → GET /api/patterns/.../stream
 2. Server → Set SSE headers
 3. Repository → Query historical data
 4. LLM Client → Send streaming request
@@ -641,4 +641,4 @@ Currently fixed at 100% for all detected whales. Future: Graduated scoring based
 
 ---
 
-**Terakhir Diperbarui:** 2025-12-22
+**Terakhir Diperbarui:** 2025-12-23

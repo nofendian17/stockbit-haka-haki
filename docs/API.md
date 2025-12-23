@@ -341,7 +341,247 @@ When a whale is detected, all active webhooks receive this JSON payload:
 
 ---
 
-## LLM Pattern Analysis API
+### 6. Real-time Events Stream (SSE)
+
+Subscribe ke whale alerts real-time menggunakan Server-Sent Events.
+
+**Endpoint:**
+
+```
+GET /api/events
+```
+
+**Response:** Server-Sent Events stream dengan whale alerts real-time
+
+**JavaScript Example:**
+
+```javascript
+const eventSource = new EventSource("/api/events");
+
+eventSource.onmessage = function (event) {
+  const whaleAlert = JSON.parse(event.data);
+  console.log("New whale alert:", whaleAlert);
+
+  // Update UI with new alert
+  addWhaleAlertToTable(whaleAlert);
+};
+
+eventSource.onerror = function (error) {
+  console.error("SSE error:", error);
+  // Reconnect logic
+};
+```
+
+**Event Data Format:**
+
+```json
+{
+  "ID": 12345,
+  "DetectedAt": "2024-12-23T14:29:28+07:00",
+  "StockSymbol": "BBCA",
+  "AlertType": "SINGLE_TRADE",
+  "Action": "BUY",
+  "TriggerPrice": 9850,
+  "TriggerVolumeLots": 50000,
+  "TriggerValue": 492500000000,
+  "ZScore": 4.52,
+  "VolumeVsAvgPct": 850.5,
+  "MarketBoard": "RG"
+}
+```
+
+---
+
+### 7. Trading Strategy Signals
+
+Mendapatkan sinyal strategi trading berdasarkan pattern detection dan analisis volume.
+
+#### 7.1 Get Strategy Signals (REST)
+
+**Endpoint:**
+
+```
+GET /api/strategies/signals
+```
+
+**Query Parameters:**
+
+| Parameter        | Tipe    | Default | Deskripsi                                                                     |
+| ---------------- | ------- | ------- | ----------------------------------------------------------------------------- |
+| `lookback`       | integer | 60      | Lookback period dalam menit                                                   |
+| `min_confidence` | float   | 0.3     | Minimum confidence score (0.0 - 1.0)                                          |
+| `strategy`       | string  | Semua   | Filter by strategy: VOLUME_BREAKOUT, MEAN_REVERSION, FAKEOUT_FILTER, atau ALL |
+
+**Response:**
+
+```json
+{
+  "signals": [
+    {
+      "Timestamp": "2024-12-23T14:30:00+07:00",
+      "StockSymbol": "BBCA",
+      "Strategy": "VOLUME_BREAKOUT",
+      "Decision": "BUY",
+      "Confidence": 0.85,
+      "Price": 9850,
+      "Volume": 125000,
+      "Reasoning": "Volume spike 850% above average with strong buying pressure"
+    }
+  ],
+  "count": 1
+}
+```
+
+**cURL Example:**
+
+```bash
+# Get all strategy signals from last hour
+curl "http://localhost:8080/api/strategies/signals?lookback=60"
+
+# Get only high-confidence VOLUME_BREAKOUT signals
+curl "http://localhost:8080/api/strategies/signals?strategy=VOLUME_BREAKOUT&min_confidence=0.7"
+```
+
+#### 7.2 Stream Strategy Signals (SSE)
+
+Stream sinyal strategi secara real-time.
+
+**Endpoint:**
+
+```
+GET /api/strategies/signals/stream
+```
+
+**Query Parameters:**
+
+| Parameter  | Tipe   | Deskripsi                          |
+| ---------- | ------ | ---------------------------------- |
+| `strategy` | string | Filter by strategy type (opsional) |
+
+**Response:** Server-Sent Events stream
+
+**JavaScript Example:**
+
+```javascript
+const eventSource = new EventSource(
+  "/api/strategies/signals/stream?strategy=VOLUME_BREAKOUT"
+);
+
+// Connection established
+eventSource.addEventListener("connected", (event) => {
+  console.log("Connected to strategy signals stream");
+});
+
+// New strategy signal
+eventSource.addEventListener("signal", (event) => {
+  const signal = JSON.parse(event.data);
+  console.log("New strategy signal:", signal);
+  displaySignal(signal);
+});
+
+eventSource.onerror = (error) => {
+  console.error("Stream error:", error);
+  eventSource.close();
+};
+```
+
+**Event Types:**
+
+- `connected`: Koneksi berhasil established
+- `signal`: Sinyal strategi baru terdeteksi
+
+**Signal Event Data:**
+
+```json
+{
+  "Timestamp": "2024-12-23T14:30:00+07:00",
+  "StockSymbol": "BBCA",
+  "Strategy": "VOLUME_BREAKOUT",
+  "Decision": "BUY",
+  "Confidence": 0.85,
+  "Price": 9850,
+  "Volume": 125000,
+  "Reasoning": "Strong volume breakout with institutional buying pressure"
+}
+```
+
+---
+
+### 8. Accumulation/Distribution Summary
+
+Mendapatkan ringkasan terpisah untuk top stocks dengan akumulasi (buying) dan distribusi (selling) terbanyak.
+
+**Endpoint:**
+
+```
+GET /api/accumulation-summary
+```
+
+**Query Parameters:**
+
+| Parameter | Tipe    | Default | Deskripsi          |
+| --------- | ------- | ------- | ------------------ |
+| `hours`   | integer | 24      | Hours to look back |
+
+**Response:**
+
+```json
+{
+  "accumulation": [
+    {
+      "StockSymbol": "BBCA",
+      "TotalAlerts": 25,
+      "TotalValue": 1250000000000,
+      "AvgZScore": 4.2,
+      "FirstAlert": "2024-12-22T09:00:00+07:00",
+      "LastAlert": "2024-12-23T15:30:00+07:00"
+    }
+  ],
+  "distribution": [
+    {
+      "StockSymbol": "TLKM",
+      "TotalAlerts": 18,
+      "TotalValue": 850000000000,
+      "AvgZScore": 3.8,
+      "FirstAlert": "2024-12-22T10:00:00+07:00",
+      "LastAlert": "2024-12-23T14:00:00+07:00"
+    }
+  ],
+  "accumulation_count": 20,
+  "distribution_count": 20,
+  "hours_back": 24
+}
+```
+
+**Field Descriptions:**
+
+- `accumulation`: Top 20 saham dengan aktivitas whale BUY terbanyak
+- `distribution`: Top 20 saham dengan aktivitas whale SELL terbanyak
+- `TotalAlerts`: Jumlah whale alerts untuk saham tersebut
+- `TotalValue`: Total nilai transaksi whale (IDR)
+- `AvgZScore`: Rata-rata Z-Score dari semua alerts
+- `FirstAlert` / `LastAlert`: Timestamp whale alert pertama dan terakhir
+
+**cURL Example:**
+
+```bash
+# Get accumulation/distribution summary for last 24 hours
+curl "http://localhost:8080/api/accumulation-summary?hours=24"
+
+# Get summary for last 7 days
+curl "http://localhost:8080/api/accumulation-summary?hours=168"
+```
+
+**Use Cases:**
+
+- Identifikasi saham yang sedang di-**accumulate** (dikumpulkan) oleh whale
+- Deteksi saham yang sedang di-**distribute** (dijual) oleh institutional investors
+- Analisis sentiment dan trend pasar berdasarkan aktivitas whale
+- Watchlist stocks dengan high whale activity
+
+---
+
+## Analisis Pola dengan LLM
 
 > **Note:** Requires `LLM_ENABLED=true` in `.env`
 
@@ -352,7 +592,7 @@ Detect continuous BUY/SELL patterns indicating accumulation or distribution.
 **Endpoint (Non-streaming):**
 
 ```
-GET /api/llm/accumulation
+GET /api/patterns/accumulation
 ```
 
 **Query Parameters:**
@@ -373,7 +613,7 @@ GET /api/llm/accumulation
 **Endpoint (Streaming SSE):**
 
 ```
-GET /api/llm/accumulation/stream
+GET /api/patterns/accumulation/stream
 ```
 
 **Response:** Server-Sent Events stream
@@ -382,7 +622,7 @@ GET /api/llm/accumulation/stream
 
 ```javascript
 const eventSource = new EventSource(
-  "/api/llm/accumulation/stream?hours=24&min_alerts=3"
+  "/api/patterns/accumulation/stream?hours=24&min_alerts=3"
 );
 
 eventSource.onmessage = function (event) {
@@ -405,7 +645,7 @@ function stopAnalysis() {
 **cURL Example (non-streaming):**
 
 ```bash
-curl "http://localhost:8080/api/llm/accumulation?hours=48&min_alerts=5"
+curl "http://localhost:8080/api/patterns/accumulation?hours=48&min_alerts=5"
 ```
 
 ---
@@ -417,7 +657,7 @@ Identify extreme trading anomalies with very high Z-Scores.
 **Endpoint (Non-streaming):**
 
 ```
-GET /api/llm/anomalies
+GET /api/patterns/anomalies
 ```
 
 **Query Parameters:**
@@ -425,7 +665,7 @@ GET /api/llm/anomalies
 | Parameter    | Type    | Default | Description               |
 | ------------ | ------- | ------- | ------------------------- |
 | `hours`      | integer | 24      | Hours to look back        |
-| `min_zscore` | float   | 4.0     | Minimum Z-Score threshold |
+| `min_zscore` | float   | 5.0     | Minimum Z-Score threshold |
 
 **Response:**
 
@@ -438,13 +678,13 @@ GET /api/llm/anomalies
 **Endpoint (Streaming SSE):**
 
 ```
-GET /api/llm/anomalies/stream
+GET /api/patterns/anomalies/stream
 ```
 
 **cURL Example:**
 
 ```bash
-curl "http://localhost:8080/api/llm/anomalies?hours=12&min_zscore=5.0"
+curl "http://localhost:8080/api/patterns/anomalies?hours=12&min_zscore=5.0"
 ```
 
 ---
@@ -456,7 +696,7 @@ Analyze whale activity patterns by time of day.
 **Endpoint (Non-streaming):**
 
 ```
-GET /api/llm/time-stats
+GET /api/patterns/timing
 ```
 
 **Query Parameters:**
@@ -476,13 +716,13 @@ GET /api/llm/time-stats
 **Endpoint (Streaming SSE):**
 
 ```
-GET /api/llm/time-stats/stream
+GET /api/patterns/timing/stream
 ```
 
 **cURL Example:**
 
 ```bash
-curl "http://localhost:8080/api/llm/time-stats?days=14"
+curl "http://localhost:8080/api/patterns/timing?days=14"
 ```
 
 ---
@@ -494,7 +734,7 @@ Deep analysis for a specific stock symbol.
 **Endpoint (Streaming SSE only):**
 
 ```
-GET /api/llm/symbol/stream
+GET /api/patterns/symbol/stream
 ```
 
 **Query Parameters:**
@@ -511,7 +751,7 @@ GET /api/llm/symbol/stream
 ```javascript
 const symbol = document.getElementById("symbolInput").value.toUpperCase();
 const eventSource = new EventSource(
-  `/api/llm/symbol/stream?symbol=${symbol}&hours=48`
+  `/api/patterns/symbol/stream?symbol=${symbol}&hours=48`
 );
 
 eventSource.onmessage = function (event) {
@@ -523,7 +763,7 @@ eventSource.onmessage = function (event) {
 
 ```bash
 # Note: cURL will receive streaming response
-curl "http://localhost:8080/api/llm/symbol/stream?symbol=BBCA&hours=24"
+curl "http://localhost:8080/api/patterns/symbol/stream?symbol=BBCA&hours=24"
 ```
 
 ---
@@ -696,7 +936,7 @@ class StockbitAPI {
   streamAnalysis(type: string, params: any, callback: (chunk: string) => void) {
     const queryString = new URLSearchParams(params).toString();
     const eventSource = new EventSource(
-      `${this.baseURL}/api/llm/${type}/stream?${queryString}`
+      `${this.baseURL}/api/patterns/${type}/stream?${queryString}`
     );
 
     eventSource.onmessage = (event) => callback(event.data);
@@ -743,6 +983,13 @@ class StockbitAPI:
 ---
 
 ## Changelog
+
+### v2.0.0 (2025-12-23)
+
+- Menambahkan endpoint baru: Trading Strategy Signals, Accumulation Summary, Real-time Events Stream
+- Memperbaiki path API dari `/api/llm/*` ke `/api/patterns/*`
+- Update default `min_zscore` menjadi 5.0
+- Menambahkan dokumentasi lengkap untuk 3 endpoint baru
 
 ### v1.0.0 (2024-12-22)
 
