@@ -175,18 +175,13 @@ function renderSignalRow(signal) {
         confidenceClass = 'value-highlight';
     }
     
-    // Time formatting
-    const timestamp = new Date(signal.timestamp);
-    const timeStr = timestamp.toLocaleTimeString('id-ID', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        second: '2-digit'
-    });
+    // Time formatting - human readable
+    const timeAgo = getTimeAgo(new Date(signal.timestamp));
 
     // Create row
     const row = document.createElement('tr');
     row.innerHTML = `
-        <td class="col-time">${timeStr}</td>
+        <td class="col-time">${timeAgo}</td>
         <td class="col-symbol">${signal.stock_symbol}</td>
         <td>${formatStrategyName(signal.strategy)}</td>
         <td><span class="${badgeClass}">${signal.decision}</span></td>
@@ -224,4 +219,23 @@ function renderSignalRow(signal) {
 
 function formatStrategyName(strategy) {
     return strategy.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+}
+
+function getTimeAgo(date) {
+    const seconds = Math.floor((new Date() - date) / 1000);
+    
+    if (seconds < 10) return 'Just now';
+    if (seconds < 60) return `${seconds}s ago`;
+    
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    
+    const days = Math.floor(hours / 24);
+    if (days === 1) return 'Yesterday';
+    if (days < 7) return `${days}d ago`;
+    
+    return date.toLocaleDateString('id-ID', { month: 'short', day: 'numeric' });
 }
