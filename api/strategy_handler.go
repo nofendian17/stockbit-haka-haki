@@ -126,3 +126,30 @@ func (s *Server) handleStrategySignalsStream(w http.ResponseWriter, r *http.Requ
 		}
 	}
 }
+
+// handleAccumulationSummary returns accumulation vs distribution summary for top 20 symbols
+func (s *Server) handleAccumulationSummary(w http.ResponseWriter, r *http.Request) {
+	// Parse query params
+	query := r.URL.Query()
+
+	hoursBack := 24 // default 24 hours (1 day)
+	if h := query.Get("hours"); h != "" {
+		if parsed, err := strconv.Atoi(h); err == nil {
+			hoursBack = parsed
+		}
+	}
+
+	// Get accumulation/distribution summary
+	summaries, err := s.repo.GetAccumulationDistributionSummary(hoursBack)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"summaries":  summaries,
+		"hours_back": hoursBack,
+		"count":      len(summaries),
+	})
+}

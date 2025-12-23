@@ -474,6 +474,72 @@ func (r *TradeRepository) GetAccumulationPattern(hoursBack int, minAlerts int) (
 	return patterns, err
 }
 
+// AccumulationDistributionSummary represents accumulation vs distribution summary per symbol
+type AccumulationDistributionSummary struct {
+	StockSymbol    string  `json:"stock_symbol"`
+	BuyCount       int64   `json:"buy_count"`
+	SellCount      int64   `json:"sell_count"`
+	BuyValue       float64 `json:"buy_value"`
+	SellValue      float64 `json:"sell_value"`
+	TotalCount     int64   `json:"total_count"`
+	TotalValue     float64 `json:"total_value"`
+	BuyPercentage  float64 `json:"buy_percentage"`
+	SellPercentage float64 `json:"sell_percentage"`
+	Status         string  `json:"status"`
+	NetValue       float64 `json:"net_value"`
+}
+
+// GetAccumulationDistributionSummary returns top 20 symbols with accumulation/distribution stats
+// Data is calculated from today's market open (09:00 WIB) to current time
+func (r *TradeRepository) GetAccumulationDistributionSummary(hoursBack int) ([]AccumulationDistributionSummary, error) {
+	var summaries []AccumulationDistributionSummary
+
+	query := `
+		WITH symbol_stats AS (
+			SELECT 
+				stock_symbol,
+				SUM(CASE WHEN action = 'BUY' THEN 1 ELSE 0 END) as buy_count,
+				SUM(CASE WHEN action = 'SELL' THEN 1 ELSE 0 END) as sell_count,
+				SUM(CASE WHEN action = 'BUY' THEN trigger_value ELSE 0 END) as buy_value,
+				SUM(CASE WHEN action = 'SELL' THEN trigger_value ELSE 0 END) as sell_value,
+				COUNT(*) as total_count,
+				SUM(trigger_value) as total_value
+			FROM whale_alerts
+			WHERE detected_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'Asia/Jakarta') + INTERVAL '9 hours'
+			  AND detected_at < DATE_TRUNC('day', NOW() AT TIME ZONE 'Asia/Jakarta') + INTERVAL '1 day' + INTERVAL '9 hours'
+			GROUP BY stock_symbol
+		)
+		SELECT 
+			stock_symbol,
+			buy_count,
+			sell_count,
+			buy_value,
+			sell_value,
+			total_count,
+			total_value,
+			CASE 
+				WHEN total_count > 0 THEN ROUND((buy_count::DECIMAL / total_count * 100), 2)
+				ELSE 0 
+			END as buy_percentage,
+			CASE 
+				WHEN total_count > 0 THEN ROUND((sell_count::DECIMAL / total_count * 100), 2)
+				ELSE 0 
+			END as sell_percentage,
+			CASE 
+				WHEN buy_count > sell_count AND (buy_count::DECIMAL / NULLIF(total_count, 0)) > 0.6 THEN 'ACCUMULATION'
+				WHEN sell_count > buy_count AND (sell_count::DECIMAL / NULLIF(total_count, 0)) > 0.6 THEN 'DISTRIBUTION'
+				ELSE 'NEUTRAL'
+			END as status,
+			buy_value - sell_value as net_value
+		FROM symbol_stats
+		ORDER BY total_value DESC
+		LIMIT 20
+	`
+
+	err := r.db.db.Raw(query).Scan(&summaries).Error
+	return summaries, err
+}
+
 // ExtremeAnomaly represents whale alerts with unusually high Z-scores
 type ExtremeAnomaly struct {
 	WhaleAlert

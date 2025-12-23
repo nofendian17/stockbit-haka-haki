@@ -289,10 +289,109 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Pattern Analysis Functionality
     setupPatternAnalysis();
+    
+    // Fetch Accumulation/Distribution Summary
+    fetchAccumulationSummary();
 });
 
+// ===== ACCUMULATION/DISTRIBUTION SUMMARY =====
+async function fetchAccumulationSummary() {
+    const summaryLoading = document.getElementById('summary-loading');
+    const summaryPlaceholder = document.getElementById('summary-placeholder');
+    const summaryTableBody = document.getElementById('summary-table-body');
+    const summaryCount = document.getElementById('summary-count');
+    
+    if (summaryLoading) summaryLoading.style.display = 'block';
+    if (summaryPlaceholder) summaryPlaceholder.style.display = 'none';
+    
+    try {
+        const res = await fetch(`${API_BASE}/accumulation-summary`);
+        const data = await res.json();
+        
+        const summaries = data.summaries || [];
+        
+        if (summaryCount) {
+            summaryCount.textContent = `${summaries.length} symbols`;
+        }
+        
+        renderAccumulationSummary(summaries);
+    } catch (err) {
+        console.error("Failed to fetch accumulation summary:", err);
+        if (summaryTableBody) {
+            summaryTableBody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--accent-sell);">Failed to load data</td></tr>';
+        }
+    } finally {
+        if (summaryLoading) summaryLoading.style.display = 'none';
+    }
+}
+
+function renderAccumulationSummary(summaries) {
+    const tbody = document.getElementById('summary-table-body');
+    const placeholder = document.getElementById('summary-placeholder');
+    
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+    if (summaries.length === 0) {
+        if (placeholder) {
+            placeholder.style.display = 'block';
+            placeholder.innerHTML = `
+                <span class="placeholder-icon">📊</span>
+                <p>No accumulation/distribution data available for today</p>
+            `;
+        }
+        return;
+    }
+    
+    if (placeholder) placeholder.style.display = 'none';
+    
+    summaries.forEach(summary => {
+        const row = document.createElement('tr');
+        
+        // Determine status badge class
+        let statusClass = 'neutral';
+        let statusIcon = '➖';
+        if (summary.status === 'ACCUMULATION') {
+            statusClass = 'buy';
+            statusIcon = '📈';
+        } else if (summary.status === 'DISTRIBUTION') {
+            statusClass = 'sell';
+            statusIcon = '📉';
+        }
+        
+        // Net value color
+        const netValueClass = summary.net_value >= 0 ? 'diff-positive' : 'diff-negative';
+        const netValueSign = summary.net_value >= 0 ? '+' : '';
+        
+        row.innerHTML = `
+            <td data-label="Symbol" class="col-symbol">${summary.stock_symbol}</td>
+            <td data-label="Status">
+                <span class="badge ${statusClass}">
+                    ${statusIcon} ${summary.status}
+                </span>
+            </td>
+            <td data-label="BUY %" class="text-right">
+                <span class="diff-positive" style="font-weight: 600;">${summary.buy_percentage.toFixed(1)}%</span>
+                <div style="font-size: 0.7rem; color: #666;">(${summary.buy_count} alerts)</div>
+            </td>
+            <td data-label="SELL %" class="text-right">
+                <span class="diff-negative" style="font-weight: 600;">${summary.sell_percentage.toFixed(1)}%</span>
+                <div style="font-size: 0.7rem; color: #666;">(${summary.sell_count} alerts)</div>
+            </td>
+            <td data-label="Net Value" class="text-right">
+                <span class="${netValueClass}" style="font-weight: 600;">${netValueSign}${formatCurrency(Math.abs(summary.net_value))}</span>
+            </td>
+            <td data-label="Total Alerts" class="text-right">${summary.total_count}</td>
+            <td data-label="Total Value" class="text-right value-highlight">${formatCurrency(summary.total_value)}</td>
+        `;
+        
+        tbody.appendChild(row);
+    });
+}
+
 // ===== PATTERN ANALYSIS =====
-let currentPatternType = 'accumulation';
+let currentPatternType = 'summary';
 let streamEventSource = null;
 
 function setupPatternAnalysis() {
@@ -302,6 +401,7 @@ function setupPatternAnalysis() {
     const outputDiv = document.getElementById('llm-stream-output');
     const statusBadge = document.getElementById('llm-status');
     const symbolInputContainer = document.getElementById('symbol-input-container');
+    const summaryContainer = document.getElementById('summary-container');
 
     // Tab switching
     tabs.forEach(tab => {
@@ -316,15 +416,33 @@ function setupPatternAnalysis() {
             // Update current type
             currentPatternType = tab.dataset.type;
 
-            // Show/hide symbol input based on tab
-            if (currentPatternType === 'symbol') {
-                symbolInputContainer.style.display = 'block';
+            // Handle visibility based on tab type
+            if (currentPatternType === 'summary') {
+                // Show summary table, hide LLM output and controls
+                if (summaryContainer) summaryContainer.style.display = 'block';
+                if (outputDiv) outputDiv.style.display = 'none';
+                if (symbolInputContainer) symbolInputContainer.style.display = 'none';
+                if (startBtn) startBtn.style.display = 'none';
+                if (stopBtn) stopBtn.style.display = 'none';
+                
+                // Refresh summary data
+                fetchAccumulationSummary();
             } else {
-                symbolInputContainer.style.display = 'none';
-            }
+                // Hide summary table, show LLM output and controls
+                if (summaryContainer) summaryContainer.style.display = 'none';
+                if (outputDiv) outputDiv.style.display = 'block';
+                if (startBtn) startBtn.style.display = 'flex';
+                
+                // Show/hide symbol input based on tab
+                if (currentPatternType === 'symbol') {
+                    symbolInputContainer.style.display = 'block';
+                } else {
+                    symbolInputContainer.style.display = 'none';
+                }
 
-            // Reset output
-            resetOutput();
+                // Reset output
+                resetOutput();
+            }
         });
     });
 
