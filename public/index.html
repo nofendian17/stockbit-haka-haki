@@ -42,31 +42,67 @@
     </header>
 
     <main>
-      <div class="controls">
-        <input
-          type="text"
-          id="search"
-          placeholder="Search Symbol (e.g. BBCA)..."
-        />
-        <select id="filter-action">
-          <option value="ALL">All Actions</option>
-          <option value="BUY">Accumulation (BUY)</option>
-          <option value="SELL">Distribution (SELL)</option>
-        </select>
-        <select id="filter-amount">
-          <option value="0">Min Value: All</option>
-          <option value="100000000">> 100 Juta</option>
-          <option value="500000000">> 500 Juta</option>
-          <option value="1000000000">> 1 Miliar</option>
-          <option value="5000000000">> 5 Miliar</option>
-        </select>
-        <select id="filter-board">
-          <option value="ALL">All Boards</option>
-          <option value="RG">Regular (RG)</option>
-          <option value="TN">Tunai (TN)</option>
-          <option value="NG">Negosiasi (NG)</option>
-        </select>
-        <button id="refresh-btn">Refresh</button>
+      <!-- Enhanced Filter Controls -->
+      <div class="controls-section">
+        <div class="section-title-small">
+          <span class="icon-accent">🔍</span>
+          <h3>Filters & Search</h3>
+        </div>
+        <div class="controls">
+          <div class="control-group">
+            <label for="search" class="control-label">
+              <span class="label-icon">🔎</span>
+              Symbol
+            </label>
+            <input
+              type="text"
+              id="search"
+              placeholder="Search Symbol (e.g. BBCA)..."
+            />
+          </div>
+          <div class="control-group">
+            <label for="filter-action" class="control-label">
+              <span class="label-icon">⚡</span>
+              Action Type
+            </label>
+            <select id="filter-action">
+              <option value="ALL">All Actions</option>
+              <option value="BUY">Accumulation (BUY)</option>
+              <option value="SELL">Distribution (SELL)</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label for="filter-amount" class="control-label">
+              <span class="label-icon">💰</span>
+              Min Value
+            </label>
+            <select id="filter-amount">
+              <option value="0">All Amounts</option>
+              <option value="100000000">> 100 Juta</option>
+              <option value="500000000">> 500 Juta</option>
+              <option value="1000000000">> 1 Miliar</option>
+              <option value="5000000000">> 5 Miliar</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label for="filter-board" class="control-label">
+              <span class="label-icon">📊</span>
+              Board Type
+            </label>
+            <select id="filter-board">
+              <option value="ALL">All Boards</option>
+              <option value="RG">Regular (RG)</option>
+              <option value="TN">Tunai (TN)</option>
+              <option value="NG">Negosiasi (NG)</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <button id="refresh-btn" class="btn-refresh">
+              <span class="btn-icon">🔄</span>
+              Refresh
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- Pattern Analysis Section -->
@@ -124,10 +160,16 @@
         </div>
       </div>
 
-      <!-- Strategy Signals Section -->
+      <!-- Enhanced Strategy Signals Section -->
       <div class="strategy-signals-section" id="strategy-signals">
         <div class="strategy-header">
-          <h2>🎯 Trading Strategies</h2>
+          <div class="header-content">
+            <h2>
+              <span class="section-icon">🎯</span>
+              Trading Strategies
+            </h2>
+            <p class="section-subtitle">AI-powered trading signals and pattern detection</p>
+          </div>
           <div class="strategy-status">
             <span id="strategy-live-indicator" class="dot"></span> 
             <span id="strategy-connection-status">Connecting...</span>
@@ -135,40 +177,71 @@
         </div>
         
         <div class="strategy-tabs">
-          <button class="strategy-tab active" data-strategy="ALL">All Signals</button>
-          <button class="strategy-tab" data-strategy="VOLUME_BREAKOUT">Volume Breakout</button>
-          <button class="strategy-tab" data-strategy="MEAN_REVERSION">Mean Reversion</button>
-          <button class="strategy-tab" data-strategy="FAKEOUT_FILTER">Fakeout Filter</button>
+          <button class="strategy-tab active" data-strategy="ALL">
+            <span class="tab-icon">📋</span>
+            All Signals
+          </button>
+          <button class="strategy-tab" data-strategy="VOLUME_BREAKOUT">
+            <span class="tab-icon">🚀</span>
+            Volume Breakout
+          </button>
+          <button class="strategy-tab" data-strategy="MEAN_REVERSION">
+            <span class="tab-icon">↩️</span>
+            Mean Reversion
+          </button>
+          <button class="strategy-tab" data-strategy="FAKEOUT_FILTER">
+            <span class="tab-icon">🛡️</span>
+            Fakeout Filter
+          </button>
         </div>
         
         <div class="strategy-content">
           <div id="signals-container" class="signals-container">
-            <div class="placeholder">
-              <span class="placeholder-icon">📡</span>
-              <p>Waiting for trading signals...</p>
+            <div class="placeholder enhanced-placeholder">
+              <div class="placeholder-animation">
+                <span class="placeholder-icon">📡</span>
+              </div>
+              <h4>Waiting for Trading Signals</h4>
+              <p>Real-time strategy signals will appear here when detected</p>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="table-container">
-        <table>
-            <thead>
-                <tr>
-                    <th>Time</th>
-                    <th>Symbol</th>
-                    <th>Action</th>
-                    <th>Price</th>
-                    <th class="text-right">Value</th>
-                    <th class="text-right">Volume</th>
-                    <th>Details</th>
-                </tr>
-            </thead>
-            <tbody id="alerts-table-body">
-                <!-- Rows injected here -->
-            </tbody>
-        </table>
-        <div id="loading" class="loading">Loading whale activity...</div>
+      <!-- Enhanced Whale Alerts Table -->
+      <div class="whale-alerts-section">
+        <div class="section-header">
+          <div class="header-content">
+            <h2>
+              <span class="section-icon">🐋</span>
+              Whale Alerts Feed
+            </h2>
+            <p class="section-subtitle">Real-time large transaction monitoring</p>
+          </div>
+        </div>
+        
+        <div class="table-container">
+          <table>
+              <thead>
+                  <tr>
+                      <th><span class="th-icon">⏰</span> Time</th>
+                      <th><span class="th-icon">📈</span> Symbol</th>
+                      <th><span class="th-icon">⚡</span> Action</th>
+                      <th><span class="th-icon">💵</span> Price</th>
+                      <th class="text-right"><span class="th-icon">💰</span> Value</th>
+                      <th class="text-right"><span class="th-icon">📊</span> Volume</th>
+                      <th><span class="th-icon">ℹ️</span> Details</th>
+                  </tr>
+              </thead>
+              <tbody id="alerts-table-body">
+                  <!-- Rows injected here -->
+              </tbody>
+          </table>
+          <div id="loading" class="loading">
+            <div class="loading-spinner"></div>
+            <p>Loading whale activity...</p>
+          </div>
+        </div>
       </div>
     </main>
 
