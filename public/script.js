@@ -297,93 +297,67 @@ document.addEventListener('DOMContentLoaded', () => {
 // ===== ACCUMULATION/DISTRIBUTION SUMMARY =====
 async function fetchAccumulationSummary() {
     const summaryLoading = document.getElementById('summary-loading');
-    const summaryPlaceholder = document.getElementById('summary-placeholder');
-    const summaryTableBody = document.getElementById('summary-table-body');
-    const summaryCount = document.getElementById('summary-count');
     
     if (summaryLoading) summaryLoading.style.display = 'block';
-    if (summaryPlaceholder) summaryPlaceholder.style.display = 'none';
     
     try {
         const res = await fetch(`${API_BASE}/accumulation-summary`);
         const data = await res.json();
         
-        const summaries = data.summaries || [];
+        const accumulation = data.accumulation || [];
+        const distribution = data.distribution || [];
         
-        if (summaryCount) {
-            summaryCount.textContent = `${summaries.length} symbols`;
-        }
+        // Update counters
+        const accCount = document.getElementById('accumulation-count');
+        const distCount = document.getElementById('distribution-count');
+        if (accCount) accCount.textContent = accumulation.length;
+        if (distCount) distCount.textContent = distribution.length;
         
-        renderAccumulationSummary(summaries);
+        // Render both tables
+        renderTable('accumulation', accumulation);
+        renderTable('distribution', distribution);
     } catch (err) {
         console.error("Failed to fetch accumulation summary:", err);
-        if (summaryTableBody) {
-            summaryTableBody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--accent-sell);">Failed to load data</td></tr>';
-        }
     } finally {
         if (summaryLoading) summaryLoading.style.display = 'none';
     }
 }
 
-function renderAccumulationSummary(summaries) {
-    const tbody = document.getElementById('summary-table-body');
-    const placeholder = document.getElementById('summary-placeholder');
+function renderTable(type, data) {
+    const tbody = document.getElementById(`${type}-table-body`);
+    const placeholder = document.getElementById(`${type}-placeholder`);
     
     if (!tbody) return;
     
     tbody.innerHTML = '';
     
-    if (summaries.length === 0) {
-        if (placeholder) {
-            placeholder.style.display = 'block';
-            placeholder.innerHTML = `
-                <span class="placeholder-icon">📊</span>
-                <p>No accumulation/distribution data available for today</p>
-            `;
-        }
+    if (data.length === 0) {
+        if (placeholder) placeholder.style.display = 'block';
         return;
     }
     
     if (placeholder) placeholder.style.display = 'none';
     
-    summaries.forEach(summary => {
+    data.forEach(item => {
         const row = document.createElement('tr');
         
-        // Determine status badge class
-        let statusClass = 'neutral';
-        let statusIcon = '➖';
-        if (summary.status === 'ACCUMULATION') {
-            statusClass = 'buy';
-            statusIcon = '📈';
-        } else if (summary.status === 'DISTRIBUTION') {
-            statusClass = 'sell';
-            statusIcon = '📉';
-        }
-        
         // Net value color
-        const netValueClass = summary.net_value >= 0 ? 'diff-positive' : 'diff-negative';
-        const netValueSign = summary.net_value >= 0 ? '+' : '';
+        const netValueClass = item.net_value >= 0 ? 'diff-positive' : 'diff-negative';
+        const netValueSign = item.net_value >= 0 ? '+' : '';
         
         row.innerHTML = `
-            <td data-label="Symbol" class="col-symbol">${summary.stock_symbol}</td>
-            <td data-label="Status">
-                <span class="badge ${statusClass}">
-                    ${statusIcon} ${summary.status}
-                </span>
-            </td>
+            <td data-label="Symbol" class="col-symbol">${item.stock_symbol}</td>
             <td data-label="BUY %" class="text-right">
-                <span class="diff-positive" style="font-weight: 600;">${summary.buy_percentage.toFixed(1)}%</span>
-                <div style="font-size: 0.7rem; color: #666;">(${summary.buy_count} alerts)</div>
+                <span class="diff-positive" style="font-weight: 600;">${item.buy_percentage.toFixed(1)}%</span>
             </td>
             <td data-label="SELL %" class="text-right">
-                <span class="diff-negative" style="font-weight: 600;">${summary.sell_percentage.toFixed(1)}%</span>
-                <div style="font-size: 0.7rem; color: #666;">(${summary.sell_count} alerts)</div>
+                <span class="diff-negative" style="font-weight: 600;">${item.sell_percentage.toFixed(1)}%</span>
             </td>
             <td data-label="Net Value" class="text-right">
-                <span class="${netValueClass}" style="font-weight: 600;">${netValueSign}${formatCurrency(Math.abs(summary.net_value))}</span>
+                <span class="${netValueClass}" style="font-weight: 600;">${netValueSign}${formatCurrency(Math.abs(item.net_value))}</span>
             </td>
-            <td data-label="Total Alerts" class="text-right">${summary.total_count}</td>
-            <td data-label="Total Value" class="text-right value-highlight">${formatCurrency(summary.total_value)}</td>
+            <td data-label="Alerts" class="text-right">${item.total_count}</td>
+            <td data-label="Total Value" class="text-right value-highlight">${formatCurrency(item.total_value)}</td>
         `;
         
         tbody.appendChild(row);

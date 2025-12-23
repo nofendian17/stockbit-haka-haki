@@ -489,17 +489,15 @@ type AccumulationDistributionSummary struct {
 	NetValue       float64 `json:"net_value"`
 }
 
-// GetAccumulationDistributionSummary returns top 20 symbols with accumulation/distribution stats
+// GetAccumulationDistributionSummary returns top 20 accumulation and top 20 distribution separately
 // Data is calculated from last 24 hours by default
-func (r *TradeRepository) GetAccumulationDistributionSummary(hoursBack int) ([]AccumulationDistributionSummary, error) {
-	var summaries []AccumulationDistributionSummary
-
+func (r *TradeRepository) GetAccumulationDistributionSummary(hoursBack int) (accumulation []AccumulationDistributionSummary, distribution []AccumulationDistributionSummary, err error) {
 	// Default to 24 hours if not specified
 	if hoursBack <= 0 {
 		hoursBack = 24
 	}
 
-	query := `
+	baseQuery := `
 		WITH symbol_stats AS (
 			SELECT 
 				stock_symbol,
@@ -536,12 +534,31 @@ func (r *TradeRepository) GetAccumulationDistributionSummary(hoursBack int) ([]A
 			END as status,
 			buy_value - sell_value as net_value
 		FROM symbol_stats
-		ORDER BY total_value DESC
-		LIMIT 20
 	`
 
-	err := r.db.db.Raw(query, hoursBack).Scan(&summaries).Error
-	return summaries, err
+	// Get top 20 ACCUMULATION (sorted by net_value DESC - highest positive)
+	accumulationQuery := baseQuery + `
+		WHERE (buy_count::DECIMAL / NULLIF(total_count, 0)) > 0.55 
+		  AND buy_count > sell_count
+		ORDER BY net_value DESC
+		LIMIT 20
+	`
+	if err := r.db.db.Raw(accumulationQuery, hoursBack).Scan(&accumulation).Error; err != nil {
+		return nil, nil, err
+	}
+
+	// Get top 20 DISTRIBUTION (sorted by net_value ASC - highest negative)
+	distributionQuery := baseQuery + `
+		WHERE (sell_count::DECIMAL / NULLIF(total_count, 0)) > 0.55 
+		  AND sell_count > buy_count
+		ORDER BY net_value ASC
+		LIMIT 20
+	`
+	if err := r.db.db.Raw(distributionQuery, hoursBack).Scan(&distribution).Error; err != nil {
+		return nil, nil, err
+	}
+
+	return accumulation, distribution, nil
 }
 
 // ExtremeAnomaly represents whale alerts with unusually high Z-scores

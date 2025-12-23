@@ -127,7 +127,7 @@ func (s *Server) handleStrategySignalsStream(w http.ResponseWriter, r *http.Requ
 	}
 }
 
-// handleAccumulationSummary returns accumulation vs distribution summary for top 20 symbols
+// handleAccumulationSummary returns separate top 20 accumulation and distribution lists
 func (s *Server) handleAccumulationSummary(w http.ResponseWriter, r *http.Request) {
 	// Parse query params
 	query := r.URL.Query()
@@ -139,8 +139,8 @@ func (s *Server) handleAccumulationSummary(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	// Get accumulation/distribution summary
-	summaries, err := s.repo.GetAccumulationDistributionSummary(hoursBack)
+	// Get accumulation/distribution summary (now returns 2 separate lists)
+	accumulation, distribution, err := s.repo.GetAccumulationDistributionSummary(hoursBack)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -148,8 +148,10 @@ func (s *Server) handleAccumulationSummary(w http.ResponseWriter, r *http.Reques
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"summaries":  summaries,
-		"hours_back": hoursBack,
-		"count":      len(summaries),
+		"accumulation":       accumulation,
+		"distribution":       distribution,
+		"accumulation_count": len(accumulation),
+		"distribution_count": len(distribution),
+		"hours_back":         hoursBack,
 	})
 }

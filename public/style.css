@@ -731,6 +731,36 @@ td {
   background: rgba(112, 122, 138, 0.1);
 }
 
+.summary-subsection {
+  margin-bottom: 2rem;
+}
+
+.subsection-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.subsection-icon {
+  font-size: 1.2rem;
+}
+
+.count-badge {
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-weight: 600;
+  background: rgba(14, 203, 129, 0.1);
+  color: var(--accent-buy);
+  margin-left: auto;
+}
+
 footer {
   text-align: center;
   padding: 2rem;
