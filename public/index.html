@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="style.css?v=9" />
+    <link rel="stylesheet" href="style.css?v=10" />
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   </head>
   <body>
@@ -38,7 +38,12 @@
           <span class="value" id="largest-value">0</span>
         </div>
       </div>
-      <div class="status-indicator"><span class="dot"></span> Live</div>
+      <div class="header-actions">
+        <button id="help-btn" class="help-button" title="Panduan Penggunaan">
+          <span class="help-icon">❓</span>
+        </button>
+        <div class="status-indicator"><span class="dot"></span> Live</div>
+      </div>
     </header>
 
     <main>
@@ -350,6 +355,97 @@
 
       </div>
     </main>
+
+    <!-- Help Modal -->
+    <div id="help-modal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>🎯 Panduan Whale Radar</h2>
+          <button class="modal-close" id="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <section class="help-section">
+            <h3>📖 Apa itu Whale Radar?</h3>
+            <p>Dashboard real-time yang memantau transaksi saham besar ("whale" / ikan paus) di pasar modal Indonesia. Sistem ini mendeteksi aktivitas fund besar yang bisa menjadi indikator pergerakan harga.</p>
+          </section>
+
+          <section class="help-section">
+            <h3>🐋 Whale Alerts Feed</h3>
+            <p>Menampilkan transaksi besar secara real-time dengan fitur filter:</p>
+            <ul>
+              <li><strong>Symbol</strong>: Cari kode saham tertentu (contoh: BBCA, TLKM)</li>
+              <li><strong>Action</strong>: Filter BUY (akumulasi) atau SELL (distribusi)</li>
+              <li><strong>Min Value</strong>: Filter berdasarkan nilai transaksi minimum</li>
+              <li><strong>Board Type</strong>: RG (Regular), TN (Tunai), NG (Negosiasi)</li>
+            </ul>
+            <p><strong>Informasi yang ditampilkan:</strong> Waktu, kode saham, aksi, harga, total nilai, volume lot, dan anomali (jika ada).</p>
+          </section>
+
+          <section class="help-section">
+            <h3>🎯 Trading Strategies</h3>
+            <p>Sinyal trading berbasis AI dengan 3 strategi utama:</p>
+            <ul>
+              <li><strong>Volume Breakout</strong>: Deteksi lonjakan volume yang signifikan</li>
+              <li><strong>Mean Reversion</strong>: Identifikasi saham yang oversold/overbought</li>
+              <li><strong>Fakeout Filter</strong>: Menghindari sinyal palsu dengan validasi tambahan</li>
+            </ul>
+            <p>Setiap sinyal menampilkan confidence level, rekomendasi aksi, dan reasoning dari AI.</p>
+          </section>
+
+          <section class="help-section">
+            <h3>📊 Akumulasi vs Distribusi</h3>
+            <p>Menampilkan Top 20 saham dengan aktivitas tertinggi dalam 24 jam terakhir:</p>
+            <ul>
+              <li><strong>Akumulasi</strong>: Saham dengan pembelian besar (potensi naik)</li>
+              <li><strong>Distribusi</strong>: Saham dengan penjualan besar (potensi turun)</li>
+            </ul>
+            <p>Data mencakup persentase BUY/SELL, net value, dan total alerts per saham.</p>
+          </section>
+
+          <section class="help-section">
+            <h3>🤖 AI Pattern Analysis</h3>
+            <p>Analisis pola real-time menggunakan AI dengan 4 jenis analisis:</p>
+            <ul>
+              <li><strong>Akumulasi</strong>: Deteksi pola pembelian masif</li>
+              <li><strong>Anomali</strong>: Identifikasi aktivitas tidak normal</li>
+              <li><strong>Timing</strong>: Analisis waktu trading optimal</li>
+              <li><strong>Symbol</strong>: Analisis mendalam untuk saham tertentu</li>
+            </ul>
+          </section>
+
+          <section class="help-section">
+            <h3>💡 Tips Penggunaan</h3>
+            <ul>
+              <li><strong>Scalper</strong>: Fokus ke Whale Alerts Feed + filter RG board</li>
+              <li><strong>Swing Trader</strong>: Gunakan Trading Strategies + Akumulasi/Distribusi</li>
+              <li><strong>Research</strong>: Manfaatkan AI Pattern Analysis tab Symbol</li>
+              <li><strong>Deteksi Bandarmain</strong>: Perhatikan kolom "Anomali" pada whale alerts</li>
+            </ul>
+          </section>
+
+          <section class="help-section">
+            <h3>🎨 Code Warna</h3>
+            <div class="color-guide">
+              <div class="color-item">
+                <span class="badge buy">BUY</span>
+                <span>Akumulasi / Pembelian besar</span>
+              </div>
+              <div class="color-item">
+                <span class="badge sell">SELL</span>
+                <span>Distribusi / Penjualan besar</span>
+              </div>
+              <div class="color-item">
+                <span class="table-anomaly">ANOMALY</span>
+                <span>Pola tidak normal terdeteksi</span>
+              </div>
+            </div>
+          </section>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-primary" id="modal-got-it">Mengerti!</button>
+        </div>
+      </div>
+    </div>
 
     <footer>
       <p>Whale Analysis System &copy; 2025</p>

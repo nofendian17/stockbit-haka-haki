@@ -550,3 +550,46 @@ function updateFilters() {
     currentFilters.amount = parseFloat(document.getElementById('filter-amount').value);
     currentFilters.board = document.getElementById('filter-board').value;
 }
+
+// ===== HELP MODAL =====
+document.addEventListener('DOMContentLoaded', () => {
+    const helpBtn = document.getElementById('help-btn');
+    const modal = document.getElementById('help-modal');
+    const modalClose = document.getElementById('modal-close');
+    const modalGotIt = document.getElementById('modal-got-it');
+
+    if (helpBtn && modal) {
+        // Open modal
+        helpBtn.addEventListener('click', () => {
+            modal.classList.add('show');
+        });
+
+        // Close modal handlers
+        const closeModal = () => {
+            modal.classList.remove('show');
+        };
+
+        if (modalClose) {
+            modalClose.addEventListener('click', closeModal);
+        }
+
+        if (modalGotIt) {
+            modalGotIt.addEventListener('click', closeModal);
+        }
+
+        // Close on outside click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeModal();
+            }
+        });
+
+        // Close on ESC key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && modal.classList.contains('show')) {
+                closeModal();
+            }
+        });
+    }
+});
+
