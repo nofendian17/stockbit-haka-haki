@@ -40,8 +40,11 @@ function initStrategySystem() {
     }
     
     setupStrategyTabs();
-    fetchInitialSignals();
-    connectStrategySSE();
+    
+    // Fetch initial signals first, then connect SSE
+    fetchInitialSignals().then(() => {
+        connectStrategySSE();
+    });
 }
 
 // ===== API FUNCTIONS =====
@@ -110,9 +113,11 @@ function setupStrategyTabs() {
             }
             renderedSignalIds.clear();
             
-            // Reconnect with new filter
-            connectStrategySSE();
-            fetchInitialSignals();
+            // Fetch initial signals first, then connect SSE
+            // This prevents race condition where SSE signals arrive before initial load completes
+            fetchInitialSignals().then(() => {
+                connectStrategySSE();
+            });
         });
     });
 }
