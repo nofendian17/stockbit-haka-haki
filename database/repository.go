@@ -2,6 +2,7 @@ package database
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	"gorm.io/gorm"
@@ -771,6 +772,17 @@ func (r *TradeRepository) GetStrategySignals(lookbackMinutes int, minConfidence 
 		// Update previous volume z-score
 		prevVolumeZScores[alert.StockSymbol] = zscores.VolumeZScore
 	}
+
+	// Sort signals by timestamp DESC (newest first), then by strategy name for consistency
+	// This is necessary because multiple strategies per alert can create out-of-order results
+	sort.Slice(signals, func(i, j int) bool {
+		// First, sort by timestamp (newest first)
+		if !signals[i].Timestamp.Equal(signals[j].Timestamp) {
+			return signals[i].Timestamp.After(signals[j].Timestamp)
+		}
+		// If timestamps are equal, sort by strategy name alphabetically
+		return signals[i].Strategy < signals[j].Strategy
+	})
 
 	return signals, nil
 }
