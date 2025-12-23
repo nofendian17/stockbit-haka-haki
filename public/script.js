@@ -232,10 +232,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('filter-board').addEventListener('change', renderAlerts);
 
     // Infinite scroll: detect when user scrolls near bottom
-    const tableContainer = document.querySelector('.table-container');
-    if (tableContainer) {
-        tableContainer.addEventListener('scroll', () => {
-            const { scrollTop, scrollHeight, clientHeight } = tableContainer;
+    const whaleTableContainer = document.querySelector('.whale-alerts-section .table-container');
+    if (whaleTableContainer) {
+        whaleTableContainer.addEventListener('scroll', () => {
+            const { scrollTop, scrollHeight, clientHeight } = whaleTableContainer;
             // Trigger load more when scroll within threshold of bottom
             if (scrollHeight - scrollTop - clientHeight < CONFIG.SCROLL_THRESHOLD && hasMore && !isLoading) {
                 fetchAlerts(false); // false = append mode
