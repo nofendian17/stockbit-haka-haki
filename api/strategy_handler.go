@@ -83,8 +83,8 @@ func (s *Server) handleStrategySignalsStream(w http.ResponseWriter, r *http.Requ
 			return
 
 		case <-ticker.C:
-			// Get recent signals (last 60 minutes)
-			signals, err := s.repo.GetStrategySignals(60, 0.3, strategyFilter)
+			// Get recent signals (last 5 minutes for real-time updates only)
+			signals, err := s.repo.GetStrategySignals(5, 0.3, strategyFilter)
 			if err != nil {
 				log.Printf("Error getting strategy signals: %v", err)
 				continue
