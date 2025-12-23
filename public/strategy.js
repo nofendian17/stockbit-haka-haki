@@ -18,6 +18,12 @@ async function fetchInitialSignals() {
     const placeholder = document.getElementById('signals-placeholder');
     const loading = document.getElementById('signals-loading');
     
+    // Check if elements exist
+    if (!tbody) {
+        console.error('signals-table-body element not found');
+        return;
+    }
+    
     if (placeholder) placeholder.style.display = 'none';
     if (loading) loading.style.display = 'flex';
 
@@ -54,31 +60,25 @@ async function fetchInitialSignals() {
 function setupStrategyTabs() {
     const tabs = document.querySelectorAll('.strategy-tab');
     
-    const icons = {
-        'ALL': '📋',
-        'VOLUME_BREAKOUT': '🚀',
-        'MEAN_REVERSION': '↩️',
-        'FAKEOUT_FILTER': '🛡️'
-    };
-
     tabs.forEach(tab => {
-        const strategy = tab.dataset.strategy;
-        if (!tab.innerHTML.includes('icon')) {
-            const icon = icons[strategy] || '📊';
-            const text = tab.innerText;
-            tab.innerHTML = `<span>${icon}</span> ${text}`;
-        }
-
         tab.addEventListener('click', () => {
+            // Remove active from all tabs
             tabs.forEach(t => t.classList.remove('active'));
+            
+            // Add active to clicked tab
             tab.classList.add('active');
+            
+            // Update filter
             activeStrategyFilter = tab.dataset.strategy;
             
-            // Clear and reconnect
+            // Clear table and reconnect
             const tbody = document.getElementById('signals-table-body');
-            tbody.innerHTML = '';
+            if (tbody) {
+                tbody.innerHTML = '';
+            }
             renderedSignalIds.clear();
             
+            // Reconnect with new filter
             connectStrategySSE();
             fetchInitialSignals();
         });
@@ -132,6 +132,12 @@ function connectStrategySSE() {
 function renderSignalRow(signal) {
     const tbody = document.getElementById('signals-table-body');
     const placeholder = document.getElementById('signals-placeholder');
+    
+    // Check if tbody exists
+    if (!tbody) {
+        console.error('signals-table-body element not found');
+        return;
+    }
     
     const signalId = `${signal.stock_symbol}-${signal.strategy}-${signal.timestamp}`;
     if (renderedSignalIds.has(signalId)) return;
