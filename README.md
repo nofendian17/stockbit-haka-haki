@@ -439,11 +439,32 @@ def is_whale_alert(trade):
 
 ### 🎯 Confidence Score
 
-Currently, all alerts have a **Confidence Score of 100%** as the statistical model uses strict thresholds. Future enhancements may introduce graduated confidence based on:
+The system uses a **graduated confidence scoring** model based on statistical significance:
 
-- Proximity to Z-Score threshold (3.0, 4.0, 5.0+)
-- Volume vs Avg ratio tiers
-- Price deviation alignment
+| Z-Score Range     | Confidence | Severity        | Percentile | Description                           |
+| ----------------- | ---------- | --------------- | ---------- | ------------------------------------- |
+| **Z ≥ 5.0**       | 100%       | 🔴 EXTREME      | 99.9999%   | Beyond 5 sigma - Extremely rare event |
+| **4.0 ≤ Z < 5.0** | 90%        | 🟠 VERY HIGH    | 99.997%    | 4-5 sigma - Highly significant        |
+| **3.5 ≤ Z < 4.0** | 80%        | 🟡 HIGH         | 99.95%     | 3.5-4 sigma - Very significant        |
+| **3.0 ≤ Z < 3.5** | 70%        | 🟢 SIGNIFICANT  | 99.7%      | 3-3.5 sigma - Whale threshold         |
+| **2.5 ≤ Z < 3.0** | 50%        | 🔵 MODERATE     | 98.8%      | 2.5-3 sigma - Borderline              |
+| **Vol ≥ 500%**    | 60%        | 🟣 VOLUME SPIKE | N/A        | 5x average volume without Z-Score     |
+| **Fallback**      | 40%        | ⚪ THRESHOLD    | N/A        | New stock, no historical data         |
+
+**How It Works:**
+
+- Higher Z-Scores indicate more **exceptional** trades (further from normal distribution)
+- Confidence reflects the **statistical certainty** that this is truly a "whale" activity
+- Webhook filters can use `min_confidence` to only receive high-priority alerts
+- Frontend displays confidence percentage for user prioritization
+
+**Example Scenarios:**
+
+- **Z = 5.2** → Confidence 100% → Extremely rare, institutional-level trade
+- **Z = 3.8** → Confidence 80% → Strong whale signal
+- **Z = 3.1** → Confidence 70% → Standard whale alert
+- **Vol = 600%** → Confidence 60% → Volume spike without Z-Score (e.g., low volatility stock)
+- **Fallback** → Confidence 40% → New listing with no historical baseline
 
 ## 🚀 Quick Start
 

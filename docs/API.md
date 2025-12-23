@@ -95,7 +95,7 @@ GET /api/whales
     "ZScore": 4.52,
     "VolumeVsAvgPct": 850.5,
     "AvgPrice": 9800,
-    "ConfidenceScore": 100,
+    "ConfidenceScore": 90,
     "MarketBoard": "RG"
   }
 ]
@@ -315,7 +315,7 @@ When a whale is detected, all active webhooks receive this JSON payload:
     "Message": "🐋 WHALE ALERT! BBCA BUY | Vol: 50,000 lots (850% Avg) | Value: Rp 492.50 B | Price: 9,850 (Avg: 9,800) | Z-Score: 4.52 | Board: RG",
     "ZScore": 4.52,
     "VolumeVsAvgPct": 850.5,
-    "ConfidenceScore": 100,
+    "ConfidenceScore": 90,
     "MarketBoard": "RG",
     "DetectedAt": "2024-12-22T14:29:28+07:00"
   }
@@ -335,9 +335,65 @@ When a whale is detected, all active webhooks receive this JSON payload:
 - `data.AvgPrice`: Harga rata-rata 60 menit terakhir
 - `data.ZScore`: Standard deviations dari mean volume
 - `data.VolumeVsAvgPct`: Persentase volume vs rata-rata
-- `data.ConfidenceScore`: Confidence level (0-100)
+- `data.ConfidenceScore`: Confidence level (40-100, see Confidence Score section below)
 - `data.MarketBoard`: RG (Regular), TN (Tunai), NG (Negosiasi)
 - `data.Message`: Human-readable message (siap kirim ke Discord/Slack)
+
+#### 🎯 Confidence Score System
+
+Alert confidence menggunakan **graduated scoring** berdasarkan Z-Score tiers:
+
+| Z-Score Range     | Confidence | Severity        | Percentile | Keterangan                            |
+| ----------------- | ---------- | --------------- | ---------- | ------------------------------------- |
+| **Z ≥ 5.0**       | 100%       | 🔴 EXTREME      | 99.9999%   | Beyond 5 sigma - Extremely rare event |
+| **4.0 ≤ Z < 5.0** | 90%        | 🟠 VERY HIGH    | 99.997%    | 4-5 sigma - Highly significant        |
+| **3.5 ≤ Z < 4.0** | 80%        | 🟡 HIGH         | 99.95%     | 3.5-4 sigma - Very significant        |
+| **3.0 ≤ Z < 3.5** | 70%        | 🟢 SIGNIFICANT  | 99.7%      | 3-3.5 sigma - Whale threshold         |
+| **2.5 ≤ Z < 3.0** | 50%        | 🔵 MODERATE     | 98.8%      | 2.5-3 sigma - Borderline              |
+| **Vol ≥ 500%**    | 60%        | 🟣 VOLUME SPIKE | N/A        | 5x volume tanpa Z-Score tinggi        |
+| **Fallback**      | 40%        | ⚪ THRESHOLD    | N/A        | New stock, no historical data         |
+
+**Cara Menggunakan Confidence:**
+
+1. **Webhook Filtering**: Set `min_confidence` di webhook config untuk hanya menerima alert dengan confidence tertentu
+2. **Prioritization**: Alert dengan confidence lebih tinggi = sinyal yang lebih kuat
+3. **Trading Decision**: Gunakan confidence sebagai salah satu faktor untuk entry/exit
+
+**Contoh Skenario:**
+
+```json
+// Scenario 1: EXTREME whale (Z-Score 5.2)
+{
+  "ConfidenceScore": 100,
+  "ZScore": 5.2,
+  "VolumeVsAvgPct": 950.5
+  // → Institutional-level trade, sangat langka
+}
+
+// Scenario 2: HIGH whale (Z-Score 3.7)
+{
+  "ConfidenceScore": 80,
+  "ZScore": 3.7,
+  "VolumeVsAvgPct": 620.0
+  // → Strong whale signal
+}
+
+// Scenario 3: Volume spike tanpa Z-Score tinggi
+{
+  "ConfidenceScore": 60,
+  "ZScore": 2.1,
+  "VolumeVsAvgPct": 550.0
+  // → Volume anomaly tapi low statistical significance
+}
+
+// Scenario 4: Fallback (new stock)
+{
+  "ConfidenceScore": 40,
+  "ZScore": null,
+  "VolumeVsAvgPct": null
+  // → No historical data, threshold-based detection
+}
+```
 
 ---
 

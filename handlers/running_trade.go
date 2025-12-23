@@ -255,7 +255,7 @@ func (h *RunningTradeHandler) ProcessTrade(t *pb.RunningTrade) {
 				TriggerPrice:      t.Price,
 				TriggerVolumeLots: volumeLot,
 				TriggerValue:      totalAmount,
-				ConfidenceScore:   100, // Simple threshold = 100% confidence
+				ConfidenceScore:   calculateConfidenceScore(zScore, volVsAvgPct, detectionType),
 				MarketBoard:       boardType,
 				ZScore:            ptr(zScore),
 				VolumeVsAvgPct:    ptr(volVsAvgPct),
@@ -312,6 +312,37 @@ func (h *RunningTradeHandler) ProcessOrderBookBody(ob *pb.OrderBookBody) {
 // GetMessageType returns the message type
 func (h *RunningTradeHandler) GetMessageType() string {
 	return "RunningTrade"
+}
+
+// calculateConfidenceScore computes graduated confidence based on Z-Score tiers
+// Returns a score from 40-100% based on statistical significance
+func calculateConfidenceScore(zScore, volVsAvgPct float64, detectionType string) float64 {
+	// Graduated scoring based on Z-Score tiers (statistical confidence)
+	// Reference: Normal distribution percentiles
+
+	if zScore >= 5.0 {
+		return 100.0 // EXTREME: Beyond 5 sigma (99.9999% percentile)
+	} else if zScore >= 4.0 {
+		return 90.0 // VERY HIGH: 4-5 sigma (99.997% percentile)
+	} else if zScore >= 3.5 {
+		return 80.0 // HIGH: 3.5-4 sigma (99.95% percentile)
+	} else if zScore >= 3.0 {
+		return 70.0 // SIGNIFICANT: 3-3.5 sigma (99.7% percentile)
+	} else if zScore >= 2.5 {
+		return 50.0 // MODERATE: 2.5-3 sigma (98.8% percentile)
+	}
+
+	// Volume spike without sufficient Z-Score
+	if volVsAvgPct >= 500 {
+		return 60.0 // RELATIVE VOLUME SPIKE (5x average)
+	}
+
+	// Fallback threshold (new stock, no historical data)
+	if detectionType == "FALLBACK THRESHOLD" {
+		return 40.0 // THRESHOLD-BASED: Limited confidence due to lack of statistics
+	}
+
+	return 50.0 // Default for edge cases
 }
 
 // Helper function to create pointer
