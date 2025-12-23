@@ -819,17 +819,19 @@ footer {
   box-shadow: 0 0 15px rgba(59, 130, 246, 0.15);
 }
 
-/* Signals Container Grid */
+/* Signals Container Grid - FORCED */
 .signals-container {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); /* Reduced from 340px */
-  gap: 1rem; /* Reduced from 1.5rem */
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important;
+  gap: 12px !important;
   min-height: 200px;
   max-height: 800px;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 12px;
   padding-right: 8px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* Scrollbar styling */
@@ -849,15 +851,15 @@ footer {
 
 /* PREMIUM SIGNAL CARD */
 .signal-card {
+  display: flex !important;
+  flex-direction: column !important;
   background: rgba(30, 34, 41, 0.6);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px; /* Slightly reduced radius */
-  padding: 0.85rem; /* Reduced from 1.25rem */
-  display: flex;
-  flex-direction: column;
-  gap: 0.8rem; /* Reduced from 1rem */
+  border-radius: 12px;
+  padding: 0.85rem;
+  gap: 0.8rem;
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   animation: slideIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
