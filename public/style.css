@@ -705,6 +705,21 @@ footer {
     align-items: center;
   }
 
+  /* Strategy signals responsive for mobile */
+  .signals-container {
+    grid-template-columns: 1fr !important;
+    padding: 8px;
+  }
+
+  .strategy-tabs {
+    gap: 0.5rem;
+  }
+
+  .strategy-tab {
+    padding: 0.6rem 1rem;
+    font-size: 0.85rem;
+  }
+
   /* For extremely small screens, convert table to card-like view */
   /* Only if we want to go really premium, but horizontal scroll is often better for trading data */
 }
@@ -747,6 +762,7 @@ footer {
   font-weight: 700;
   letter-spacing: -0.5px;
   background: linear-gradient(120deg, #fff, #a5b4fc);
+  background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   display: flex;
@@ -884,8 +900,6 @@ footer {
 }
 
 /* Type-specific styling */
-.signal-card.buy-signal {
-}
 .signal-card.buy-signal::before {
   background: var(--accent-buy);
   box-shadow: 0 0 15px var(--accent-buy);
@@ -895,8 +909,6 @@ footer {
   border-color: rgba(14, 203, 129, 0.3);
 }
 
-.signal-card.sell-signal {
-}
 .signal-card.sell-signal::before {
   background: var(--accent-sell);
   box-shadow: 0 0 15px var(--accent-sell);
@@ -906,8 +918,6 @@ footer {
   border-color: rgba(246, 70, 93, 0.3);
 }
 
-.signal-card.wait-signal {
-}
 .signal-card.wait-signal::before {
   background: #ffd700;
   box-shadow: 0 0 15px #ffd700;
@@ -1082,16 +1092,6 @@ footer {
   color: var(--text-primary);
   font-weight: 600;
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-}
-
-.signals-container {
-  min-height: 150px;
-  max-height: 500px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  padding: 4px; /* Space for shadows */
 }
 
 /* New Modern Card Style */

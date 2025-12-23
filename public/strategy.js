@@ -57,7 +57,7 @@ async function fetchInitialSignals() {
                 renderSignalCardRefactored(signal);
             });
         } else {
-             if (!contatiner.querySelector('.signal-card')) {
+             if (!container.querySelector('.signal-card')) {
                 container.innerHTML = `
                     <div class="placeholder">
                         <span class="placeholder-icon">📡</span>
