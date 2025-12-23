@@ -58,14 +58,19 @@ let currentFilters = {
 function buildFilterQuery() {
     const params = new URLSearchParams();
     
-    // Only send filters that API supports (symbol and type/action)
+    // Send all filters to backend (all now supported!)
     if (currentFilters.search) {
         params.append('symbol', currentFilters.search);
     }
     if (currentFilters.action !== 'ALL') {
         params.append('type', currentFilters.action);
     }
-    // Board and amount filtering done client-side (not supported by API)
+    if (currentFilters.board !== 'ALL') {
+        params.append('board', currentFilters.board);
+    }
+    if (currentFilters.amount > 0) {
+        params.append('min_amount', currentFilters.amount);
+    }
     
     return params.toString();
 }
@@ -121,19 +126,14 @@ function renderAlerts() {
     const tbody = document.getElementById('alerts-table-body');
     const loadingDiv = document.getElementById('loading');
     
-    // Client-side filters for board and amount (not supported by API)
-    const filterAmount = parseFloat(document.getElementById('filter-amount').value);
-    const filterBoard = document.getElementById('filter-board').value;
+    // All filtering now done server-side!
+    // No need for client-side filtering anymore
 
     // Reset
     tbody.innerHTML = '';
     
-    // Filter by board and amount (symbol and action handled server-side)
-    const filtered = alerts.filter(a => {
-        const matchesAmount = (a.TriggerValue || 0) >= filterAmount;
-        const matchesBoard = filterBoard === 'ALL' || (a.MarketBoard && a.MarketBoard === filterBoard);
-        return matchesAmount && matchesBoard;
-    });
+    // Use all data from server (already filtered)
+    const filtered = alerts;
 
     if (filtered.length === 0) {
         if (loadingDiv) loadingDiv.innerText = 'No alerts found matching filters.';
@@ -246,7 +246,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fetchStats();
     });
 
-    // Update filters and refetch data from server
+    // All filters now trigger server refetch
     document.getElementById('search').addEventListener('input', () => {
         updateFilters();
         currentOffset = 0;
@@ -261,9 +261,19 @@ document.addEventListener('DOMContentLoaded', () => {
         fetchAlerts(true);
     });
     
-    document.getElementById('filter-amount').addEventListener('change', renderAlerts); // Client-side only
+    document.getElementById('filter-amount').addEventListener('change', () => {
+        updateFilters();
+        currentOffset = 0;
+        hasMore = true;
+        fetchAlerts(true);
+    });
     
-    document.getElementById('filter-board').addEventListener('change', renderAlerts); // Client-side only
+    document.getElementById('filter-board').addEventListener('change', () => {
+        updateFilters();
+        currentOffset = 0;
+        hasMore = true;
+        fetchAlerts(true);
+    });
 
     // Infinite scroll: detect when user scrolls near bottom
     const whaleTableContainer = document.querySelector('.whale-alerts-section .table-container');

@@ -244,7 +244,7 @@ func (r *TradeRepository) SaveWhaleAlert(alert *WhaleAlert) error {
 }
 
 // GetHistoricalWhales retrieves whale alerts with filters
-func (r *TradeRepository) GetHistoricalWhales(stockSymbol string, startTime, endTime time.Time, alertType string, limit, offset int) ([]WhaleAlert, error) {
+func (r *TradeRepository) GetHistoricalWhales(stockSymbol string, startTime, endTime time.Time, alertType string, board string, minAmount float64, limit, offset int) ([]WhaleAlert, error) {
 	var whales []WhaleAlert
 	query := r.db.db.Order("detected_at DESC")
 
@@ -264,6 +264,14 @@ func (r *TradeRepository) GetHistoricalWhales(stockSymbol string, startTime, end
 		query = query.Where("alert_type = ?", alertType)
 	}
 
+	if board != "" {
+		query = query.Where("market_board = ?", board)
+	}
+
+	if minAmount > 0 {
+		query = query.Where("trigger_value >= ?", minAmount)
+	}
+
 	if limit > 0 {
 		query = query.Limit(limit)
 	}
@@ -277,7 +285,7 @@ func (r *TradeRepository) GetHistoricalWhales(stockSymbol string, startTime, end
 }
 
 // GetWhaleCount returns total count of whales matching filters
-func (r *TradeRepository) GetWhaleCount(stockSymbol string, startTime, endTime time.Time, alertType string) (int64, error) {
+func (r *TradeRepository) GetWhaleCount(stockSymbol string, startTime, endTime time.Time, alertType string, board string, minAmount float64) (int64, error) {
 	var count int64
 	query := r.db.db.Model(&WhaleAlert{})
 
@@ -295,6 +303,14 @@ func (r *TradeRepository) GetWhaleCount(stockSymbol string, startTime, endTime t
 
 	if alertType != "" {
 		query = query.Where("alert_type = ?", alertType)
+	}
+
+	if board != "" {
+		query = query.Where("market_board = ?", board)
+	}
+
+	if minAmount > 0 {
+		query = query.Where("trigger_value >= ?", minAmount)
 	}
 
 	err := query.Count(&count).Error

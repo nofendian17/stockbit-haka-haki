@@ -110,6 +110,7 @@ func (s *Server) handleGetWhales(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	symbol := query.Get("symbol")
 	alertType := query.Get("type")
+	board := query.Get("board")
 
 	limitStr := query.Get("limit")
 	limit := 50 // default
@@ -130,6 +131,14 @@ func (s *Server) handleGetWhales(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Parse min_amount filter
+	minAmount := 0.0
+	if minAmountStr := query.Get("min_amount"); minAmountStr != "" {
+		if val, err := strconv.ParseFloat(minAmountStr, 64); err == nil && val >= 0 {
+			minAmount = val
+		}
+	}
+
 	// Time range parsing (RFC3339)
 	var startTime, endTime time.Time
 	if startStr := query.Get("start"); startStr != "" {
@@ -139,14 +148,14 @@ func (s *Server) handleGetWhales(w http.ResponseWriter, r *http.Request) {
 		endTime, _ = time.Parse(time.RFC3339, endStr)
 	}
 
-	whales, err := s.repo.GetHistoricalWhales(symbol, startTime, endTime, alertType, limit, offset)
+	whales, err := s.repo.GetHistoricalWhales(symbol, startTime, endTime, alertType, board, minAmount, limit, offset)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	// Get total count for pagination metadata
-	totalCount, err := s.repo.GetWhaleCount(symbol, startTime, endTime, alertType)
+	totalCount, err := s.repo.GetWhaleCount(symbol, startTime, endTime, alertType, board, minAmount)
 	if err != nil {
 		// If count fails, still return data but without total
 		totalCount = 0
