@@ -175,16 +175,20 @@ function renderSignalCardRefactored(signal) {
     let actionColor = '#707a8a';
     let actionLabel = signal.decision;
     let cardClass = '';
+    let badgeClass = '';
 
     if (signal.decision === 'BUY') {
         actionColor = '#0ECB81';
         cardClass = 'buy-signal';
+        badgeClass = 'buy-badge';
     } else if (signal.decision === 'SELL') {
         actionColor = '#F6465D';
         cardClass = 'sell-signal';
+        badgeClass = 'sell-badge';
     } else if (signal.decision === 'WAIT') {
-        actionColor = '#FFD700';
+        actionColor = '#FFD700'; // Gold
         cardClass = 'wait-signal';
+        badgeClass = 'wait-badge';
     }
 
     // Format Data
@@ -193,14 +197,18 @@ function renderSignalCardRefactored(signal) {
     const changeSign = signal.change >= 0 ? '+' : '-';
     const changeColor = signal.change >= 0 ? '#0ECB81' : '#F6465D';
     
-    // Confidence Meter
+    // Confidence Calc
     const confidencePercent = Math.round(signal.confidence * 100);
+    // SVG Circle params
+    const radius = 18;
+    const circumference = 2 * Math.PI * radius;
+    const offset = circumference - (signal.confidence * circumference);
 
     // Simplified Reason (Extract key info)
     let simpleReason = signal.reason;
     // Highlight key terms
-    simpleReason = simpleReason.replace(/(Z=[\d\.]+)/g, '<span class="signal-reason-highlight">$1</span>');
-    simpleReason = simpleReason.replace(/([0-9\.]+%)/g, '<span class="signal-reason-highlight">$1</span>');
+    simpleReason = simpleReason.replace(/(Z=[-]?[\d\.]+)/g, '<span class="reason-highlight">$1</span>');
+    simpleReason = simpleReason.replace(/([0-9\.]+%)/g, '<span class="reason-highlight">$1</span>');
 
     // Time Ago
     const timeAgo = getTimeAgo(new Date(signal.timestamp));
@@ -209,35 +217,42 @@ function renderSignalCardRefactored(signal) {
     card.className = `signal-card ${cardClass}`;
     
     card.innerHTML = `
-        <div class="signal-top-bar">
-            <div class="signal-action-badge">
-                <span class="${signal.decision.toLowerCase()}-text">${actionLabel}</span>
+        <div class="card-header">
+            <div class="symbol-group">
+                <span class="card-symbol">${signal.stock_symbol}</span>
+                <span class="card-strategy">${formatStrategyName(signal.strategy)}</span>
             </div>
-            <div class="signal-time">${timeAgo}</div>
+            <div class="action-badge ${badgeClass}">
+                ${actionLabel}
+            </div>
         </div>
         
-        <div class="signal-content-body">
-            <div class="signal-info">
-                <div class="signal-symbol-row">
-                    <span class="signal-symbol-main">${signal.stock_symbol}</span>
-                    <span class="signal-price-main">${priceFormatted}</span>
-                    <span class="signal-change-pill" style="background: ${changeColor}20; color: ${changeColor}">
-                        ${changeSign}${changeFormatted}%
-                    </span>
-                </div>
-                
-                <div class="signal-reason-text">
-                    ${simpleReason}
-                </div>
-                
-                <span class="strategy-tag">${formatStrategyName(signal.strategy)}</span>
+        <div class="card-body">
+            <div class="price-box">
+                <span class="lbl">Price</span>
+                <span class="val">${priceFormatted}</span>
+            </div>
+            
+            <div class="confidence-mini" title="Confidence Score: ${confidencePercent}%">
+                 <svg width="44" height="44" class="conf-ring-svg">
+                    <circle class="conf-circle-bg" stroke-width="3" fill="transparent" r="${radius}" cx="22" cy="22"></circle>
+                    <circle class="conf-circle-fg" stroke="${actionColor}" stroke-width="3" fill="transparent" r="${radius}" cx="22" cy="22" style="stroke-dasharray: ${circumference}; stroke-dashoffset: ${offset}"></circle>
+                    <text x="50%" y="50%" class="conf-text" fill="#fff" transform="rotate(90 22 22)">${confidencePercent}%</text>
+                </svg>
             </div>
 
-            <div class="signal-confidence-box">
-                <div class="con-ring" style="--c-percent: ${confidencePercent}%; --c-color: ${actionColor}">
-                    <span class="con-val">${confidencePercent}%</span>
-                </div>
-                <span class="con-label">Conf</span>
+            <div class="change-box">
+                <div class="val" style="color: ${changeColor}">${changeSign}${changeFormatted}%</div>
+                <span class="lbl">Change</span>
+            </div>
+        </div>
+
+        <div class="card-footer">
+            <div class="reason-text">
+                ${simpleReason}
+            </div>
+            <div class="time-stamp">
+                <span>🕒</span> ${timeAgo}
             </div>
         </div>
     `;
@@ -251,7 +266,7 @@ function renderSignalCardRefactored(signal) {
     renderedSignalIds.add(signalId);
 
     if (container.children.length > MAX_VISIBLE_SIGNALS) {
-        container.removeChild(container.lastChild);
+        if (container.lastChild) container.removeChild(container.lastChild);
     }
 }
 
