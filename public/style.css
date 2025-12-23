@@ -622,6 +622,7 @@ td {
 /* Whale Alerts Section */
 .whale-alerts-section {
   margin-top: 2rem;
+  margin-bottom: 2rem;
 }
 
 /* Force whale alerts table to be scrollable */
