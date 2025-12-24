@@ -26,15 +26,17 @@ import (
 
 // App represents the main application
 type App struct {
-	config         *config.Config
-	authClient     *auth.AuthClient
-	tradingWS      *websocket.Client
-	handlerManager *handlers.HandlerManager
-	db             *database.Database
-	redis          *cache.RedisClient // Add Redis client to App struct
-	tradeRepo      *database.TradeRepository
-	webhookManager *notifications.WebhookManager
-	broker         *realtime.Broker
+	config          *config.Config
+	authClient      *auth.AuthClient
+	tradingWS       *websocket.Client
+	handlerManager  *handlers.HandlerManager
+	db              *database.Database
+	redis           *cache.RedisClient // Add Redis client to App struct
+	tradeRepo       *database.TradeRepository
+	webhookManager  *notifications.WebhookManager
+	broker          *realtime.Broker
+	lastMessageTime time.Time // Track last message for health monitoring
+	lastMessageMu   sync.RWMutex
 }
 
 // New creates a new application instance
@@ -191,15 +193,31 @@ func (a *App) Start() error {
 		}
 	}()
 
-	// 6. Start message processing
+	// Setup WaitGroup for goroutines
 	var wg sync.WaitGroup
+
+	// 6. Start background token refresh monitoring
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		a.monitorTokenExpiry(ctx, tokenCacheFile)
+	}()
+
+	// 7. Start WebSocket health monitoring
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		a.monitorWebSocketHealth(ctx)
+	}()
+
+	// 8. Start message processing
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		a.readAndProcessMessages(ctx)
 	}()
 
-	// 8. Wait for interrupt and perform graceful shutdown
+	// 9. Wait for interrupt and perform graceful shutdown
 	err = a.gracefulShutdown(cancel)
 	wg.Wait()
 	return err
@@ -368,6 +386,9 @@ func (a *App) readAndProcessMessages(ctx context.Context) {
 				}
 			}
 
+			// Update last message time for health monitoring
+			a.updateLastMessageTime()
+
 			// Process the protobuf wrapper message
 			err = a.handlerManager.HandleProtoMessage("running_trade", message)
 			if err != nil {
@@ -429,4 +450,129 @@ func (a *App) setupHandlers() {
 	// Running Trade Handler
 	runningTradeHandler := handlers.NewRunningTradeHandler(a.tradeRepo, a.webhookManager, a.redis, a.broker)
 	a.handlerManager.RegisterHandler("running_trade", runningTradeHandler)
+}
+
+// monitorTokenExpiry monitors token expiry and refreshes proactively
+func (a *App) monitorTokenExpiry(ctx context.Context, tokenCacheFile string) {
+	ticker := time.NewTicker(5 * time.Minute) // Check every 5 minutes
+	defer ticker.Stop()
+
+	log.Println("🔄 Token expiry monitoring started")
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Println("🛑 Token monitoring stopped")
+			return
+		case <-ticker.C:
+			// Check if token will expire in the next 10 minutes
+			expiryTime := a.authClient.GetExpiryTime()
+			timeUntilExpiry := time.Until(expiryTime)
+
+			if timeUntilExpiry <= 10*time.Minute {
+				log.Printf("⚠️  Token will expire in %v, refreshing proactively...", timeUntilExpiry)
+
+				if err := a.authClient.RefreshToken(); err != nil {
+					log.Printf("❌ Token refresh failed: %v, attempting re-login...", err)
+					if loginErr := a.authClient.Login(); loginErr != nil {
+						log.Printf("❌ Re-login failed: %v", loginErr)
+						continue
+					}
+					log.Println("✅ Re-login successful")
+				} else {
+					log.Println("✅ Token refreshed successfully")
+				}
+
+				// Save updated token to cache
+				if err := a.authClient.SaveTokenToFile(tokenCacheFile); err != nil {
+					log.Printf("⚠️  Failed to save refreshed token to cache: %v", err)
+				} else {
+					log.Println("💾 Token cache updated")
+				}
+
+				// Update WebSocket connection with new token
+				accessToken := a.authClient.GetAccessToken()
+				if a.tradingWS != nil {
+					log.Println("🔄 Updating WebSocket connection with refreshed token...")
+					_ = a.tradingWS.Close()
+					a.tradingWS = websocket.NewClient(a.config.TradingWSURL, accessToken)
+
+					if err := a.tradingWS.Connect(); err != nil {
+						log.Printf("⚠️  Failed to reconnect WebSocket: %v", err)
+						continue
+					}
+
+					// Re-subscribe
+					wsKey, err := a.authClient.GetWebSocketKey()
+					if err != nil {
+						log.Printf("⚠️  Failed to get WebSocket key: %v", err)
+						continue
+					}
+
+					userID := fmt.Sprintf("%d", a.authClient.GetUserID())
+					if err := a.tradingWS.SubscribeToStocks(nil, userID, wsKey); err != nil {
+						log.Printf("⚠️  Failed to re-subscribe: %v", err)
+					}
+
+					a.tradingWS.StartPing(25 * time.Second)
+					log.Println("✅ WebSocket reconnected with new token")
+				}
+			} else if timeUntilExpiry > 0 {
+				log.Printf("🔐 Token valid, expires in %v", timeUntilExpiry.Round(time.Minute))
+			}
+		}
+	}
+}
+
+// monitorWebSocketHealth monitors WebSocket connection health
+func (a *App) monitorWebSocketHealth(ctx context.Context) {
+	ticker := time.NewTicker(60 * time.Second) // Check every 60 seconds
+	defer ticker.Stop()
+
+	log.Println("💓 WebSocket health monitoring started")
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Println("🛑 WebSocket health monitoring stopped")
+			return
+		case <-ticker.C:
+			lastMsg := a.getLastMessageTime()
+			if lastMsg.IsZero() {
+				// First check, set initial time
+				a.updateLastMessageTime()
+				continue
+			}
+
+			timeSinceLastMessage := time.Since(lastMsg)
+
+			// If no message received in 5 minutes, consider connection unhealthy
+			if timeSinceLastMessage > 5*time.Minute {
+				log.Printf("⚠️  No WebSocket message received for %v, reconnecting...", timeSinceLastMessage.Round(time.Second))
+
+				if err := a.reconnectWebSocket(); err != nil {
+					log.Printf("❌ WebSocket reconnection failed: %v", err)
+				} else {
+					log.Println("✅ WebSocket reconnected successfully")
+					a.updateLastMessageTime()
+				}
+			} else {
+				log.Printf("💓 WebSocket healthy, last message %v ago", timeSinceLastMessage.Round(time.Second))
+			}
+		}
+	}
+}
+
+// updateLastMessageTime updates the timestamp of the last received message
+func (a *App) updateLastMessageTime() {
+	a.lastMessageMu.Lock()
+	defer a.lastMessageMu.Unlock()
+	a.lastMessageTime = time.Now()
+}
+
+// getLastMessageTime returns the timestamp of the last received message
+func (a *App) getLastMessageTime() time.Time {
+	a.lastMessageMu.RLock()
+	defer a.lastMessageMu.RUnlock()
+	return a.lastMessageTime
 }
