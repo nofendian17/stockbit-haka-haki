@@ -314,35 +314,51 @@ func (h *RunningTradeHandler) GetMessageType() string {
 	return "RunningTrade"
 }
 
-// calculateConfidenceScore computes graduated confidence based on Z-Score tiers
-// Returns a score from 40-100% based on statistical significance
+// calculateConfidenceScore computes confidence using continuous mathematical formula
+// Returns a score from 40-100% with smooth progression based on Z-Score and volume
 func calculateConfidenceScore(zScore, volVsAvgPct float64, detectionType string) float64 {
-	// Graduated scoring based on Z-Score tiers (statistical confidence)
-	// Reference: Normal distribution percentiles
-
-	if zScore >= 5.0 {
-		return 100.0 // EXTREME: Beyond 5 sigma (99.9999% percentile)
-	} else if zScore >= 4.0 {
-		return 90.0 // VERY HIGH: 4-5 sigma (99.997% percentile)
-	} else if zScore >= 3.5 {
-		return 80.0 // HIGH: 3.5-4 sigma (99.95% percentile)
-	} else if zScore >= 3.0 {
-		return 70.0 // SIGNIFICANT: 3-3.5 sigma (99.7% percentile)
-	} else if zScore >= 2.5 {
-		return 50.0 // MODERATE: 2.5-3 sigma (98.8% percentile)
-	}
-
-	// Volume spike without sufficient Z-Score
-	if volVsAvgPct >= 500 {
-		return 60.0 // RELATIVE VOLUME SPIKE (5x average)
-	}
-
 	// Fallback threshold (new stock, no historical data)
 	if detectionType == "FALLBACK THRESHOLD" {
-		return 40.0 // THRESHOLD-BASED: Limited confidence due to lack of statistics
+		return 40.0
 	}
 
-	return 50.0 // Default for edge cases
+	// Continuous Z-Score component: Linear interpolation between key points
+	// Formula: confidence = 70 + (zScore - 3.0) * 15
+	// Z = 3.0 → 70%  (whale threshold)
+	// Z = 4.0 → 85%  (very significant)
+	// Z = 5.0 → 100% (extreme)
+	zComponent := 70.0 + (zScore-3.0)*15.0
+
+	// Cap at 100% for extreme Z-Scores
+	if zComponent > 100.0 {
+		zComponent = 100.0
+	}
+
+	// Floor at 50% for low Z-Scores (volume spike cases)
+	if zComponent < 50.0 {
+		zComponent = 50.0
+	}
+
+	// Volume bonus: Additional confidence for extreme volume spikes
+	// Adds up to +10% for volumes >500%
+	volumeBonus := 0.0
+	if volVsAvgPct > 500.0 {
+		// Linear bonus: 0% at 500%, +10% at 1000% and above
+		volumeBonus = (volVsAvgPct - 500.0) / 50.0
+		if volumeBonus > 10.0 {
+			volumeBonus = 10.0
+		}
+	}
+
+	// Final confidence = Z-Score component + Volume bonus
+	confidence := zComponent + volumeBonus
+
+	// Ensure final cap at 100%
+	if confidence > 100.0 {
+		confidence = 100.0
+	}
+
+	return confidence
 }
 
 // Helper function to create pointer
@@ -352,6 +368,14 @@ func ptr(v float64) *float64 {
 
 func ptrInt(v int) *int {
 	return &v
+}
+
+// getAvgPricePtr safely retrieves average price, returns nil if stats unavailable
+func getAvgPricePtr(stats *database.StockStats) *float64 {
+	if stats == nil {
+		return nil
+	}
+	return ptr(stats.MeanPrice)
 }
 
 // containsAny checks if string contains any of the substrings

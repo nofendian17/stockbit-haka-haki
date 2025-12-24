@@ -439,32 +439,49 @@ def is_whale_alert(trade):
 
 ### 🎯 Confidence Score
 
-The system uses a **graduated confidence scoring** model based on statistical significance:
+The system uses a **continuous confidence scoring** model with smooth mathematical progression:
 
-| Z-Score Range     | Confidence | Severity        | Percentile | Description                           |
-| ----------------- | ---------- | --------------- | ---------- | ------------------------------------- |
-| **Z ≥ 5.0**       | 100%       | 🔴 EXTREME      | 99.9999%   | Beyond 5 sigma - Extremely rare event |
-| **4.0 ≤ Z < 5.0** | 90%        | 🟠 VERY HIGH    | 99.997%    | 4-5 sigma - Highly significant        |
-| **3.5 ≤ Z < 4.0** | 80%        | 🟡 HIGH         | 99.95%     | 3.5-4 sigma - Very significant        |
-| **3.0 ≤ Z < 3.5** | 70%        | 🟢 SIGNIFICANT  | 99.7%      | 3-3.5 sigma - Whale threshold         |
-| **2.5 ≤ Z < 3.0** | 50%        | 🔵 MODERATE     | 98.8%      | 2.5-3 sigma - Borderline              |
-| **Vol ≥ 500%**    | 60%        | 🟣 VOLUME SPIKE | N/A        | 5x average volume without Z-Score     |
-| **Fallback**      | 40%        | ⚪ THRESHOLD    | N/A        | New stock, no historical data         |
+#### 📐 Formula
 
-**How It Works:**
+**Z-Score Component:**
 
-- Higher Z-Scores indicate more **exceptional** trades (further from normal distribution)
-- Confidence reflects the **statistical certainty** that this is truly a "whale" activity
-- Webhook filters can use `min_confidence` to only receive high-priority alerts
-- Frontend displays confidence percentage for user prioritization
+```
+Confidence = 70 + (Z-Score - 3.0) × 15
 
-**Example Scenarios:**
+Z = 3.0 → 70%  | Z = 4.0 → 85% | Z = 5.0+ → 100%
+```
 
-- **Z = 5.2** → Confidence 100% → Extremely rare, institutional-level trade
-- **Z = 3.8** → Confidence 80% → Strong whale signal
-- **Z = 3.1** → Confidence 70% → Standard whale alert
-- **Vol = 600%** → Confidence 60% → Volume spike without Z-Score (e.g., low volatility stock)
-- **Fallback** → Confidence 40% → New listing with no historical baseline
+**Volume Bonus (up to +10%):**
+
+```
+If Volume% > 500%: Bonus = (Volume% - 500) / 50
+```
+
+#### 📊 Example Calculations
+
+| Z-Score | Volume% | Base | Bonus | **Final** | Severity       |
+| ------- | ------- | ---- | ----- | --------- | -------------- |
+| 3.0     | 510%    | 70%  | +0.2% | **70%**   | 🟢 Threshold   |
+| 3.5     | 600%    | 77%  | +2%   | **79%**   | 🟡 Significant |
+| 4.0     | 750%    | 85%  | +5%   | **90%**   | 🟠 Very High   |
+| 4.5     | 900%    | 92%  | +8%   | **100%**  | 🔴 Extreme     |
+| 5.0+    | 1200%   | 100% | +10%  | **100%**  | 🔴 Extreme     |
+| 2.5     | 600%    | 50%  | +2%   | **52%**   | 🔵 Vol Spike   |
+| N/A     | N/A     | -    | -     | **40%**   | ⚪ Fallback    |
+
+**Keuntungan:**
+
+- ✅ Smooth progression (Z=3.1 ≠ Z=3.9)
+- ✅ Precise signal strength
+- ✅ Volume spike recognition
+- ✅ Transparent formula
+
+**Usage:**
+
+- **≥85%**: Extreme whales, priority action
+- **70-85%**: Strong signals for entry/exit
+- **50-70%**: Moderate, needs confirmation
+- **<50%**: Weak, watch only
 
 ## 🚀 Quick Start
 
