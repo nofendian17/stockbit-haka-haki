@@ -20,7 +20,7 @@ const (
 	billionIDR            = 1_000_000_000.0 // 1 Billion IDR
 	zScoreThreshold       = 3.0             // Statistical anomaly threshold
 	volumeSpikeMultiplier = 5.0             // 5x average volume
-	fallbackLotThreshold  = 1000            // Fallback threshold for lots
+	fallbackLotThreshold  = 2500            // Fallback threshold for lots (for stocks without historical data)
 	statsLookbackMinutes  = 60              // 1 hour lookback for statistics
 	statsCacheDuration    = 5 * time.Minute // Cache stats for 5 minutes
 )
@@ -239,10 +239,13 @@ func (h *RunningTradeHandler) ProcessTrade(t *pb.RunningTrade) {
 			}
 		} else {
 			// Fallback: No statistics available (New Listing / No History)
-			// Use Hard Thresholds
-			if volumeLot >= fallbackLotThreshold || totalAmount >= billionIDR {
-				isWhale = true
-				detectionType = "FALLBACK THRESHOLD"
+			// Use Hard Thresholds with minimum value safety floor
+			// Require: (High Volume AND Min Value) OR (Very High Value)
+			if totalAmount >= minSafeValue {
+				if volumeLot >= fallbackLotThreshold || totalAmount >= billionIDR {
+					isWhale = true
+					detectionType = "FALLBACK THRESHOLD"
+				}
 			}
 		}
 
