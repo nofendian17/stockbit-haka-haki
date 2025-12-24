@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"stockbit-haka-haki/cache"
@@ -23,6 +24,7 @@ const (
 	fallbackLotThreshold  = 1000            // Fallback threshold for lots
 	statsLookbackMinutes  = 60              // 1 hour lookback for statistics
 	statsCacheDuration    = 5 * time.Minute // Cache stats for 5 minutes
+	accumulationWindow    = 5 * time.Second // Window for aggregating rapid trades
 )
 
 // Cache key prefixes
@@ -36,15 +38,29 @@ type RunningTradeHandler struct {
 	webhookManager *notifications.WebhookManager // Manager untuk notifikasi webhook
 	redis          *cache.RedisClient            // Redis client for config caching
 	broker         *realtime.Broker              // Realtime SSE broker
+
+	// Accumulation buffer for detecting rapid small trades
+	mu                 sync.Mutex
+	accumulationBuffer map[string][]TradeInfo
+}
+
+// TradeInfo holds minimal info for accumulation detection
+type TradeInfo struct {
+	Timestamp time.Time
+	VolumeLot float64
+	Price     float64
+	TotalVal  float64
+	Action    string // BUY or SELL
 }
 
 // NewRunningTradeHandler membuat instance handler baru
 func NewRunningTradeHandler(tradeRepo *database.TradeRepository, webhookManager *notifications.WebhookManager, redis *cache.RedisClient, broker *realtime.Broker) *RunningTradeHandler {
 	return &RunningTradeHandler{
-		tradeRepo:      tradeRepo,
-		webhookManager: webhookManager,
-		redis:          redis,
-		broker:         broker,
+		tradeRepo:          tradeRepo,
+		webhookManager:     webhookManager,
+		redis:              redis,
+		broker:             broker,
+		accumulationBuffer: make(map[string][]TradeInfo),
 	}
 }
 
@@ -300,6 +316,157 @@ func (h *RunningTradeHandler) ProcessTrade(t *pb.RunningTrade) {
 				latency := time.Since(startTime)
 				log.Printf("⏱️ Detection Latency: %v", latency)
 			}
+		} else {
+			// Not a single large trade, check for accumulation of smaller trades
+			h.processAccumulation(t, actionDb, boardType, volumeLot, totalAmount, stats)
+		}
+	}
+}
+
+// processAccumulation checks if a series of small trades sums up to a whale alert
+func (h *RunningTradeHandler) processAccumulation(t *pb.RunningTrade, actionDb, boardType string, volumeLot, totalAmount float64, stats *database.StockStats) {
+	var alertToSend *database.WhaleAlert
+
+	// CRITICAL SECTION: Lock, Calculate, Clean Buffer, Construct Alert
+	func() {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+
+		// 1. Add current trade to buffer
+		now := time.Now()
+		h.accumulationBuffer[t.Stock] = append(h.accumulationBuffer[t.Stock], TradeInfo{
+			Timestamp: now,
+			VolumeLot: volumeLot,
+			Price:     t.Price,
+			TotalVal:  totalAmount,
+			Action:    actionDb,
+		})
+
+		// 2. Prune old trades
+		validTrades := h.accumulationBuffer[t.Stock][:0]
+		cutoff := now.Add(-accumulationWindow)
+
+		var sumVolumeLot, sumTotalAmount float64
+		var avgPriceWeighted float64
+
+		for _, trade := range h.accumulationBuffer[t.Stock] {
+			if trade.Timestamp.After(cutoff) {
+				validTrades = append(validTrades, trade)
+				sumVolumeLot += trade.VolumeLot
+				sumTotalAmount += trade.TotalVal
+				avgPriceWeighted += trade.Price * trade.VolumeLot
+			}
+		}
+		h.accumulationBuffer[t.Stock] = validTrades
+
+		// Minimum count to call it "accumulation" (avoid triggering on single small trade noise)
+		if len(validTrades) < 3 {
+			return
+		}
+
+		// Calculate weighted average price and determine majority action
+		var buyVol, sellVol float64
+
+		for _, tr := range validTrades {
+			if tr.Action == "BUY" {
+				buyVol += tr.VolumeLot
+			} else if tr.Action == "SELL" {
+				sellVol += tr.VolumeLot
+			}
+		}
+
+		finalAction := actionDb // Default to current
+		if buyVol > sellVol {
+			finalAction = "BUY"
+		} else if sellVol > buyVol {
+			finalAction = "SELL"
+		}
+
+		if sumVolumeLot > 0 {
+			avgPriceWeighted /= sumVolumeLot
+		} else {
+			avgPriceWeighted = t.Price
+		}
+
+		// 3. Check for Whale Status on the AGGREGATED stats
+		isWhale := false
+		detectionType := "UNKNOWN"
+		var zScore, volVsAvgPct float64
+
+		// Reuse existing detection logic but with SUMMED volume
+		if stats != nil && stats.MeanVolumeLots > 0 {
+			volVsAvgPct = (sumVolumeLot / stats.MeanVolumeLots) * 100
+			if stats.StdDevVolume > 0 {
+				zScore = (sumVolumeLot - stats.MeanVolumeLots) / stats.StdDevVolume
+			}
+
+			if sumTotalAmount >= minSafeValue {
+				if zScore >= zScoreThreshold {
+					isWhale = true
+					detectionType = "ACCUMULATION Z-SCORE"
+				}
+				if sumVolumeLot >= (stats.MeanVolumeLots * volumeSpikeMultiplier) {
+					isWhale = true
+					if detectionType == "UNKNOWN" {
+						detectionType = "ACCUMULATION VOL SPIKE"
+					} else {
+						detectionType += " & VOL SPIKE"
+					}
+				}
+			}
+		} else {
+			// Fallback
+			if sumVolumeLot >= fallbackLotThreshold || sumTotalAmount >= billionIDR {
+				isWhale = true
+				detectionType = "ACCUMULATION FALLBACK"
+			}
+		}
+
+		// 4. Construct Alert if Accumulated
+		if isWhale {
+			alertToSend = &database.WhaleAlert{
+				DetectedAt:         time.Now(),
+				StockSymbol:        t.Stock,
+				AlertType:          "RAPID_ACCUMULATION",
+				Action:             finalAction,
+				TriggerPrice:       avgPriceWeighted,
+				TriggerVolumeLots:  sumVolumeLot,
+				TriggerValue:       sumTotalAmount,
+				ConfidenceScore:    calculateConfidenceScore(zScore, volVsAvgPct, detectionType),
+				MarketBoard:        boardType,
+				ZScore:             ptr(zScore),
+				VolumeVsAvgPct:     ptr(volVsAvgPct),
+				AvgPrice:           getAvgPricePtr(stats), // Safe helper: handles nil stats
+				PatternTradeCount:  ptrInt(len(validTrades)),
+				TotalPatternVolume: ptr(sumVolumeLot),
+				TotalPatternValue:  ptr(sumTotalAmount),
+			}
+
+			// Clear buffer to avoid re-triggering immediately
+			delete(h.accumulationBuffer, t.Stock)
+		}
+	}()
+
+	// 5. I/O Operations (Outside Lock)
+	if alertToSend != nil {
+		// Save & Alert
+		if h.tradeRepo != nil {
+			if err := h.tradeRepo.SaveWhaleAlert(alertToSend); err != nil {
+				log.Printf("⚠️  Failed to save accumulation alert: %v", err)
+			}
+		}
+
+		// Log regardless of DB save
+		log.Printf("🌊 ACCUMULATION WHALE! %s | Count: %d | Vol: %.0f | Val: %s",
+			t.Stock, *alertToSend.PatternTradeCount, alertToSend.TriggerVolumeLots, helpers.FormatRupiah(alertToSend.TriggerValue))
+
+		// Send notifications
+		if h.webhookManager != nil {
+			h.webhookManager.SendAlert(alertToSend)
+		}
+		if h.broker != nil && h.webhookManager != nil {
+			payload := h.webhookManager.CreatePayload(alertToSend)
+			h.broker.Broadcast("whale_alert", payload)
 		}
 	}
 }
