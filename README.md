@@ -325,7 +325,7 @@ The system uses a **configuration-free** statistical model to detect anomalies:
 3.  **Trigger Conditions**:
     - **Primary**: `Z-Score >= 3.0` (Statistically significant anomaly).
     - **Secondary**: `Volume >= 5x Average` (500% relative volume spike).
-4.  **Fallback**: If no history exists (e.g., new listing), uses hard thresholds (> 1000 Lots OR > 1 Billion IDR).
+4.  **Fallback**: If no history exists (e.g., new listing), uses hard thresholds: (≥2500 Lots AND ≥100M IDR) OR ≥1 Billion IDR.
 
 ### 📐 Mathematical Formulation
 
@@ -421,9 +421,10 @@ def is_whale_alert(trade):
 
         return False
     else:
-        # Fallback for new/illiquid stocks
-        if trade.volume_lots >= 1000 or total_value >= 1_000_000_000:
-            return True
+        # Fallback for new/illiquid stocks (with safety floor)
+        if total_value >= 100_000_000:  # 100M IDR minimum
+            if trade.volume_lots >= 2500 or total_value >= 1_000_000_000:
+                return True
         return False
 ```
 
@@ -435,7 +436,7 @@ def is_whale_alert(trade):
 | **Whale (Z-Score)**    | 500           | 100        | 3.2     | 500% | 250M        | ✅     | Z >= 3.0          |
 | **Whale (Vol Spike)**  | 600           | 100        | 4.0     | 600% | 300M        | ✅     | Vol >= 5x         |
 | **Small but Frequent** | 50            | 100        | -0.5    | 50%  | 25M         | ❌     | Below floor       |
-| **New Stock Whale**    | 1200          | N/A        | N/A     | N/A  | 1.2B        | ✅     | Fallback > 1B     |
+| **New Stock Whale**    | 3000          | N/A        | N/A     | N/A  | 1.5B        | ✅     | Fallback ≥ 1B     |
 
 ### 🎯 Confidence Score
 

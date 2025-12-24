@@ -137,7 +137,7 @@ type Handler interface {
 5. Check whale criteria:
    - Z-Score >= 3.0 ATAU
    - Volume >= 5x average ATAU
-   - (Fallback) Volume >= 1000 lots ATAU value >= 1B
+   - (Fallback) (Volume ≥ 2500 lots DAN value ≥ 100M) ATAU value ≥ 1B
 6. Jika whale detected:
    - Save WhaleAlert ke database
    - Broadcast ke realtime broker (SSE)
@@ -486,7 +486,7 @@ IF statistics_available:
     ELSE:
         RETURN False
 ELSE:  // Fallback untuk new/illiquid stocks
-    IF volume >= 1000 OR total_value >= 1B:
+    IF total_value >= 100M AND (volume >= 2500 OR total_value >= 1B):
         RETURN True
     ELSE:
         RETURN False
