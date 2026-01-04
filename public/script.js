@@ -280,21 +280,46 @@ document.addEventListener('DOMContentLoaded', () => {
         hasMore = true;
         fetchAlerts(true);
         fetchStats();
+
+        // Visual feedback
+        const btn = document.getElementById('refresh-btn');
+        btn.style.transform = 'rotate(360deg)';
+        setTimeout(() => btn.style.transform = '', 300);
     });
 
-    // All filters now trigger server refetch
-    document.getElementById('search').addEventListener('input', () => {
-        updateFilters();
-        currentOffset = 0;
-        hasMore = true;
-        fetchAlerts(true);
+    // Search with debouncing to avoid too many requests
+    let searchDebounceTimer = null;
+    document.getElementById('search').addEventListener('input', (e) => {
+        // Clear previous timer
+        if (searchDebounceTimer) {
+            clearTimeout(searchDebounceTimer);
+        }
+
+        // Visual feedback - show searching state
+        const searchInput = e.target;
+        searchInput.style.borderColor = '#ffd700';
+
+        // Set new timer
+        searchDebounceTimer = setTimeout(() => {
+            updateFilters();
+            currentOffset = 0;
+            hasMore = true;
+            fetchAlerts(true);
+
+            // Reset border color
+            searchInput.style.borderColor = '';
+        }, 500); // Wait 500ms after user stops typing
     });
 
+    // Immediate filter for dropdowns
     document.getElementById('filter-action').addEventListener('change', () => {
         updateFilters();
         currentOffset = 0;
         hasMore = true;
         fetchAlerts(true);
+
+        // Visual feedback
+        highlightActiveFilters();
     });
 
     document.getElementById('filter-amount').addEventListener('change', () => {
@@ -302,6 +327,9 @@ document.addEventListener('DOMContentLoaded', () => {
         currentOffset = 0;
         hasMore = true;
         fetchAlerts(true);
+
+        // Visual feedback
+        highlightActiveFilters();
     });
 
     document.getElementById('filter-board').addEventListener('change', () => {
@@ -309,7 +337,31 @@ document.addEventListener('DOMContentLoaded', () => {
         currentOffset = 0;
         hasMore = true;
         fetchAlerts(true);
+
+        // Visual feedback
+        highlightActiveFilters();
     });
+
+    // Clear all filters button
+    document.getElementById('clear-filters-btn').addEventListener('click', () => {
+        // Reset all filter inputs
+        document.getElementById('search').value = '';
+        document.getElementById('filter-action').value = 'ALL';
+        document.getElementById('filter-amount').value = '0';
+        document.getElementById('filter-board').value = 'ALL';
+
+        // Update filters and fetch
+        updateFilters();
+        currentOffset = 0;
+        hasMore = true;
+        fetchAlerts(true);
+
+        // Visual feedback
+        const btn = document.getElementById('clear-filters-btn');
+        btn.style.transform = 'scale(0.95)';
+        setTimeout(() => btn.style.transform = '', 200);
+    });
+
 
     // Infinite scroll: detect when user scrolls near bottom
     const whaleTableContainer = document.querySelector('.whale-alerts-section .table-container');
@@ -621,8 +673,84 @@ function resetOutput() {
 }
 
 function updateFilters() {
-    currentFilters.search = document.getElementById('search').value.toUpperCase();
+    currentFilters.search = document.getElementById('search').value.trim().toUpperCase();
     currentFilters.action = document.getElementById('filter-action').value;
-    currentFilters.amount = parseFloat(document.getElementById('filter-amount').value);
+    currentFilters.amount = parseFloat(document.getElementById('filter-amount').value) || 0;
     currentFilters.board = document.getElementById('filter-board').value;
+
+    // Update UI to show active filters
+    highlightActiveFilters();
+}
+
+function highlightActiveFilters() {
+    // Highlight search if active
+    const searchInput = document.getElementById('search');
+    if (currentFilters.search) {
+        searchInput.style.backgroundColor = 'rgba(14, 203, 129, 0.1)';
+        searchInput.style.borderColor = 'var(--accent-buy)';
+    } else {
+        searchInput.style.backgroundColor = '';
+        searchInput.style.borderColor = '';
+    }
+
+    // Highlight action filter if not ALL
+    const actionSelect = document.getElementById('filter-action');
+    if (currentFilters.action !== 'ALL') {
+        actionSelect.style.backgroundColor = 'rgba(14, 203, 129, 0.1)';
+        actionSelect.style.borderColor = 'var(--accent-buy)';
+    } else {
+        actionSelect.style.backgroundColor = '';
+        actionSelect.style.borderColor = '';
+    }
+
+    // Highlight amount filter if active
+    const amountSelect = document.getElementById('filter-amount');
+    if (currentFilters.amount > 0) {
+        amountSelect.style.backgroundColor = 'rgba(14, 203, 129, 0.1)';
+        amountSelect.style.borderColor = 'var(--accent-buy)';
+    } else {
+        amountSelect.style.backgroundColor = '';
+        amountSelect.style.borderColor = '';
+    }
+
+    // Highlight board filter if not ALL
+    const boardSelect = document.getElementById('filter-board');
+    if (currentFilters.board !== 'ALL') {
+        boardSelect.style.backgroundColor = 'rgba(14, 203, 129, 0.1)';
+        boardSelect.style.borderColor = 'var(--accent-buy)';
+    } else {
+        boardSelect.style.backgroundColor = '';
+        boardSelect.style.borderColor = '';
+    }
+
+    // Show active filter count
+    updateActiveFilterCount();
+}
+
+function updateActiveFilterCount() {
+    let activeCount = 0;
+    if (currentFilters.search) activeCount++;
+    if (currentFilters.action !== 'ALL') activeCount++;
+    if (currentFilters.amount > 0) activeCount++;
+    if (currentFilters.board !== 'ALL') activeCount++;
+
+    // Show/hide clear filters button
+    const clearBtn = document.getElementById('clear-filters-btn');
+    if (clearBtn) {
+        if (activeCount > 0) {
+            clearBtn.style.display = 'flex';
+        } else {
+            clearBtn.style.display = 'none';
+        }
+    }
+
+    // Update section title to show active filter count
+    const sectionTitle = document.querySelector('.section-title-small h3');
+    if (sectionTitle) {
+        if (activeCount > 0) {
+            sectionTitle.innerHTML = `Filters & Search <span style="background: var(--accent-buy); color: #000; padding: 2px 8px; border-radius: 12px; font-size: 0.7em; margin-left: 8px;">${activeCount}</span>`;
+        } else {
+            sectionTitle.textContent = 'Filters & Search';
+        }
+    }
 }
