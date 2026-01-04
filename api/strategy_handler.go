@@ -132,15 +132,30 @@ func (s *Server) handleAccumulationSummary(w http.ResponseWriter, r *http.Reques
 	// Parse query params
 	query := r.URL.Query()
 
-	hoursBack := 24 // default 24 hours (1 day)
+	var startTime time.Time
+	var hoursBack float64
+
+	// Default to Today 00:00:00 WIB (Asia/Jakarta) if no hours parameter is provided
+	loc := time.FixedZone("WIB", 7*60*60)
+	now := time.Now().In(loc)
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
+
 	if h := query.Get("hours"); h != "" {
 		if parsed, err := strconv.Atoi(h); err == nil {
-			hoursBack = parsed
+			hoursBack = float64(parsed)
+			startTime = time.Now().Add(-time.Duration(parsed) * time.Hour)
+		} else {
+			// Fallback if parsing fails
+			startTime = todayStart
+			hoursBack = time.Since(startTime).Hours()
 		}
+	} else {
+		startTime = todayStart
+		hoursBack = time.Since(startTime).Hours()
 	}
 
 	// Get accumulation/distribution summary (now returns 2 separate lists)
-	accumulation, distribution, err := s.repo.GetAccumulationDistributionSummary(hoursBack)
+	accumulation, distribution, err := s.repo.GetAccumulationDistributionSummary(startTime)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

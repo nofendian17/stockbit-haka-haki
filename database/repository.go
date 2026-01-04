@@ -490,11 +490,11 @@ type AccumulationDistributionSummary struct {
 }
 
 // GetAccumulationDistributionSummary returns top 20 accumulation and top 20 distribution separately
-// Data is calculated from last 24 hours by default
-func (r *TradeRepository) GetAccumulationDistributionSummary(hoursBack int) (accumulation []AccumulationDistributionSummary, distribution []AccumulationDistributionSummary, err error) {
-	// Default to 24 hours if not specified
-	if hoursBack <= 0 {
-		hoursBack = 24
+// Data is calculated from startTime
+func (r *TradeRepository) GetAccumulationDistributionSummary(startTime time.Time) (accumulation []AccumulationDistributionSummary, distribution []AccumulationDistributionSummary, err error) {
+	// Default to 24 hours if zero
+	if startTime.IsZero() {
+		startTime = time.Now().Add(-24 * time.Hour)
 	}
 
 	baseQuery := `
@@ -508,7 +508,7 @@ func (r *TradeRepository) GetAccumulationDistributionSummary(hoursBack int) (acc
 				COUNT(*) as total_count,
 				SUM(trigger_value) as total_value
 			FROM whale_alerts
-			WHERE detected_at >= NOW() - INTERVAL '1 hour' * $1
+			WHERE detected_at >= ?
 			GROUP BY stock_symbol
 		)
 		SELECT 
@@ -543,7 +543,7 @@ func (r *TradeRepository) GetAccumulationDistributionSummary(hoursBack int) (acc
 		ORDER BY net_value DESC
 		LIMIT 20
 	`
-	if err := r.db.db.Raw(accumulationQuery, hoursBack).Scan(&accumulation).Error; err != nil {
+	if err := r.db.db.Raw(accumulationQuery, startTime).Scan(&accumulation).Error; err != nil {
 		return nil, nil, err
 	}
 
@@ -554,7 +554,7 @@ func (r *TradeRepository) GetAccumulationDistributionSummary(hoursBack int) (acc
 		ORDER BY net_value ASC
 		LIMIT 20
 	`
-	if err := r.db.db.Raw(distributionQuery, hoursBack).Scan(&distribution).Error; err != nil {
+	if err := r.db.db.Raw(distributionQuery, startTime).Scan(&distribution).Error; err != nil {
 		return nil, nil, err
 	}
 

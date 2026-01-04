@@ -183,10 +183,21 @@ func (s *Server) handleGetWhaleStats(w http.ResponseWriter, r *http.Request) {
 	symbol := query.Get("symbol")
 
 	// Time range parsing
+	// Time range parsing
 	var startTime, endTime time.Time
+
+	// Default to Today 00:00:00 WIB (Asia/Jakarta) if no start time is provided
+	// Use FixedZone to avoid dependency on tzdata being installed
+	loc := time.FixedZone("WIB", 7*60*60)
+	now := time.Now().In(loc)
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
+
 	if startStr := query.Get("start"); startStr != "" {
 		startTime, _ = time.Parse(time.RFC3339, startStr)
+	} else {
+		startTime = todayStart
 	}
+
 	if endStr := query.Get("end"); endStr != "" {
 		endTime, _ = time.Parse(time.RFC3339, endStr)
 	}
