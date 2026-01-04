@@ -506,11 +506,35 @@ td {
   font-weight: 600;
 }
 
+/* Confidence Score Indicators */
+.confidence-extreme {
+  color: #ff4444;
+  font-weight: 700;
+  text-shadow: 0 0 8px rgba(255, 68, 68, 0.5);
+}
+
+.confidence-high {
+  color: #ff9500;
+  font-weight: 700;
+  text-shadow: 0 0 8px rgba(255, 149, 0, 0.4);
+}
+
+.confidence-medium {
+  color: #ffd700;
+  font-weight: 600;
+}
+
+.confidence-low {
+  color: #888;
+  font-weight: 500;
+}
+
 .loading {
   text-align: center;
   padding: 3rem;
   color: var(--text-secondary);
 }
+
 
 /* Pattern Analysis Section */
 .pattern-analysis-section {
