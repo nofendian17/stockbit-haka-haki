@@ -58,12 +58,12 @@ let currentFilters = {
 function buildFilterQuery() {
     const params = new URLSearchParams();
 
-    // Send all filters to backend (all now supported!)
+    // Send all filters to backend
     if (currentFilters.search) {
         params.append('symbol', currentFilters.search);
     }
     if (currentFilters.action !== 'ALL') {
-        params.append('type', currentFilters.action);
+        params.append('action', currentFilters.action); // FIXED: Changed from 'type' to 'action'
     }
     if (currentFilters.board !== 'ALL') {
         params.append('board', currentFilters.board);

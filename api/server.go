@@ -113,6 +113,7 @@ func (s *Server) handleGetWhales(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	symbol := query.Get("symbol")
 	alertType := query.Get("type")
+	action := query.Get("action") // NEW: Filter for BUY/SELL
 	board := query.Get("board")
 
 	limitStr := query.Get("limit")
@@ -151,14 +152,14 @@ func (s *Server) handleGetWhales(w http.ResponseWriter, r *http.Request) {
 		endTime, _ = time.Parse(time.RFC3339, endStr)
 	}
 
-	whales, err := s.repo.GetHistoricalWhales(symbol, startTime, endTime, alertType, board, minAmount, limit, offset)
+	whales, err := s.repo.GetHistoricalWhales(symbol, startTime, endTime, alertType, action, board, minAmount, limit, offset)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	// Get total count for pagination metadata
-	totalCount, err := s.repo.GetWhaleCount(symbol, startTime, endTime, alertType, board, minAmount)
+	totalCount, err := s.repo.GetWhaleCount(symbol, startTime, endTime, alertType, action, board, minAmount)
 	if err != nil {
 		// If count fails, still return data but without total
 		totalCount = 0
