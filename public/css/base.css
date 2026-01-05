@@ -1,0 +1,171 @@
+/* ===== CSS VARIABLES & THEME CONFIGURATION ===== */
+:root {
+  /* Colors */
+  --bg-color: #0a0c10;
+  --bg-gradient: linear-gradient(135deg, #0a0c10 0%, #12151c 50%, #0f1318 100%);
+  --table-bg: #181b21;
+  --border-color: #2a2e37;
+  
+  /* Text */
+  --text-primary: #eaecef;
+  --text-secondary: #848e9c;
+  
+  /* Accents */
+  --accent-buy: #0ecb81;
+  --accent-buy-glow: rgba(14, 203, 129, 0.4);
+  --accent-sell: #f6465d;
+  --accent-sell-glow: rgba(246, 70, 93, 0.4);
+  --accent-neutral: #707a8a;
+  --accent-blue: #3b82f6;
+  --accent-purple: #a855f7;
+  --accent-gold: #ffd700;
+  
+  /* Typography */
+  --font-family: "Outfit", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+  
+  /* Spacing */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+  
+  /* Border Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  
+  /* Transitions */
+  --transition-fast: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  /* Shadows */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.3);
+  --shadow-glow-buy: 0 0 20px rgba(14, 203, 129, 0.2);
+  --shadow-glow-sell: 0 0 20px rgba(246, 70, 93, 0.2);
+}
+
+/* ===== RESET & BASE STYLES ===== */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg-color);
+  background-image:
+    radial-gradient(ellipse at top left, rgba(14, 203, 129, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at bottom right, rgba(59, 130, 246, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at center, rgba(168, 85, 247, 0.04) 0%, transparent 70%);
+  background-attachment: fixed;
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  min-height: 100vh;
+  padding-bottom: var(--spacing-xl);
+  -webkit-font-smoothing: antialiased;
+  position: relative;
+}
+
+/* ===== UTILITY CLASSES ===== */
+.text-right {
+  text-align: right;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.value-highlight {
+  color: var(--text-primary);
+  font-weight: 700;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* ===== DIFF/CHANGE INDICATORS ===== */
+.diff-positive {
+  color: var(--accent-buy);
+  font-size: 0.8rem;
+  margin-left: 4px;
+  font-weight: 600;
+}
+
+.diff-negative {
+  color: var(--accent-sell);
+  font-size: 0.8rem;
+  margin-left: 4px;
+  font-weight: 600;
+}
+
+/* ===== CONFIDENCE INDICATORS ===== */
+.confidence-extreme {
+  color: #ff4444;
+  font-weight: 700;
+  text-shadow: 0 0 8px rgba(255, 68, 68, 0.5);
+}
+
+.confidence-high {
+  color: #ff9500;
+  font-weight: 700;
+  text-shadow: 0 0 8px rgba(255, 149, 0, 0.4);
+}
+
+.confidence-medium {
+  color: #ffd700;
+  font-weight: 600;
+}
+
+.confidence-low {
+  color: #888;
+  font-weight: 500;
+}
+
+/* ===== LOADING STATES =====  */
+.loading {
+  text-align: center;
+  padding: 3rem;
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(14, 203, 129, 0.2);
+  border-top-color: var(--accent-buy);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  color: var(--text-secondary);
+  gap: 1rem;
+}
+
+.placeholder-icon {
+  font-size: 3rem;
+  opacity: 0.3;
+}
+
+.placeholder-small {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
