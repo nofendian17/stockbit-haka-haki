@@ -1640,18 +1640,18 @@ func (r *TradeRepository) UpdatePatternOutcome(id int64, outcome string, breakou
 func (r *TradeRepository) GetCandlesByTimeframe(timeframe string, symbol string, limit int) ([]map[string]interface{}, error) {
 	var viewName string
 	switch timeframe {
-	case "5min":
-		viewName = "candle_5min"
-	case "15min":
-		viewName = "candle_15min"
-	case "1hour":
-		viewName = "candle_1hour"
-	case "1day":
-		viewName = "candle_1day"
-	case "1min":
+	case "1min", "1m":
 		viewName = "candle_1min"
+	case "5min", "5m":
+		viewName = "candle_5min"
+	case "15min", "15m":
+		viewName = "candle_15min"
+	case "1hour", "1h", "60min", "60m":
+		viewName = "candle_1hour"
+	case "1day", "1d", "daily":
+		viewName = "candle_1day"
 	default:
-		return nil, fmt.Errorf("unsupported timeframe: %s", timeframe)
+		return nil, fmt.Errorf("unsupported timeframe: %s (supported: 1min/1m, 5min/5m, 15min/15m, 1hour/1h, 1day/1d)", timeframe)
 	}
 
 	var results []map[string]interface{}
