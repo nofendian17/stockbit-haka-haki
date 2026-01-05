@@ -243,20 +243,20 @@ func (WhaleAlertFollowup) TableName() string {
 
 // OrderFlowImbalance tracks buy vs sell pressure per minute
 type OrderFlowImbalance struct {
-	ID                   int64     `gorm:"primaryKey;autoIncrement"`
-	Bucket               time.Time `gorm:"not null;uniqueIndex:idx_flow_bucket_symbol"`
-	StockSymbol          string    `gorm:"size:10;not null;uniqueIndex:idx_flow_bucket_symbol"`
-	BuyVolumeLots        float64   `gorm:"type:decimal(15,2);not null"`
-	SellVolumeLots       float64   `gorm:"type:decimal(15,2);not null"`
-	BuyTradeCount        int       `gorm:"not null"`
-	SellTradeCount       int       `gorm:"not null"`
-	BuyValue             float64   `gorm:"type:decimal(20,2)"`
-	SellValue            float64   `gorm:"type:decimal(20,2)"`
-	VolumeImbalanceRatio float64   `gorm:"type:decimal(10,4)"` // (buy - sell) / (buy + sell)
-	ValueImbalanceRatio  float64   `gorm:"type:decimal(10,4)"`
-	DeltaVolume          float64   `gorm:"type:decimal(15,2)"` // buy - sell
-	AggressiveBuyPct     *float64  `gorm:"type:decimal(5,2)"`  // Trades at ask
-	AggressiveSellPct    *float64  `gorm:"type:decimal(5,2)"`  // Trades at bid
+	ID                   int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	Bucket               time.Time `gorm:"not null;uniqueIndex:idx_flow_bucket_symbol" json:"bucket"`
+	StockSymbol          string    `gorm:"type:varchar(10);not null;uniqueIndex:idx_flow_bucket_symbol" json:"stock_symbol"`
+	BuyVolumeLots        float64   `gorm:"type:decimal(15,2);not null" json:"buy_volume"`
+	SellVolumeLots       float64   `gorm:"type:decimal(15,2);not null" json:"sell_volume"`
+	BuyTradeCount        int       `gorm:"not null" json:"buy_trade_count"`
+	SellTradeCount       int       `gorm:"not null" json:"sell_trade_count"`
+	BuyValue             float64   `gorm:"type:decimal(20,2)" json:"buy_value"`
+	SellValue            float64   `gorm:"type:decimal(20,2)" json:"sell_value"`
+	VolumeImbalanceRatio float64   `gorm:"type:decimal(10,4)" json:"volume_imbalance"`
+	ValueImbalanceRatio  float64   `gorm:"type:decimal(10,4)" json:"value_imbalance"`
+	DeltaVolume          float64   `gorm:"type:decimal(15,2)" json:"delta_volume"`
+	AggressiveBuyPct     *float64  `gorm:"type:decimal(5,2)" json:"aggressive_buy_pct,omitempty"`
+	AggressiveSellPct    *float64  `gorm:"type:decimal(5,2)" json:"aggressive_sell_pct,omitempty"`
 }
 
 // TableName specifies the table name for OrderFlowImbalance
@@ -268,29 +268,29 @@ func (OrderFlowImbalance) TableName() string {
 
 // StatisticalBaseline stores persistent rolling statistics
 type StatisticalBaseline struct {
-	ID            int64     `gorm:"primaryKey;autoIncrement"`
-	StockSymbol   string    `gorm:"type:varchar(10);not null;index:idx_baselines_symbol_time"`
-	CalculatedAt  time.Time `gorm:"not null;index:idx_baselines_symbol_time"`
-	LookbackHours int       `gorm:"not null"`
-	SampleSize    int
+	ID            int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	StockSymbol   string    `gorm:"type:varchar(10);not null;index:idx_baselines_symbol_time" json:"stock_symbol"`
+	CalculatedAt  time.Time `gorm:"not null;index:idx_baselines_symbol_time" json:"calculated_at"`
+	LookbackHours int       `gorm:"not null" json:"lookback_hours"`
+	SampleSize    int       `json:"sample_size"`
 
 	// Price Statistics
-	MeanPrice   float64 `gorm:"type:decimal(15,2)"`
-	StdDevPrice float64 `gorm:"type:decimal(15,4)"`
-	MedianPrice float64 `gorm:"type:decimal(15,2)"`
-	PriceP25    float64 `gorm:"type:decimal(15,2)"`
-	PriceP75    float64 `gorm:"type:decimal(15,2)"`
+	MeanPrice   float64 `gorm:"type:decimal(15,2)" json:"mean_price"`
+	StdDevPrice float64 `gorm:"type:decimal(15,4)" json:"std_dev_price"`
+	MedianPrice float64 `gorm:"type:decimal(15,2)" json:"median_price"`
+	PriceP25    float64 `gorm:"type:decimal(15,2)" json:"price_p25"`
+	PriceP75    float64 `gorm:"type:decimal(15,2)" json:"price_p75"`
 
 	// Volume Statistics
-	MeanVolumeLots   float64 `gorm:"type:decimal(15,2)"`
-	StdDevVolume     float64 `gorm:"type:decimal(15,4)"`
-	MedianVolumeLots float64 `gorm:"type:decimal(15,2)"`
-	VolumeP25        float64 `gorm:"type:decimal(15,2)"`
-	VolumeP75        float64 `gorm:"type:decimal(15,2)"`
+	MeanVolumeLots   float64 `gorm:"type:decimal(15,2)" json:"mean_volume_lots"`
+	StdDevVolume     float64 `gorm:"type:decimal(15,4)" json:"std_dev_volume"`
+	MedianVolumeLots float64 `gorm:"type:decimal(15,2)" json:"median_volume_lots"`
+	VolumeP25        float64 `gorm:"type:decimal(15,2)" json:"volume_p25"`
+	VolumeP75        float64 `gorm:"type:decimal(15,2)" json:"volume_p75"`
 
 	// Value Statistics
-	MeanValue   float64 `gorm:"type:decimal(20,2)"`
-	StdDevValue float64 `gorm:"type:decimal(20,4)"`
+	MeanValue   float64 `gorm:"type:decimal(20,2)" json:"mean_value"`
+	StdDevValue float64 `gorm:"type:decimal(20,4)" json:"std_dev_value"`
 }
 
 func (StatisticalBaseline) TableName() string {
@@ -299,23 +299,23 @@ func (StatisticalBaseline) TableName() string {
 
 // MarketRegime classifies market conditions
 type MarketRegime struct {
-	ID              int64     `gorm:"primaryKey;autoIncrement"`
-	StockSymbol     string    `gorm:"type:varchar(10);not null;index:idx_regimes_symbol_time"`
-	DetectedAt      time.Time `gorm:"not null;index:idx_regimes_symbol_time"`
-	LookbackPeriods int       `gorm:"not null"`
+	ID              int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	StockSymbol     string    `gorm:"type:varchar(10);not null;index:idx_regimes_symbol_time" json:"stock_symbol"`
+	DetectedAt      time.Time `gorm:"not null;index:idx_regimes_symbol_time" json:"detected_at"`
+	LookbackPeriods int       `gorm:"not null" json:"lookback_periods"`
 
 	// Regime Classification: TRENDING_UP, TRENDING_DOWN, RANGING, VOLATILE
-	Regime     string  `gorm:"type:varchar(20);not null;index:idx_regimes_regime"`
-	Confidence float64 `gorm:"type:decimal(5,4);index:idx_regimes_regime"`
+	Regime     string  `gorm:"type:varchar(20);not null;index:idx_regimes_regime" json:"regime"`
+	Confidence float64 `gorm:"type:decimal(5,4);index:idx_regimes_regime" json:"confidence"`
 
 	// Technical Indicators
-	ADX            *float64 `gorm:"type:decimal(10,4)"`
-	ATR            *float64 `gorm:"type:decimal(15,4)"`
-	BollingerWidth *float64 `gorm:"type:decimal(10,4)"`
+	ADX            *float64 `gorm:"type:decimal(10,4)" json:"adx,omitempty"`
+	ATR            *float64 `gorm:"type:decimal(15,4)" json:"atr,omitempty"`
+	BollingerWidth *float64 `gorm:"type:decimal(10,4)" json:"bollinger_width,omitempty"`
 
 	// Price Movement
-	PriceChangePct *float64 `gorm:"type:decimal(10,4)"`
-	Volatility     *float64 `gorm:"type:decimal(10,4)"`
+	PriceChangePct *float64 `gorm:"type:decimal(10,4)" json:"price_change_pct,omitempty"`
+	Volatility     *float64 `gorm:"type:decimal(10,4)" json:"volatility,omitempty"`
 }
 
 func (MarketRegime) TableName() string {
@@ -324,31 +324,31 @@ func (MarketRegime) TableName() string {
 
 // DetectedPattern stores chart patterns
 type DetectedPattern struct {
-	ID               int64     `gorm:"primaryKey;autoIncrement"`
-	StockSymbol      string    `gorm:"type:varchar(10);not null;index:idx_patterns_symbol_time"`
-	DetectedAt       time.Time `gorm:"not null;index:idx_patterns_symbol_time"`
-	PatternType      string    `gorm:"type:varchar(50);not null;index:idx_patterns_symbol_time"` // HEAD_SHOULDERS, DOUBLE_TOP, etc.
-	PatternDirection *string   `gorm:"type:varchar(10)"`                                         // BULLISH, BEARISH, NEUTRAL
-	Confidence       float64   `gorm:"type:decimal(5,4)"`
+	ID               int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	StockSymbol      string    `gorm:"type:varchar(10);not null;index:idx_patterns_symbol_time" json:"stock_symbol"`
+	DetectedAt       time.Time `gorm:"not null;index:idx_patterns_symbol_time" json:"detected_at"`
+	PatternType      string    `gorm:"type:varchar(50);not null;index:idx_patterns_symbol_time" json:"pattern_type"`
+	PatternDirection *string   `gorm:"type:varchar(10)" json:"pattern_direction,omitempty"`
+	Confidence       float64   `gorm:"type:decimal(5,4)" json:"confidence"`
 
 	// Pattern Metrics
 	PatternStart  *time.Time
 	PatternEnd    *time.Time
-	PriceRange    *float64 `gorm:"type:decimal(15,2)"`
-	VolumeProfile *string  `gorm:"type:varchar(20)"` // INCREASING, DECREASING, STABLE
+	PriceRange    *float64 `gorm:"type:decimal(15,2)" json:"price_range,omitempty"`
+	VolumeProfile *string  `gorm:"type:varchar(20)" json:"volume_profile,omitempty"`
 
 	// Target Levels
-	BreakoutLevel *float64 `gorm:"type:decimal(15,2)"`
-	TargetPrice   *float64 `gorm:"type:decimal(15,2)"`
-	StopLoss      *float64 `gorm:"type:decimal(15,2)"`
+	BreakoutLevel *float64 `gorm:"type:decimal(15,2)" json:"breakout_level,omitempty"`
+	TargetPrice   *float64 `gorm:"type:decimal(15,2)" json:"target_price,omitempty"`
+	StopLoss      *float64 `gorm:"type:decimal(15,2)" json:"stop_loss,omitempty"`
 
 	// Outcome
-	Outcome        *string `gorm:"type:varchar(20);index:idx_patterns_outcome"` // SUCCESS, FAILED, PENDING
-	ActualBreakout *bool
-	MaxMovePct     *float64 `gorm:"type:decimal(10,4)"`
+	Outcome        *string  `gorm:"type:varchar(20);index:idx_patterns_outcome" json:"outcome,omitempty"`
+	ActualBreakout *bool    `json:"actual_breakout,omitempty"`
+	MaxMovePct     *float64 `gorm:"type:decimal(10,4)" json:"max_move_pct,omitempty"`
 
 	// LLM Analysis
-	LLMAnalysis *string `gorm:"type:text"`
+	LLMAnalysis *string `gorm:"type:text" json:"llm_analysis,omitempty"`
 }
 
 func (DetectedPattern) TableName() string {

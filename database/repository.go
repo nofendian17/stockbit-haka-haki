@@ -477,8 +477,8 @@ func (r *TradeRepository) setupEnhancedTables() error {
 	r.db.db.Exec(`
 		SELECT add_continuous_aggregate_policy('strategy_performance_daily',
 			start_offset => INTERVAL '3 days',
-			end_offset => INTERVAL '1 hour',
-			schedule_interval => INTERVAL '1 day',
+			end_offset => INTERVAL '1 minute',
+			schedule_interval => INTERVAL '15 minutes',
 			if_not_exists => TRUE
 		)
 	`)

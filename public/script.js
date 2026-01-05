@@ -126,9 +126,23 @@ async function fetchAlerts(reset = false) {
     }
 }
 
+async function refreshAllData() {
+    fetchAlerts(true); // true = reset mode
+    fetchStats();
+    fetchAnalyticsHubData();
+    fetchOrderFlow();
+    fetchMarketIntelligence();
+}
+
 async function fetchStats() {
+    const symbol = currentFilters.search;
+    let url = `${API_BASE}/whales/stats`;
+    if (symbol) {
+        url += `?symbol=${symbol}`;
+    }
+
     try {
-        const res = await fetch(`${API_BASE}/whales/stats`);
+        const res = await fetch(url);
         stats = await res.json();
         updateStatsTicker();
     } catch (err) {
@@ -246,7 +260,9 @@ function renderAlerts() {
                 <div style="display: flex; flex-direction: column; gap: 2px;">
                     <span style="font-size:0.85em; color:var(--text-secondary);">${alert.MarketBoard || 'RG'}</span>
                     ${anomalyHtml}
+                    ${!anomalyHtml ? `<span style="font-size:0.75em; color:#aaa;">${alertType === 'ACCUMULATION' ? 'Akumulasi' : 'Transaksi Besar'}</span>` : ''}
                     ${zScore > 0 ? `<span style="font-size:0.7em; color:#888;" title="Statistical Anomaly Score">Z: ${zScore.toFixed(2)}</span>` : ''}
+                    <span style="font-size: 0.65em; color: var(--accent-blue); margin-top: 2px;">Klik info ↗</span>
                 </div>
             </td>
         `;
@@ -255,11 +271,17 @@ function renderAlerts() {
 }
 
 function updateStatsTicker() {
-    if (stats.total_whale_trades) {
-        document.getElementById('total-alerts').innerText = formatNumber(stats.total_whale_trades);
-        document.getElementById('total-volume').innerText = formatNumber(stats.buy_volume_lots + stats.sell_volume_lots) + " Lot";
-        document.getElementById('largest-value').innerText = formatCurrency(stats.largest_trade_value);
-    }
+    if (!stats) return;
+
+    // Use || 0 to handle cases where backend might return null or 0
+    const totalTrades = stats.total_whale_trades || 0;
+    const buyVol = stats.buy_volume_lots || 0;
+    const sellVol = stats.sell_volume_lots || 0;
+    const largestVal = stats.largest_trade_value || 0;
+
+    document.getElementById('total-alerts').innerText = formatNumber(totalTrades);
+    document.getElementById('total-volume').innerText = formatNumber(buyVol + sellVol) + " Lot";
+    document.getElementById('largest-value').innerText = formatCurrency(largestVal);
 }
 
 // Initial Load & Event Listeners
@@ -303,8 +325,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateFilters();
         currentOffset = 0;
         hasMore = true;
-        fetchAlerts(true);
-        fetchStats();
+        refreshAllData();
 
         // Visual feedback
         const btn = document.getElementById('refresh-btn');
@@ -329,7 +350,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updateFilters();
             currentOffset = 0;
             hasMore = true;
-            fetchAlerts(true);
+            refreshAllData();
 
             // Reset border color
             searchInput.style.borderColor = '';
@@ -341,7 +362,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateFilters();
         currentOffset = 0;
         hasMore = true;
-        fetchAlerts(true);
+        refreshAllData();
 
         // Visual feedback
         highlightActiveFilters();
@@ -351,7 +372,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateFilters();
         currentOffset = 0;
         hasMore = true;
-        fetchAlerts(true);
+        refreshAllData();
 
         // Visual feedback
         highlightActiveFilters();
@@ -361,7 +382,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateFilters();
         currentOffset = 0;
         hasMore = true;
-        fetchAlerts(true);
+        refreshAllData();
 
         // Visual feedback
         highlightActiveFilters();
@@ -379,7 +400,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateFilters();
         currentOffset = 0;
         hasMore = true;
-        fetchAlerts(true);
+        refreshAllData();
 
         // Visual feedback
         const btn = document.getElementById('clear-filters-btn');
@@ -862,8 +883,8 @@ function updateRegimeUI(data) {
 
 function updateBaselineUI(data) {
     if (!data) return;
-    document.getElementById('b-avg-vol').textContent = formatNumber(data.avg_volume_lot) + ' Lot';
-    document.getElementById('b-std-dev').textContent = formatNumber(data.std_dev_price.toFixed(2));
+    document.getElementById('b-avg-vol').textContent = formatNumber(data.mean_volume_lots) + ' Lot';
+    document.getElementById('b-std-dev').textContent = formatNumber(data.std_dev_price ? data.std_dev_price.toFixed(2) : 0);
 }
 
 function updatePatternsUI(patterns) {
@@ -919,7 +940,11 @@ async function fetchAnalyticsHubData() {
 
     // Daily Performance
     try {
-        const res = await fetch(`${API_BASE}/analytics/performance/daily?limit=10`);
+        const params = new URLSearchParams();
+        params.append('limit', '10');
+        if (symbol) params.append('symbol', symbol);
+
+        const res = await fetch(`${API_BASE}/analytics/performance/daily?${params.toString()}`);
         const data = await res.json();
         renderDailyPerformance(data.performance || []);
     } catch (err) {
@@ -955,16 +980,28 @@ function renderCorrelations(correlations) {
 
 function renderDailyPerformance(performance) {
     const tbody = document.getElementById('daily-performance-body');
+    if (!tbody) return;
     tbody.innerHTML = '';
 
+    if (!performance || performance.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center">Belum ada data performa tercatat</td></tr>';
+        return;
+    }
+
     performance.forEach(p => {
-        const winRate = (p.wins / p.total_signals) * 100;
+        // Safe access for daily stats
+        const signals = p.total_signals || 0;
+        const wins = p.wins || 0;
+        const winRate = signals > 0 ? (wins / signals) * 100 : 0;
+        const profit = p.total_profit_pct || 0;
+        const strategyName = (p.strategy || 'Unknown').replace(/_/g, ' ');
+
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td>${new Date(p.day).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}</td>
-            <td>${p.strategy.replace(/_/g, ' ')}</td>
+            <td>${p.day ? new Date(p.day).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }) : '-'}</td>
+            <td>${strategyName}</td>
             <td class="text-right ${winRate >= 50 ? 'diff-positive' : 'diff-negative'}">${winRate.toFixed(1)}%</td>
-            <td class="text-right">${p.total_profit_pct.toFixed(2)}%</td>
+            <td class="text-right ${profit >= 0 ? 'diff-positive' : 'diff-negative'}">${profit.toFixed(2)}%</td>
         `;
         tbody.appendChild(row);
     });
@@ -991,11 +1028,11 @@ async function fetchOrderFlow() {
         const res = await fetch(`${API_BASE}/orderflow?symbol=${symbol}&limit=50`);
         const data = await res.json();
 
-        if (data && data.length > 0) {
+        if (data && data.flows && data.flows.length > 0) {
             let totalBuy = 0;
             let totalSell = 0;
 
-            data.forEach(item => {
+            data.flows.forEach(item => {
                 totalBuy += item.buy_volume;
                 totalSell += item.sell_volume;
             });

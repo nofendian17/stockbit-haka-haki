@@ -26,8 +26,8 @@ func NewCorrelationAnalyzer(repo *database.TradeRepository) *CorrelationAnalyzer
 func (ca *CorrelationAnalyzer) Start() {
 	log.Println("🔗 Correlation Analyzer started")
 
-	// Run every 12 hours (correlations don't change very fast)
-	ticker := time.NewTicker(12 * time.Hour)
+	// Run every 1 hour (increased from 12h for better real-time correlation)
+	ticker := time.NewTicker(1 * time.Hour)
 	defer ticker.Stop()
 
 	// Initial run
@@ -65,9 +65,9 @@ func (ca *CorrelationAnalyzer) runAnalysis() {
 		return
 	}
 
-	// Limit to top 50 symbols to avoid N^2 explosion
-	if len(symbols) > 50 {
-		symbols = symbols[:50]
+	// Limit to top 100 symbols to avoid N^2 explosion (increased from 50)
+	if len(symbols) > 100 {
+		symbols = symbols[:100]
 	}
 
 	// 2. Fetch data (1-hour candles for last 30 days)
