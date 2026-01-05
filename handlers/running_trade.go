@@ -9,6 +9,7 @@ import (
 
 	"stockbit-haka-haki/cache"
 	"stockbit-haka-haki/database"
+	"stockbit-haka-haki/database/types"
 	"stockbit-haka-haki/helpers"
 	"stockbit-haka-haki/notifications"
 	pb "stockbit-haka-haki/proto"
@@ -121,13 +122,13 @@ func (h *RunningTradeHandler) HandleProto(wrapper interface{}) error {
 }
 
 // getStockStats retrieves stock statistics, checking cache first then database
-func (h *RunningTradeHandler) getStockStats(stock string) *database.StockStats {
+func (h *RunningTradeHandler) getStockStats(stock string) *types.StockStats {
 	if h.redis == nil && h.tradeRepo == nil {
 		return nil
 	}
 
 	cacheKey := cacheKeyStatsPrefix + stock
-	stats := &database.StockStats{}
+	stats := &types.StockStats{}
 
 	// Try cache first
 	if h.redis != nil {
@@ -410,7 +411,7 @@ func ptrInt(v int) *int {
 }
 
 // getAvgPricePtr safely retrieves average price, returns nil if stats unavailable
-func getAvgPricePtr(stats *database.StockStats) *float64 {
+func getAvgPricePtr(stats *types.StockStats) *float64 {
 	if stats == nil {
 		return nil
 	}

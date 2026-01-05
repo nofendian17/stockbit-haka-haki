@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"stockbit-haka-haki/database"
+	"stockbit-haka-haki/database/types"
 )
 
 // Constants for value formatting
@@ -75,7 +76,7 @@ func safeFloat64(ptr *float64, defaultValue float64) float64 {
 }
 
 // FormatAccumulationPrompt creates a prompt for LLM to analyze accumulation/distribution patterns
-func FormatAccumulationPrompt(patterns []database.AccumulationPattern, regimes map[string]database.MarketRegime) string {
+func FormatAccumulationPrompt(patterns []types.AccumulationPattern, regimes map[string]database.MarketRegime) string {
 	var sb strings.Builder
 	sb.Grow(1024 + len(patterns)*300)
 
@@ -156,7 +157,7 @@ func FormatAnomalyPrompt(anomalies []database.WhaleAlert, regimes map[string]dat
 }
 
 // FormatTimingPrompt creates a prompt for time-based pattern analysis
-func FormatTimingPrompt(stats []database.TimeBasedStat) string {
+func FormatTimingPrompt(stats []types.TimeBasedStat) string {
 	var sb strings.Builder
 	sb.Grow(1024 + len(stats)*100)
 
