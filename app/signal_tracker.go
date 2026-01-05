@@ -17,10 +17,11 @@ const (
 
 // Position Management Constants
 const (
-	MinSignalIntervalMinutes = 15 // Minimum 15 minutes between signals for same symbol
-	MaxOpenPositions         = 10 // Maximum concurrent open positions
-	MaxPositionsPerSymbol    = 1  // Maximum positions per symbol (prevent averaging down)
-	SignalTimeWindowMinutes  = 5  // Time window for duplicate detection
+	MinSignalIntervalMinutes = 15  // Minimum 15 minutes between signals for same symbol
+	MaxOpenPositions         = 10  // Maximum concurrent open positions
+	MaxPositionsPerSymbol    = 1   // Maximum positions per symbol (prevent averaging down)
+	SignalTimeWindowMinutes  = 5   // Time window for duplicate detection
+	MaxTradingHoldingMinutes = 180 // Maximum holding period: 3 hours
 )
 
 // isTradingTime checks if the given time is within Indonesian market trading hours
@@ -341,8 +342,16 @@ func (st *SignalTracker) updateSignalOutcome(signal *database.TradingSignalDB, o
 		exitReason = "STOP_LOSS"
 	}
 
+	// Maximum holding period: 3 hours (180 minutes)
+	if !shouldExit && holdingMinutes >= MaxTradingHoldingMinutes {
+		shouldExit = true
+		exitReason = "MAX_HOLDING_TIME"
+		log.Printf("⏰ Max holding time reached for signal %d (%s): %d minutes",
+			signal.ID, signal.StockSymbol, holdingMinutes)
+	}
+
 	// Force exit at market close
-	if currentSession == "AFTER_HOURS" {
+	if !shouldExit && currentSession == "AFTER_HOURS" {
 		shouldExit = true
 		exitReason = "MARKET_CLOSE"
 		log.Printf("⏰ Force exit due to market close for signal %d (%s)", signal.ID, signal.StockSymbol)
