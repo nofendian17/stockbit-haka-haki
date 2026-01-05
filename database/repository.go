@@ -98,10 +98,9 @@ func (r *TradeRepository) InitSchema() error {
 	// This ensures the view is created before any hypertable operations
 	fmt.Println("📊 Creating strategy_performance_daily materialized view...")
 	if err := r.db.db.Exec(`
-		CREATE MATERIALIZED VIEW IF NOT EXISTS strategy_performance_daily
-		WITH (timescaledb.continuous) AS
+		CREATE MATERIALIZED VIEW IF NOT EXISTS strategy_performance_daily AS
 		SELECT
-			time_bucket('1 day', so.entry_time) AS day,
+			date_trunc('day', so.entry_time) AS day,
 			ts.strategy,
 			so.stock_symbol,
 			COUNT(*) AS total_signals,
@@ -510,19 +509,12 @@ func (r *TradeRepository) setupEnhancedTables() error {
 		SELECT add_retention_policy('stock_correlations', INTERVAL '6 months', if_not_exists => TRUE)
 	`)
 
-	// 2. Strategy Performance Daily Policy (view already created after AutoMigrate)
-	if err := r.db.db.Exec(`
-		SELECT add_continuous_aggregate_policy('strategy_performance_daily',
-			start_offset => INTERVAL '3 days',
-			end_offset => INTERVAL '1 minute',
-			schedule_interval => INTERVAL '15 minutes',
-			if_not_exists => TRUE
-		)
-	`).Error; err != nil {
-		fmt.Printf("⚠️ Warning: Failed to add policy for strategy_performance_daily: %v\n", err)
-	} else {
-		fmt.Println("✅ strategy_performance_daily policy added successfully")
-	}
+	// 2. Strategy Performance Daily - Create index for better query performance
+	r.db.db.Exec(`
+		CREATE INDEX IF NOT EXISTS idx_strategy_performance_daily_lookup
+		ON strategy_performance_daily(day, strategy, stock_symbol)
+	`)
+	fmt.Println("✅ strategy_performance_daily view and index created successfully")
 
 	fmt.Println("✅ Phase 3 enhancement tables configured successfully")
 	return nil
