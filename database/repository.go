@@ -224,17 +224,19 @@ func (r *TradeRepository) setupTimescaleDB() error {
 	`)
 
 	// Create hypertable for whale_webhook_logs
-	r.db.db.Exec(`
+	if err := r.db.db.Exec(`
 		SELECT create_hypertable('whale_webhook_logs', 'triggered_at',
 			chunk_time_interval => INTERVAL '7 days',
 			if_not_exists => TRUE
 		)
-	`)
-
-	// Add retention policy: 30 days
-	r.db.db.Exec(`
-		SELECT add_retention_policy('whale_webhook_logs', INTERVAL '30 days', if_not_exists => TRUE)
-	`)
+	`).Error; err != nil {
+		fmt.Printf("⚠️ Warning: Failed to create hypertable for whale_webhook_logs: %v\n", err)
+	} else {
+		// Only add retention policy if hypertable creation succeeded
+		r.db.db.Exec(`
+			SELECT add_retention_policy('whale_webhook_logs', INTERVAL '30 days', if_not_exists => TRUE)
+		`)
+	}
 
 	return nil
 }
@@ -242,21 +244,19 @@ func (r *TradeRepository) setupTimescaleDB() error {
 // setupEnhancedTables creates hypertables and policies for Phase 1 enhancement tables
 func (r *TradeRepository) setupEnhancedTables() error {
 	// Create hypertable for trading_signals
-	// Create hypertable for trading_signals
 	if err := r.db.db.Exec(`
 		SELECT create_hypertable('trading_signals', 'generated_at',
 			chunk_time_interval => INTERVAL '7 days',
 			if_not_exists => TRUE
 		)
 	`).Error; err != nil {
-		// Log warning but continue
 		fmt.Printf("⚠️ Warning: Failed to create hypertable for trading_signals: %v\n", err)
+	} else {
+		// Only add retention policy if hypertable creation succeeded
+		r.db.db.Exec(`
+			SELECT add_retention_policy('trading_signals', INTERVAL '2 years', if_not_exists => TRUE)
+		`)
 	}
-
-	// Add retention policy: 2 years
-	r.db.db.Exec(`
-		SELECT add_retention_policy('trading_signals', INTERVAL '2 years', if_not_exists => TRUE)
-	`)
 
 	// Create indexes for trading_signals
 	r.db.db.Exec(`
@@ -292,12 +292,11 @@ func (r *TradeRepository) setupEnhancedTables() error {
 		fmt.Printf("⚠️ Warning: Failed to create hypertable for signal_outcomes: %v\n", err)
 	} else {
 		fmt.Println("✅ signal_outcomes hypertable created successfully")
+		// Only add retention policy if hypertable creation succeeded
+		r.db.db.Exec(`
+			SELECT add_retention_policy('signal_outcomes', INTERVAL '2 years', if_not_exists => TRUE)
+		`)
 	}
-
-	// Add retention policy: 2 years
-	r.db.db.Exec(`
-		SELECT add_retention_policy('signal_outcomes', INTERVAL '2 years', if_not_exists => TRUE)
-	`)
 
 	// Create indexes for signal_outcomes
 	r.db.db.Exec(`
@@ -310,17 +309,19 @@ func (r *TradeRepository) setupEnhancedTables() error {
 	`)
 
 	// Create hypertable for whale_alert_followup
-	r.db.db.Exec(`
+	if err := r.db.db.Exec(`
 		SELECT create_hypertable('whale_alert_followup', 'alert_time',
 			chunk_time_interval => INTERVAL '7 days',
 			if_not_exists => TRUE
 		)
-	`)
-
-	// Add retention policy: 1 year
-	r.db.db.Exec(`
-		SELECT add_retention_policy('whale_alert_followup', INTERVAL '1 year', if_not_exists => TRUE)
-	`)
+	`).Error; err != nil {
+		fmt.Printf("⚠️ Warning: Failed to create hypertable for whale_alert_followup: %v\n", err)
+	} else {
+		// Only add retention policy if hypertable creation succeeded
+		r.db.db.Exec(`
+			SELECT add_retention_policy('whale_alert_followup', INTERVAL '1 year', if_not_exists => TRUE)
+		`)
+	}
 
 	// Create indexes for whale_alert_followup
 	r.db.db.Exec(`
@@ -329,17 +330,19 @@ func (r *TradeRepository) setupEnhancedTables() error {
 	`)
 
 	// Create hypertable for order_flow_imbalance
-	r.db.db.Exec(`
+	if err := r.db.db.Exec(`
 		SELECT create_hypertable('order_flow_imbalance', 'bucket',
 			chunk_time_interval => INTERVAL '1 day',
 			if_not_exists => TRUE
 		)
-	`)
-
-	// Add retention policy: 3 months
-	r.db.db.Exec(`
-		SELECT add_retention_policy('order_flow_imbalance', INTERVAL '3 months', if_not_exists => TRUE)
-	`)
+	`).Error; err != nil {
+		fmt.Printf("⚠️ Warning: Failed to create hypertable for order_flow_imbalance: %v\n", err)
+	} else {
+		// Only add retention policy if hypertable creation succeeded
+		r.db.db.Exec(`
+			SELECT add_retention_policy('order_flow_imbalance', INTERVAL '3 months', if_not_exists => TRUE)
+		`)
+	}
 
 	// Create index for order_flow_imbalance
 	r.db.db.Exec(`
@@ -354,37 +357,46 @@ func (r *TradeRepository) setupEnhancedTables() error {
 	// ========================================================================
 
 	// 1. Statistical Baselines
-	r.db.db.Exec(`
+	if err := r.db.db.Exec(`
 		SELECT create_hypertable('statistical_baselines', 'calculated_at',
 			chunk_time_interval => INTERVAL '7 days',
 			if_not_exists => TRUE
 		)
-	`)
-	r.db.db.Exec(`
-		SELECT add_retention_policy('statistical_baselines', INTERVAL '3 months', if_not_exists => TRUE)
-	`)
+	`).Error; err != nil {
+		fmt.Printf("⚠️ Warning: Failed to create hypertable for statistical_baselines: %v\n", err)
+	} else {
+		r.db.db.Exec(`
+			SELECT add_retention_policy('statistical_baselines', INTERVAL '3 months', if_not_exists => TRUE)
+		`)
+	}
 
 	// 2. Market Regimes
-	r.db.db.Exec(`
+	if err := r.db.db.Exec(`
 		SELECT create_hypertable('market_regimes', 'detected_at',
 			chunk_time_interval => INTERVAL '7 days',
 			if_not_exists => TRUE
 		)
-	`)
-	r.db.db.Exec(`
-		SELECT add_retention_policy('market_regimes', INTERVAL '6 months', if_not_exists => TRUE)
-	`)
+	`).Error; err != nil {
+		fmt.Printf("⚠️ Warning: Failed to create hypertable for market_regimes: %v\n", err)
+	} else {
+		r.db.db.Exec(`
+			SELECT add_retention_policy('market_regimes', INTERVAL '6 months', if_not_exists => TRUE)
+		`)
+	}
 
 	// 3. Detected Patterns
-	r.db.db.Exec(`
+	if err := r.db.db.Exec(`
 		SELECT create_hypertable('detected_patterns', 'detected_at',
 			chunk_time_interval => INTERVAL '7 days',
 			if_not_exists => TRUE
 		)
-	`)
-	r.db.db.Exec(`
-		SELECT add_retention_policy('detected_patterns', INTERVAL '1 year', if_not_exists => TRUE)
-	`)
+	`).Error; err != nil {
+		fmt.Printf("⚠️ Warning: Failed to create hypertable for detected_patterns: %v\n", err)
+	} else {
+		r.db.db.Exec(`
+			SELECT add_retention_policy('detected_patterns', INTERVAL '1 year', if_not_exists => TRUE)
+		`)
+	}
 
 	// 4. Multi-Timeframe Candles (Continuous Aggregates)
 
@@ -499,15 +511,18 @@ func (r *TradeRepository) setupEnhancedTables() error {
 	// ========================================================================
 
 	// 1. Stock Correlations
-	r.db.db.Exec(`
+	if err := r.db.db.Exec(`
 		SELECT create_hypertable('stock_correlations', 'calculated_at',
 			chunk_time_interval => INTERVAL '7 days',
 			if_not_exists => TRUE
 		)
-	`)
-	r.db.db.Exec(`
-		SELECT add_retention_policy('stock_correlations', INTERVAL '6 months', if_not_exists => TRUE)
-	`)
+	`).Error; err != nil {
+		fmt.Printf("⚠️ Warning: Failed to create hypertable for stock_correlations: %v\n", err)
+	} else {
+		r.db.db.Exec(`
+			SELECT add_retention_policy('stock_correlations', INTERVAL '6 months', if_not_exists => TRUE)
+		`)
+	}
 
 	// 2. Strategy Performance Daily - Create index for better query performance
 	r.db.db.Exec(`
