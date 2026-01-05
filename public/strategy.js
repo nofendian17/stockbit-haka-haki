@@ -231,17 +231,38 @@ function renderSignalRow(signal, isInitialLoad = false) {
     let timeAgo = 'Baru saja';
     let fullTime = '-';
     
-    if (signal.timestamp) {
+    // Try multiple timestamp fields for compatibility
+    const timestampValue = signal.timestamp || signal.detected_at || signal.created_at;
+    
+    if (timestampValue) {
         try {
-            const date = new Date(signal.timestamp);
+            const date = new Date(timestampValue);
             // Check if date is valid
-            if (!isNaN(date.getTime())) {
+            if (!isNaN(date.getTime()) && date.getTime() > 0) {
                 timeAgo = getTimeAgo(date);
-                fullTime = date.toLocaleString('id-ID');
+                fullTime = date.toLocaleString('id-ID', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+            } else {
+                // Invalid date - use fallback
+                console.warn('Invalid timestamp detected:', timestampValue);
+                timeAgo = 'Waktu tidak valid';
+                fullTime = 'Timestamp: ' + timestampValue;
             }
         } catch (err) {
-            console.error('Error parsing timestamp:', signal.timestamp, err);
+            console.error('Error parsing timestamp:', timestampValue, err);
+            timeAgo = 'Waktu tidak valid';
+            fullTime = 'Error parsing date';
         }
+    } else {
+        // No timestamp provided at all
+        timeAgo = 'Waktu tidak tersedia';
+        fullTime = 'Tidak ada data waktu';
     }
 
     // Z-Score indicators

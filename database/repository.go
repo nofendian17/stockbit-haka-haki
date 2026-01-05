@@ -107,9 +107,9 @@ func (r *TradeRepository) InitSchema() error {
 			COUNT(*) AS total_signals,
 			SUM(CASE WHEN so.outcome_status = 'WIN' THEN 1 ELSE 0 END) AS wins,
 			SUM(CASE WHEN so.outcome_status = 'LOSS' THEN 1 ELSE 0 END) AS losses,
-			AVG(so.profit_loss_pct) AS avg_profit_pct,
-			SUM(so.profit_loss_pct) AS total_profit_pct,
-			AVG(so.risk_reward_ratio) AS avg_risk_reward
+			COALESCE(AVG(so.profit_loss_pct), 0) AS avg_profit_pct,
+			COALESCE(SUM(so.profit_loss_pct), 0) AS total_profit_pct,
+			COALESCE(AVG(so.risk_reward_ratio), 0) AS avg_risk_reward
 		FROM signal_outcomes so
 		JOIN trading_signals ts ON so.signal_id = ts.id
 		GROUP BY day, ts.strategy, so.stock_symbol
