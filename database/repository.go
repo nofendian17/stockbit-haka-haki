@@ -1726,6 +1726,7 @@ type PerformanceStats struct {
 	TotalSignals   int64   `json:"total_signals"`
 	Wins           int64   `json:"wins"`
 	Losses         int64   `json:"losses"`
+	OpenPositions  int64   `json:"open_positions"`
 	WinRate        float64 `json:"win_rate"`
 	AvgProfitPct   float64 `json:"avg_profit_pct"`
 	TotalProfitPct float64 `json:"total_profit_pct"`
@@ -1746,9 +1747,10 @@ func (r *TradeRepository) GetSignalPerformanceStats(strategy string, symbol stri
 			COUNT(*) AS total_signals,
 			SUM(CASE WHEN so.outcome_status = 'WIN' THEN 1 ELSE 0 END) AS wins,
 			SUM(CASE WHEN so.outcome_status = 'LOSS' THEN 1 ELSE 0 END) AS losses,
+			SUM(CASE WHEN so.outcome_status = 'OPEN' THEN 1 ELSE 0 END) AS open_positions,
 			ROUND(
 				(SUM(CASE WHEN so.outcome_status = 'WIN' THEN 1 ELSE 0 END)::DECIMAL /
-				 NULLIF(COUNT(*), 0)) * 100,
+					NULLIF(SUM(CASE WHEN so.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN') THEN 1 ELSE 0 END), 0)) * 100,
 				2
 			) AS win_rate,
 			COALESCE(AVG(so.profit_loss_pct), 0) AS avg_profit_pct,
@@ -1757,14 +1759,14 @@ func (r *TradeRepository) GetSignalPerformanceStats(strategy string, symbol stri
 			COALESCE(MIN(so.profit_loss_pct), 0) AS max_loss_pct,
 			COALESCE(AVG(so.risk_reward_ratio), 0) AS avg_risk_reward,
 			(COALESCE(AVG(so.profit_loss_pct), 0) *
-			 (SUM(CASE WHEN so.outcome_status = 'WIN' THEN 1 ELSE 0 END)::DECIMAL / NULLIF(COUNT(*), 0))
+			 (SUM(CASE WHEN so.outcome_status = 'WIN' THEN 1 ELSE 0 END)::DECIMAL / NULLIF(SUM(CASE WHEN so.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN') THEN 1 ELSE 0 END), 0))
 			) AS expectancy
 		FROM trading_signals ts
 		JOIN signal_outcomes so ON ts.id = so.signal_id AND date_trunc('day', ts.generated_at) = date_trunc('day', so.entry_time)
-		WHERE so.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN')
+		WHERE so.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN', 'OPEN')
 	`
 
-	if strategy != "" {
+	if strategy != "" && strategy != "ALL" {
 		query += " AND ts.strategy = @strategy"
 	}
 	if symbol != "" {
