@@ -101,17 +101,18 @@ func (r *TradeRepository) InitSchema() error {
 		CREATE MATERIALIZED VIEW IF NOT EXISTS strategy_performance_daily
 		WITH (timescaledb.continuous) AS
 		SELECT
-			time_bucket('1 day', entry_time) AS day,
-			strategy,
-			stock_symbol,
+			time_bucket('1 day', so.entry_time) AS day,
+			ts.strategy,
+			so.stock_symbol,
 			COUNT(*) AS total_signals,
-			SUM(CASE WHEN outcome_status = 'WIN' THEN 1 ELSE 0 END) AS wins,
-			SUM(CASE WHEN outcome_status = 'LOSS' THEN 1 ELSE 0 END) AS losses,
-			AVG(profit_loss_pct) AS avg_profit_pct,
-			SUM(profit_loss_pct) AS total_profit_pct,
-			AVG(risk_reward_ratio) AS avg_risk_reward
-		FROM signal_outcomes
-		GROUP BY day, strategy, stock_symbol
+			SUM(CASE WHEN so.outcome_status = 'WIN' THEN 1 ELSE 0 END) AS wins,
+			SUM(CASE WHEN so.outcome_status = 'LOSS' THEN 1 ELSE 0 END) AS losses,
+			AVG(so.profit_loss_pct) AS avg_profit_pct,
+			SUM(so.profit_loss_pct) AS total_profit_pct,
+			AVG(so.risk_reward_ratio) AS avg_risk_reward
+		FROM signal_outcomes so
+		JOIN trading_signals ts ON so.signal_id = ts.id
+		GROUP BY day, ts.strategy, so.stock_symbol
 	`).Error; err != nil {
 		fmt.Printf("⚠️ Warning: Failed to create view strategy_performance_daily: %v\n", err)
 	} else {
