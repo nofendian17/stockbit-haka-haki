@@ -164,9 +164,10 @@ func (r *TradeRepository) setupTimescaleDB() error {
 
 	// Create hypertable for running_trades
 	r.db.db.Exec(`
-		SELECT create_hypertable('running_trades', 'timestamp',  
+		SELECT create_hypertable('running_trades', 'timestamp',
 			chunk_time_interval => INTERVAL '1 day',
-			if_not_exists => TRUE
+			if_not_exists => TRUE,
+			migrate_data => TRUE
 		)
 	`)
 
@@ -214,7 +215,8 @@ func (r *TradeRepository) setupTimescaleDB() error {
 	r.db.db.Exec(`
 		SELECT create_hypertable('whale_alerts', 'detected_at',
 			chunk_time_interval => INTERVAL '7 days',
-			if_not_exists => TRUE
+			if_not_exists => TRUE,
+			migrate_data => TRUE
 		)
 	`)
 
@@ -227,7 +229,8 @@ func (r *TradeRepository) setupTimescaleDB() error {
 	if err := r.db.db.Exec(`
 		SELECT create_hypertable('whale_webhook_logs', 'triggered_at',
 			chunk_time_interval => INTERVAL '7 days',
-			if_not_exists => TRUE
+			if_not_exists => TRUE,
+			migrate_data => TRUE
 		)
 	`).Error; err != nil {
 		fmt.Printf("⚠️ Warning: Failed to create hypertable for whale_webhook_logs: %v\n", err)
@@ -247,7 +250,8 @@ func (r *TradeRepository) setupEnhancedTables() error {
 	if err := r.db.db.Exec(`
 		SELECT create_hypertable('trading_signals', 'generated_at',
 			chunk_time_interval => INTERVAL '7 days',
-			if_not_exists => TRUE
+			if_not_exists => TRUE,
+			migrate_data => TRUE
 		)
 	`).Error; err != nil {
 		fmt.Printf("⚠️ Warning: Failed to create hypertable for trading_signals: %v\n", err)
@@ -286,7 +290,8 @@ func (r *TradeRepository) setupEnhancedTables() error {
 	if err := r.db.db.Exec(`
 		SELECT create_hypertable('signal_outcomes', 'entry_time',
 			chunk_time_interval => INTERVAL '7 days',
-			if_not_exists => TRUE
+			if_not_exists => TRUE,
+			migrate_data => TRUE
 		)
 	`).Error; err != nil {
 		fmt.Printf("⚠️ Warning: Failed to create hypertable for signal_outcomes: %v\n", err)
@@ -312,7 +317,8 @@ func (r *TradeRepository) setupEnhancedTables() error {
 	if err := r.db.db.Exec(`
 		SELECT create_hypertable('whale_alert_followup', 'alert_time',
 			chunk_time_interval => INTERVAL '7 days',
-			if_not_exists => TRUE
+			if_not_exists => TRUE,
+			migrate_data => TRUE
 		)
 	`).Error; err != nil {
 		fmt.Printf("⚠️ Warning: Failed to create hypertable for whale_alert_followup: %v\n", err)
@@ -333,7 +339,8 @@ func (r *TradeRepository) setupEnhancedTables() error {
 	if err := r.db.db.Exec(`
 		SELECT create_hypertable('order_flow_imbalance', 'bucket',
 			chunk_time_interval => INTERVAL '1 day',
-			if_not_exists => TRUE
+			if_not_exists => TRUE,
+			migrate_data => TRUE
 		)
 	`).Error; err != nil {
 		fmt.Printf("⚠️ Warning: Failed to create hypertable for order_flow_imbalance: %v\n", err)
@@ -360,7 +367,8 @@ func (r *TradeRepository) setupEnhancedTables() error {
 	if err := r.db.db.Exec(`
 		SELECT create_hypertable('statistical_baselines', 'calculated_at',
 			chunk_time_interval => INTERVAL '7 days',
-			if_not_exists => TRUE
+			if_not_exists => TRUE,
+			migrate_data => TRUE
 		)
 	`).Error; err != nil {
 		fmt.Printf("⚠️ Warning: Failed to create hypertable for statistical_baselines: %v\n", err)
@@ -374,7 +382,8 @@ func (r *TradeRepository) setupEnhancedTables() error {
 	if err := r.db.db.Exec(`
 		SELECT create_hypertable('market_regimes', 'detected_at',
 			chunk_time_interval => INTERVAL '7 days',
-			if_not_exists => TRUE
+			if_not_exists => TRUE,
+			migrate_data => TRUE
 		)
 	`).Error; err != nil {
 		fmt.Printf("⚠️ Warning: Failed to create hypertable for market_regimes: %v\n", err)
@@ -388,7 +397,8 @@ func (r *TradeRepository) setupEnhancedTables() error {
 	if err := r.db.db.Exec(`
 		SELECT create_hypertable('detected_patterns', 'detected_at',
 			chunk_time_interval => INTERVAL '7 days',
-			if_not_exists => TRUE
+			if_not_exists => TRUE,
+			migrate_data => TRUE
 		)
 	`).Error; err != nil {
 		fmt.Printf("⚠️ Warning: Failed to create hypertable for detected_patterns: %v\n", err)
@@ -514,7 +524,8 @@ func (r *TradeRepository) setupEnhancedTables() error {
 	if err := r.db.db.Exec(`
 		SELECT create_hypertable('stock_correlations', 'calculated_at',
 			chunk_time_interval => INTERVAL '7 days',
-			if_not_exists => TRUE
+			if_not_exists => TRUE,
+			migrate_data => TRUE
 		)
 	`).Error; err != nil {
 		fmt.Printf("⚠️ Warning: Failed to create hypertable for stock_correlations: %v\n", err)
