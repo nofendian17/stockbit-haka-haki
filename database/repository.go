@@ -359,7 +359,7 @@ func (r *TradeRepository) InitSchema() error {
 			COALESCE(MIN(so.profit_loss_pct), 0) AS worst_trade_pct,
 			COALESCE(AVG(CASE WHEN so.holding_period_minutes IS NOT NULL THEN so.holding_period_minutes END), 0) AS avg_holding_minutes
 		FROM signal_outcomes so
-		JOIN trading_signals ts ON so.signal_id = ts.id
+		JOIN trading_signals ts ON so.signal_id = ts.id AND date_trunc('day', so.entry_time) = date_trunc('day', ts.generated_at)
 		WHERE so.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN')
 		GROUP BY day, ts.strategy, ts.stock_symbol
 	`).Error; err != nil {
@@ -911,6 +911,16 @@ func (r *TradeRepository) GetHistoricalWhales(stockSymbol string, startTime, end
 	return whales, err
 }
 
+// GetWhaleAlertByID retrieves a specific whale alert by ID
+func (r *TradeRepository) GetWhaleAlertByID(id int64) (*WhaleAlert, error) {
+	var alert WhaleAlert
+	err := r.db.db.First(&alert, id).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	return &alert, err
+}
+
 // GetWhaleCount returns total count of whales matching filters
 func (r *TradeRepository) GetWhaleCount(stockSymbol string, startTime, endTime time.Time, alertType string, action string, board string, minAmount float64) (int64, error) {
 	var count int64
@@ -1454,9 +1464,10 @@ func (r *TradeRepository) EvaluateFakeoutFilterStrategy(alert *WhaleAlert, zscor
 
 // GetStrategySignals evaluates recent whale alerts and generates trading signals
 func (r *TradeRepository) GetStrategySignals(lookbackMinutes int, minConfidence float64, strategyFilter string) ([]TradingSignal, error) {
-	// Get recent whale alerts
+	// Get recent whale alerts, excluding NG (Negotiated Trading)
 	var alerts []WhaleAlert
 	err := r.db.db.Where("detected_at >= NOW() - INTERVAL '1 minute' * ?", lookbackMinutes).
+		Where("market_board != 'NG' OR market_board IS NULL"). // Exclude NG trades
 		Order("detected_at DESC").
 		Limit(50).
 		Find(&alerts).Error
@@ -1729,15 +1740,15 @@ func (r *TradeRepository) GetSignalPerformanceStats(strategy string, symbol stri
 	var stats PerformanceStats
 
 	query := `
-		SELECT 
+		SELECT
 			ts.strategy,
 			ts.stock_symbol,
 			COUNT(*) AS total_signals,
 			SUM(CASE WHEN so.outcome_status = 'WIN' THEN 1 ELSE 0 END) AS wins,
 			SUM(CASE WHEN so.outcome_status = 'LOSS' THEN 1 ELSE 0 END) AS losses,
 			ROUND(
-				(SUM(CASE WHEN so.outcome_status = 'WIN' THEN 1 ELSE 0 END)::DECIMAL / 
-				 NULLIF(COUNT(*), 0)) * 100, 
+				(SUM(CASE WHEN so.outcome_status = 'WIN' THEN 1 ELSE 0 END)::DECIMAL /
+				 NULLIF(COUNT(*), 0)) * 100,
 				2
 			) AS win_rate,
 			COALESCE(AVG(so.profit_loss_pct), 0) AS avg_profit_pct,
@@ -1745,11 +1756,11 @@ func (r *TradeRepository) GetSignalPerformanceStats(strategy string, symbol stri
 			COALESCE(MAX(so.profit_loss_pct), 0) AS max_win_pct,
 			COALESCE(MIN(so.profit_loss_pct), 0) AS max_loss_pct,
 			COALESCE(AVG(so.risk_reward_ratio), 0) AS avg_risk_reward,
-			(COALESCE(AVG(so.profit_loss_pct), 0) * 
+			(COALESCE(AVG(so.profit_loss_pct), 0) *
 			 (SUM(CASE WHEN so.outcome_status = 'WIN' THEN 1 ELSE 0 END)::DECIMAL / NULLIF(COUNT(*), 0))
 			) AS expectancy
 		FROM trading_signals ts
-		JOIN signal_outcomes so ON ts.id = so.signal_id
+		JOIN signal_outcomes so ON ts.id = so.signal_id AND date_trunc('day', ts.generated_at) = date_trunc('day', so.entry_time)
 		WHERE so.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN')
 	`
 

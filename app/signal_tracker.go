@@ -8,6 +8,89 @@ import (
 	"stockbit-haka-haki/database"
 )
 
+// TradingHours defines Indonesian stock market trading hours (WIB/UTC+7)
+const (
+	MarketOpenHour  = 9  // 09:00 WIB
+	MarketCloseHour = 16 // 16:00 WIB (close at 16:00, but last trade acceptance ~15:50)
+	MarketTimeZone  = "Asia/Jakarta"
+)
+
+// Position Management Constants
+const (
+	MinSignalIntervalMinutes = 15 // Minimum 15 minutes between signals for same symbol
+	MaxOpenPositions         = 10 // Maximum concurrent open positions
+	MaxPositionsPerSymbol    = 1  // Maximum positions per symbol (prevent averaging down)
+	SignalTimeWindowMinutes  = 5  // Time window for duplicate detection
+)
+
+// isTradingTime checks if the given time is within Indonesian market trading hours
+func isTradingTime(t time.Time) bool {
+	// Convert to Jakarta timezone
+	loc, err := time.LoadLocation(MarketTimeZone)
+	if err != nil {
+		log.Printf("⚠️ Failed to load timezone %s: %v", MarketTimeZone, err)
+		// Fallback: assume UTC+7 offset
+		loc = time.FixedZone("WIB", 7*60*60)
+	}
+
+	localTime := t.In(loc)
+	hour := localTime.Hour()
+	weekday := localTime.Weekday()
+
+	// Market is closed on weekends
+	if weekday == time.Saturday || weekday == time.Sunday {
+		return false
+	}
+
+	// Market hours: 09:00 - 16:00 WIB
+	return hour >= MarketOpenHour && hour < MarketCloseHour
+}
+
+// getTradingSession returns the current trading session name
+func getTradingSession(t time.Time) string {
+	loc, err := time.LoadLocation(MarketTimeZone)
+	if err != nil {
+		loc = time.FixedZone("WIB", 7*60*60)
+	}
+
+	localTime := t.In(loc)
+	hour := localTime.Hour()
+	minute := localTime.Minute()
+
+	// Pre-opening (08:45-09:00)
+	if hour == 8 && minute >= 45 {
+		return "PRE_OPENING"
+	}
+
+	// Session 1 (09:00-12:00)
+	if hour >= 9 && hour < 12 {
+		return "SESSION_1"
+	}
+
+	// Lunch break (12:00-13:30)
+	if (hour == 12) || (hour == 13 && minute < 30) {
+		return "LUNCH_BREAK"
+	}
+
+	// Session 2 (13:30-14:50)
+	if (hour == 13 && minute >= 30) || (hour == 14 && minute < 50) {
+		return "SESSION_2"
+	}
+
+	// Pre-closing (14:50-15:00)
+	if hour == 14 && minute >= 50 {
+		return "PRE_CLOSING"
+	}
+
+	// Post-market (15:00-16:00) - trades still settle but limited
+	if hour >= 15 && hour < 16 {
+		return "POST_MARKET"
+	}
+
+	// After hours
+	return "AFTER_HOURS"
+}
+
 // SignalTracker monitors trading signals and tracks their outcomes
 type SignalTracker struct {
 	repo *database.TradeRepository
@@ -105,12 +188,82 @@ func (st *SignalTracker) trackSignalOutcomes() {
 	}
 }
 
+// shouldCreateOutcome checks if we should create an outcome for this signal
+// Returns: (shouldCreate bool, reason string)
+func (st *SignalTracker) shouldCreateOutcome(signal *database.TradingSignalDB) (bool, string) {
+	// 1. Check if too many open positions globally
+	openOutcomes, err := st.repo.GetSignalOutcomes("", "OPEN", time.Time{}, time.Time{}, 0)
+	if err == nil && len(openOutcomes) >= MaxOpenPositions {
+		return false, fmt.Sprintf("Max open positions reached (%d/%d)", len(openOutcomes), MaxOpenPositions)
+	}
+
+	// 2. Check if symbol already has open position
+	symbolOutcomes, err := st.repo.GetSignalOutcomes(signal.StockSymbol, "OPEN", time.Time{}, time.Time{}, 0)
+	if err == nil && len(symbolOutcomes) >= MaxPositionsPerSymbol {
+		return false, fmt.Sprintf("Symbol %s already has %d open position(s)", signal.StockSymbol, len(symbolOutcomes))
+	}
+
+	// 3. Check for recent signals within time window (duplicate prevention)
+	recentSignalTime := signal.GeneratedAt.Add(-time.Duration(SignalTimeWindowMinutes) * time.Minute)
+	recentSignals, err := st.repo.GetTradingSignals(signal.StockSymbol, signal.Strategy, "BUY", recentSignalTime, signal.GeneratedAt, 10)
+	if err == nil && len(recentSignals) > 1 {
+		// More than 1 means there's a duplicate within the time window
+		return false, fmt.Sprintf("Duplicate signal within %d minute window", SignalTimeWindowMinutes)
+	}
+
+	// 4. Check minimum interval since last signal for this symbol
+	lastSignalTime := signal.GeneratedAt.Add(-time.Duration(MinSignalIntervalMinutes) * time.Minute)
+	lastSignals, err := st.repo.GetTradingSignals(signal.StockSymbol, "", "BUY", lastSignalTime, time.Time{}, 1)
+	if err == nil && len(lastSignals) > 0 {
+		// Found a recent signal
+		if lastSignals[0].ID != signal.ID {
+			timeSince := signal.GeneratedAt.Sub(lastSignals[0].GeneratedAt).Minutes()
+			if timeSince < MinSignalIntervalMinutes {
+				return false, fmt.Sprintf("Signal too soon (%.1f min < %d min required)", timeSince, MinSignalIntervalMinutes)
+			}
+		}
+	}
+
+	return true, ""
+}
+
 // createSignalOutcome creates a new outcome record for a signal
 func (st *SignalTracker) createSignalOutcome(signal *database.TradingSignalDB) error {
 	// Indonesian market: Only track BUY signals (no short selling)
 	if signal.Decision != "BUY" {
 		return nil
 	}
+
+	// Exclude NG (Negotiated Trading) signals - these are special transactions
+	// that don't reflect normal market dynamics
+	if signal.WhaleAlertID != nil {
+		// Get the whale alert to check market_board
+		alert, err := st.repo.GetWhaleAlertByID(*signal.WhaleAlertID)
+		if err == nil && alert != nil && alert.MarketBoard == "NG" {
+			log.Printf("⏭️ Skipping signal %d (%s): NG (Negotiated Trading) excluded from tracking",
+				signal.ID, signal.StockSymbol)
+			return nil
+		}
+	}
+
+	// Validate trading time
+	if !isTradingTime(signal.GeneratedAt) {
+		session := getTradingSession(signal.GeneratedAt)
+		log.Printf("⏰ Skipping signal %d (%s): Generated outside trading hours (session: %s)",
+			signal.ID, signal.StockSymbol, session)
+		return nil
+	}
+
+	// Check duplicate prevention and position limits
+	shouldCreate, reason := st.shouldCreateOutcome(signal)
+	if !shouldCreate {
+		log.Printf("⏭️ Skipping signal %d (%s): %s", signal.ID, signal.StockSymbol, reason)
+		return nil
+	}
+
+	session := getTradingSession(signal.GeneratedAt)
+	log.Printf("✅ Creating outcome for signal %d (%s) - Session: %s",
+		signal.ID, signal.StockSymbol, session)
 
 	outcome := &database.SignalOutcome{
 		SignalID:      signal.ID,
@@ -135,6 +288,17 @@ func (st *SignalTracker) updateSignalOutcome(signal *database.TradingSignalDB, o
 	if outcome.EntryDecision != "BUY" {
 		log.Printf("⚠️ Skipping non-BUY signal %d: Indonesia market doesn't support short selling", signal.ID)
 		return nil
+	}
+
+	// Check current trading session
+	now := time.Now()
+	currentSession := getTradingSession(now)
+
+	// Auto-close positions at market close (16:00 WIB)
+	if currentSession == "AFTER_HOURS" && outcome.ExitTime == nil {
+		log.Printf("🔔 Market closed - Auto-closing position for signal %d (%s)",
+			signal.ID, signal.StockSymbol)
+		// Will force exit below
 	}
 
 	// Get current price from latest candle
@@ -177,9 +341,24 @@ func (st *SignalTracker) updateSignalOutcome(signal *database.TradingSignalDB, o
 		exitReason = "STOP_LOSS"
 	}
 
-	// Dynamic Take Profit based on order flow momentum
+	// Force exit at market close
+	if currentSession == "AFTER_HOURS" {
+		shouldExit = true
+		exitReason = "MARKET_CLOSE"
+		log.Printf("⏰ Force exit due to market close for signal %d (%s)", signal.ID, signal.StockSymbol)
+	}
+
+	// Auto-exit in pre-closing session (14:50-15:00) if profitable
+	if currentSession == "PRE_CLOSING" && profitLossPct > 0.5 {
+		shouldExit = true
+		exitReason = "PRE_CLOSE_PROFIT_TAKING"
+		log.Printf("⏰ Pre-close profit taking for signal %d (%s): %.2f%%",
+			signal.ID, signal.StockSymbol, profitLossPct)
+	}
+
+	// Dynamic Take Profit based on order flow momentum (only during trading hours)
 	// Indonesian market: Only BUY positions
-	if profitLossPct > 0 && orderFlow != nil {
+	if !shouldExit && isTradingTime(now) && profitLossPct > 0 && orderFlow != nil {
 		// Calculate sell pressure (for exit signal)
 		totalVolume := orderFlow.BuyVolumeLots + orderFlow.SellVolumeLots
 		var sellPressure float64
