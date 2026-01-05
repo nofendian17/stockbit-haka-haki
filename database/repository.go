@@ -103,7 +103,7 @@ func (r *TradeRepository) InitSchema() error {
 		SELECT
 			date_trunc('day', so.entry_time) AS day,
 			ts.strategy,
-			so.stock_symbol,
+			ts.stock_symbol,
 			COUNT(*) AS total_signals,
 			SUM(CASE WHEN so.outcome_status = 'WIN' THEN 1 ELSE 0 END) AS wins,
 			SUM(CASE WHEN so.outcome_status = 'LOSS' THEN 1 ELSE 0 END) AS losses,
@@ -111,17 +111,18 @@ func (r *TradeRepository) InitSchema() error {
 			COALESCE(SUM(so.profit_loss_pct), 0) AS total_profit_pct,
 			COALESCE(AVG(so.risk_reward_ratio), 0) AS avg_risk_reward,
 			COALESCE(AVG(so.entry_price), 0) AS avg_entry_price,
-			COALESCE(AVG(so.exit_price), 0) AS avg_exit_price,
-			MIN(so.entry_price) AS min_entry_price,
-			MAX(so.entry_price) AS max_entry_price,
+			COALESCE(AVG(CASE WHEN so.exit_price IS NOT NULL THEN so.exit_price END), 0) AS avg_exit_price,
+			COALESCE(MIN(so.entry_price), 0) AS min_entry_price,
+			COALESCE(MAX(so.entry_price), 0) AS max_entry_price,
 			COALESCE(AVG(CASE WHEN so.outcome_status = 'WIN' THEN so.profit_loss_pct END), 0) AS avg_win_pct,
 			COALESCE(AVG(CASE WHEN so.outcome_status = 'LOSS' THEN so.profit_loss_pct END), 0) AS avg_loss_pct,
 			COALESCE(MAX(so.profit_loss_pct), 0) AS best_trade_pct,
 			COALESCE(MIN(so.profit_loss_pct), 0) AS worst_trade_pct,
-			COALESCE(AVG(so.holding_period_minutes), 0) AS avg_holding_minutes
+			COALESCE(AVG(CASE WHEN so.holding_period_minutes IS NOT NULL THEN so.holding_period_minutes END), 0) AS avg_holding_minutes
 		FROM signal_outcomes so
 		JOIN trading_signals ts ON so.signal_id = ts.id
-		GROUP BY day, ts.strategy, so.stock_symbol
+		WHERE so.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN')
+		GROUP BY day, ts.strategy, ts.stock_symbol
 	`).Error; err != nil {
 		fmt.Printf("⚠️ Warning: Failed to create view strategy_performance_daily: %v\n", err)
 	} else {
