@@ -1821,7 +1821,7 @@ func (r *TradeRepository) GetCorrelationsForPair(stockA, stockB string) ([]Stock
 // GetDailyStrategyPerformance retrieves daily aggregated performance data
 func (r *TradeRepository) GetDailyStrategyPerformance(strategy, symbol string, limit int) ([]map[string]interface{}, error) {
 	// Refresh materialized view to ensure latest data
-	if err := r.db.db.Exec(`REFRESH MATERIALIZED VIEW CONCURRENTLY strategy_performance_daily`).Error; err != nil {
+	if err := r.db.db.Exec(`REFRESH MATERIALIZED VIEW strategy_performance_daily`).Error; err != nil {
 		// Log but don't fail - use existing data
 		log.Printf("⚠️ Failed to refresh performance view: %v", err)
 	}
