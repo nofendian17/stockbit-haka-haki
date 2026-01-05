@@ -485,13 +485,128 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchAnalyticsHubData();
     fetchGlobalPerformance();
 
+    // Fetch Running Positions
+    fetchRunningPositions();
+
     setInterval(() => {
         fetchMarketIntelligence();
         fetchAnalyticsHubData();
         fetchOrderFlow();
         fetchRecentFollowups(); // Update whale followup data periodically
+        fetchRunningPositions(); // Update running positions periodically
     }, CONFIG.ANALYTICS_POLL_INTERVAL);
 });
+
+// ===== RUNNING POSITIONS =====
+async function fetchRunningPositions() {
+    const tbody = document.getElementById('positions-table-body');
+    const loading = document.getElementById('positions-loading');
+    const placeholder = document.getElementById('positions-placeholder');
+
+    if (!tbody) return;
+
+    loading.style.display = 'block';
+    placeholder.style.display = 'none';
+
+    try {
+        const res = await fetch(`${API_BASE}/positions/open?limit=20`);
+        const data = await res.json();
+        
+        renderRunningPositions(data.positions || []);
+    } catch (err) {
+        console.error("Failed to fetch running positions:", err);
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center">Gagal memuat posisi trading</td></tr>';
+    } finally {
+        loading.style.display = 'none';
+    }
+}
+
+function renderRunningPositions(positions) {
+    const tbody = document.getElementById('positions-table-body');
+    const placeholder = document.getElementById('positions-placeholder');
+
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+
+    if (positions.length === 0) {
+        placeholder.style.display = 'block';
+        return;
+    }
+
+    placeholder.style.display = 'none';
+
+    positions.forEach(pos => {
+        const row = document.createElement('tr');
+        
+        // Calculate current P&L
+        const profitLoss = pos.profit_loss_pct || 0;
+        const profitClass = profitLoss >= 0 ? 'diff-positive' : 'diff-negative';
+        const profitSign = profitLoss >= 0 ? '+' : '';
+
+        // Calculate holding time
+        let holdingText = '-';
+        if (pos.holding_period_minutes) {
+            const minutes = pos.holding_period_minutes;
+            if (minutes >= 60) {
+                const hours = Math.floor(minutes / 60);
+                const mins = minutes % 60;
+                holdingText = `${hours}h ${mins}m`;
+            } else {
+                holdingText = `${minutes}m`;
+            }
+        }
+
+        // Format entry time
+        const entryTime = pos.entry_time ? new Date(pos.entry_time).toLocaleString('id-ID', {
+            day: '2-digit',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit'
+        }) : '-';
+
+        // MAE/MFE display
+        const mae = pos.max_adverse_excursion || 0;
+        const mfe = pos.max_favorable_excursion || 0;
+        const maeText = mae !== 0 ? `${mae.toFixed(2)}%` : '-';
+        const mfeText = mfe !== 0 ? `${mfe.toFixed(2)}%` : '-';
+
+        // Strategy name (will be fetched or derived)
+        const strategyText = 'TRACKING'; // Default, could be enhanced with signal lookup
+
+        row.innerHTML = `
+            <td><strong>${pos.stock_symbol}</strong></td>
+            <td style="font-size: 0.85em;">${strategyText}</td>
+            <td style="font-size: 0.85em;">${entryTime}</td>
+            <td class="text-right">${formatNumber(pos.entry_price)}</td>
+            <td class="text-right">
+                <span class="${profitClass}" style="font-weight: 600; font-size: 1.1em;">
+                    ${profitSign}${profitLoss.toFixed(2)}%
+                </span>
+            </td>
+            <td class="text-right" style="font-size: 0.9em;">${holdingText}</td>
+            <td class="text-right" style="font-size: 0.85em;">
+                <span class="diff-negative">${maeText}</span> /
+                <span class="diff-positive">${mfeText}</span>
+            </td>
+            <td>
+                <span class="badge" style="background: var(--accent-blue); color: white;">
+                    ${pos.outcome_status}
+                </span>
+            </td>
+        `;
+
+        // Add hover effect
+        row.addEventListener('mouseenter', () => {
+            row.style.backgroundColor = 'rgba(59, 130, 246, 0.05)';
+        });
+        row.addEventListener('mouseleave', () => {
+            row.style.backgroundColor = '';
+        });
+
+        tbody.appendChild(row);
+    });
+}
 
 // ===== ACCUMULATION/DISTRIBUTION SUMMARY =====
 async function fetchAccumulationSummary() {

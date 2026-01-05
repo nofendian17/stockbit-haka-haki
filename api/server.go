@@ -17,11 +17,17 @@ import (
 
 // Server handles HTTP API requests
 type Server struct {
-	repo       *database.TradeRepository
-	webhookMq  *notifications.WebhookManager
-	broker     *realtime.Broker
-	llmClient  *llm.Client
-	llmEnabled bool
+	repo          *database.TradeRepository
+	webhookMq     *notifications.WebhookManager
+	broker        *realtime.Broker
+	llmClient     *llm.Client
+	llmEnabled    bool
+	signalTracker SignalTrackerInterface // Use case for signal tracking
+}
+
+// SignalTrackerInterface defines the interface for signal tracking operations
+type SignalTrackerInterface interface {
+	GetOpenPositions(symbol, strategy string, limit int) ([]database.SignalOutcome, error)
 }
 
 // NewServer creates a new API server instance
@@ -33,6 +39,11 @@ func NewServer(repo *database.TradeRepository, webhookMq *notifications.WebhookM
 		llmClient:  llmClient,
 		llmEnabled: llmEnabled,
 	}
+}
+
+// SetSignalTracker sets the signal tracker use case
+func (s *Server) SetSignalTracker(tracker SignalTrackerInterface) {
+	s.signalTracker = tracker
 }
 
 // Start starts the HTTP server on the specified port
@@ -81,6 +92,7 @@ func (s *Server) Start(port int) error {
 	// Phase 3 Enhancement Routes
 	mux.HandleFunc("GET /api/analytics/correlations", s.handleGetStockCorrelations)
 	mux.HandleFunc("GET /api/analytics/performance/daily", s.handleGetDailyPerformance)
+	mux.HandleFunc("GET /api/positions/open", s.handleGetOpenPositions)
 
 	// Accumulation/Distribution Summary Route
 	mux.HandleFunc("GET /api/accumulation-summary", s.handleAccumulationSummary)

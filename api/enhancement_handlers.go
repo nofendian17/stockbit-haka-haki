@@ -403,3 +403,45 @@ func (s *Server) handleGetDailyPerformance(w http.ResponseWriter, r *http.Reques
 		"count":       len(performance),
 	})
 }
+
+// handleGetOpenPositions returns currently open trading positions
+func (s *Server) handleGetOpenPositions(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	symbol := query.Get("symbol")
+	strategy := query.Get("strategy")
+
+	limit := 50
+	if l := query.Get("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
+			limit = parsed
+			if limit > 100 {
+				limit = 100
+			}
+		}
+	}
+
+	log.Printf("📊 Fetching open positions (symbol: %s, strategy: %s, limit: %d)", symbol, strategy, limit)
+
+	// Check if signal tracker is available
+	if s.signalTracker == nil {
+		log.Printf("⚠️ Signal tracker not initialized")
+		http.Error(w, "Signal tracker not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	// Use case: Get open positions through signal tracker
+	positions, err := s.signalTracker.GetOpenPositions(symbol, strategy, limit)
+	if err != nil {
+		log.Printf("❌ Failed to fetch open positions: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("✅ Returning %d open positions", len(positions))
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"positions": positions,
+		"count":     len(positions),
+	})
+}

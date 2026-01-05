@@ -229,6 +229,47 @@
         </div>
       </div>
 
+      <!-- Running Positions Section -->
+      <div class="running-positions-section" id="running-positions">
+        <div class="section-header">
+          <div class="header-content">
+            <h2>
+              <span class="section-icon">💼</span>
+              Posisi Trading Aktif
+            </h2>
+            <p class="section-subtitle">Posisi yang sedang berjalan dengan status real-time</p>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table id="positions-table">
+            <thead>
+              <tr>
+                <th><span class="th-icon">📊</span> Saham</th>
+                <th><span class="th-icon">🎯</span> Strategi</th>
+                <th><span class="th-icon">⏰</span> Entry Time</th>
+                <th class="text-right"><span class="th-icon">💵</span> Entry Price</th>
+                <th class="text-right"><span class="th-icon">📈</span> P&L %</th>
+                <th class="text-right"><span class="th-icon">⏱️</span> Hold Time</th>
+                <th class="text-right"><span class="th-icon">📉</span> MAE/MFE</th>
+                <th><span class="th-icon">🎲</span> Status</th>
+              </tr>
+            </thead>
+            <tbody id="positions-table-body">
+              <!-- Rows will be injected here -->
+            </tbody>
+          </table>
+          <div id="positions-loading" class="loading" style="display: none;">
+            <div class="loading-spinner"></div>
+            <p>Memuat posisi trading...</p>
+          </div>
+          <div id="positions-placeholder" class="placeholder">
+            <span class="placeholder-icon">💼</span>
+            <p>Tidak ada posisi trading yang aktif saat ini</p>
+          </div>
+        </div>
+      </div>
+
       <!-- Accumulation/Distribution Summary Section -->
       <div class="summary-section" id="accumulation-summary-section">
         <div class="section-header">

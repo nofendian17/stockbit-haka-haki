@@ -194,11 +194,6 @@ func (a *App) Start() error {
 
 	// 9. Start API Server
 	apiServer := api.NewServer(a.tradeRepo, a.webhookManager, a.broker, llmClient, a.config.LLM.Enabled)
-	go func() {
-		if err := apiServer.Start(8080); err != nil {
-			log.Printf("⚠️  API Server failed: %v", err)
-		}
-	}()
 
 	// 10. Start Phase 1 Enhancement Trackers
 	log.Println("🚀 Starting Phase 1 enhancement trackers...")
@@ -206,6 +201,16 @@ func (a *App) Start() error {
 	// Signal Outcome Tracker
 	a.signalTracker = NewSignalTracker(a.tradeRepo)
 	go a.signalTracker.Start()
+
+	// Inject signal tracker into API server
+	apiServer.SetSignalTracker(a.signalTracker)
+
+	// Start API Server after dependencies are initialized
+	go func() {
+		if err := apiServer.Start(8080); err != nil {
+			log.Printf("⚠️  API Server failed: %v", err)
+		}
+	}()
 
 	// Whale Followup Tracker
 	a.whaleFollowup = NewWhaleFollowupTracker(a.tradeRepo)

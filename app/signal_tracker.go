@@ -420,3 +420,27 @@ func (st *SignalTracker) updateSignalOutcome(signal *database.TradingSignalDB, o
 
 	return st.repo.UpdateSignalOutcome(outcome)
 }
+
+// GetOpenPositions returns currently open trading positions with optional filters
+func (st *SignalTracker) GetOpenPositions(symbol, strategy string, limit int) ([]database.SignalOutcome, error) {
+	// Get open signal outcomes
+	outcomes, err := st.repo.GetSignalOutcomes(symbol, "OPEN", time.Time{}, time.Time{}, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get open positions: %w", err)
+	}
+
+	// Filter by strategy if provided
+	if strategy != "" && strategy != "ALL" {
+		var filtered []database.SignalOutcome
+		for _, outcome := range outcomes {
+			// Get the signal to check strategy
+			signal, err := st.repo.GetSignalByID(outcome.SignalID)
+			if err == nil && signal != nil && signal.Strategy == strategy {
+				filtered = append(filtered, outcome)
+			}
+		}
+		return filtered, nil
+	}
+
+	return outcomes, nil
+}
