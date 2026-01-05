@@ -350,12 +350,12 @@ async function fetchSignalHistory() {
 
         if (loading) loading.style.display = 'none';
 
-        if (!data || data.length === 0) {
+        if (!data.signals || data.signals.length === 0) {
             if (placeholder) placeholder.style.display = 'flex';
             return;
         }
 
-        data.forEach(signal => {
+        data.signals.forEach(signal => {
             renderSignalRow(signal, true);
         });
 
