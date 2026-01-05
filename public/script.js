@@ -1211,33 +1211,42 @@ async function openFollowupModal(alertId, symbol, alertPrice) {
 
     try {
         const res = await fetch(`${API_BASE}/whales/${alertId}/followup`);
+        
+        // Check if response is ok first
+        if (!res.ok) {
+            const errorText = await res.text();
+            loading.textContent = `Error: ${res.status} - ${errorText || "Gagal memuat analisis followup."}`;
+            return;
+        }
+        
         const data = await res.json();
 
-        // Handle error response
-        if (!res.ok || data.error) {
-            loading.textContent = data.error || "Gagal memuat analisis followup.";
+        // Handle error response in JSON
+        if (data.error) {
+            loading.textContent = data.error;
             return;
         }
 
-        // Validate required data fields
-        if (!data || data.current_price === undefined || data.current_price === null) {
-            loading.textContent = "Data followup tidak lengkap. Silakan coba lagi.";
+        // Validate and parse alert price with safe defaults
+        const validAlertPrice = parseFloat(alertPrice);
+        if (isNaN(validAlertPrice) || validAlertPrice <= 0) {
+            loading.textContent = "Harga alert tidak valid. Data mungkin tidak lengkap.";
             return;
         }
 
+        // Validate current price exists in response
+        const currentPrice = parseFloat(data.current_price);
+        if (isNaN(currentPrice) || currentPrice <= 0) {
+            loading.textContent = "Data harga saat ini tidak tersedia. Coba lagi nanti.";
+            return;
+        }
+
+        // All validations passed - show content
         loading.style.display = 'none';
         content.style.display = 'block';
 
-        // Parse and validate numbers
-        const currentPrice = parseFloat(data.current_price) || 0;
-        const validAlertPrice = parseFloat(alertPrice) || 0;
-        
-        // Calculate change percentage safely
-        let changePct = 0;
-        if (validAlertPrice > 0 && currentPrice > 0) {
-            changePct = ((currentPrice - validAlertPrice) / validAlertPrice) * 100;
-        }
-        
+        // Calculate change percentage safely (both values are now validated)
+        const changePct = ((currentPrice - validAlertPrice) / validAlertPrice) * 100;
         const sign = changePct >= 0 ? '+' : '';
         const color = changePct >= 0 ? 'var(--accent-buy)' : 'var(--accent-sell)';
 
@@ -1247,14 +1256,20 @@ async function openFollowupModal(alertId, symbol, alertPrice) {
         document.getElementById('f-price-change').textContent = `${sign}${changePct.toFixed(2)}%`;
         document.getElementById('f-price-change').style.color = color;
         
-        // Handle detected_at or alert_time field
+        // Handle time field
         const timeField = data.detected_at || data.alert_time;
         if (timeField) {
-            document.getElementById('f-time-elapsed').textContent = formatTime(timeField);
+            try {
+                document.getElementById('f-time-elapsed').textContent = formatTime(timeField);
+            } catch (timeErr) {
+                console.error("Error formatting time:", timeErr);
+                document.getElementById('f-time-elapsed').textContent = 'Baru saja';
+            }
         } else {
-            document.getElementById('f-time-elapsed').textContent = '-';
+            document.getElementById('f-time-elapsed').textContent = 'Baru saja';
         }
 
+        // Analysis content based on price change
         const analysis = document.getElementById('followup-analysis');
         if (changePct > 2) {
             analysis.innerHTML = `🌟 <strong>Kenaikan Berlanjut!</strong> Deteksi bandar terbukti efektif. Harga telah naik signifikan sejak deteksi awal.`;
@@ -1272,7 +1287,9 @@ async function openFollowupModal(alertId, symbol, alertPrice) {
 
     } catch (err) {
         console.error("Followup fetch failed", err);
-        loading.textContent = "Gagal memuat analisis followup.";
+        loading.style.display = 'block';
+        content.style.display = 'none';
+        loading.textContent = "Gagal memuat analisis followup. Silakan coba lagi.";
     }
 }
 
