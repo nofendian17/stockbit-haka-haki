@@ -57,67 +57,67 @@
     <!-- Enhanced Filter Controls -->
     <div class="controls-section">
 
-        <div class="section-title-small">
-          <span class="icon-accent">🔍</span>
-          <h3>Pencarian & Filter</h3>
+      <div class="section-title-small">
+        <span class="icon-accent">🔍</span>
+        <h3>Pencarian & Filter</h3>
+      </div>
+      <div class="controls">
+        <div class="control-group">
+          <label for="search" class="control-label">
+            <span class="label-icon">🔎</span>
+            Kode Saham
+          </label>
+          <input type="text" id="search" placeholder="Cari Kode (misal BBCA)..." />
         </div>
-        <div class="controls">
-          <div class="control-group">
-            <label for="search" class="control-label">
-              <span class="label-icon">🔎</span>
-              Kode Saham
-            </label>
-            <input type="text" id="search" placeholder="Cari Kode (misal BBCA)..." />
-          </div>
-          <div class="control-group">
-            <label for="filter-action" class="control-label">
-              <span class="label-icon">⚡</span>
-              Action Type
-            </label>
-            <select id="filter-action">
-              <option value="ALL">Semua Aksi</option>
-              <option value="BUY">Bandar Beli (Akumulasi)</option>
-              <option value="SELL">Bandar Jual (Distribusi)</option>
-            </select>
-          </div>
-          <div class="control-group">
-            <label for="filter-amount" class="control-label">
-              <span class="label-icon">💰</span>
-              Min Nilai
-            </label>
-            <select id="filter-amount">
-              <option value="0">Semua Nilai</option>
-              <option value="100000000">> 100 Juta</option>
-              <option value="500000000">> 500 Juta</option>
-              <option value="1000000000">> 1 Miliar</option>
-              <option value="5000000000">> 5 Miliar</option>
-            </select>
-          </div>
-          <div class="control-group">
-            <label for="filter-board" class="control-label">
-              <span class="label-icon">📊</span>
-              Board Type
-            </label>
-            <select id="filter-board">
-              <option value="ALL">Semua Papan</option>
-              <option value="RG">Regular (RG)</option>
-              <option value="TN">Tunai (TN)</option>
-              <option value="NG">Negosiasi (NG)</option>
-            </select>
-          </div>
-          <div class="control-group">
-            <button id="clear-filters-btn" class="btn-clear" style="display: none;">
-              <span class="btn-icon">✖️</span>
-              Hapus Filter
-            </button>
-          </div>
-          <div class="control-group">
-            <button id="refresh-btn" class="btn-refresh">
-              <span class="btn-icon">🔄</span>
-              Refresh
-            </button>
-          </div>
+        <div class="control-group">
+          <label for="filter-action" class="control-label">
+            <span class="label-icon">⚡</span>
+            Action Type
+          </label>
+          <select id="filter-action">
+            <option value="ALL">Semua Aksi</option>
+            <option value="BUY">Bandar Beli (Akumulasi)</option>
+            <option value="SELL">Bandar Jual (Distribusi)</option>
+          </select>
         </div>
+        <div class="control-group">
+          <label for="filter-amount" class="control-label">
+            <span class="label-icon">💰</span>
+            Min Nilai
+          </label>
+          <select id="filter-amount">
+            <option value="0">Semua Nilai</option>
+            <option value="100000000">> 100 Juta</option>
+            <option value="500000000">> 500 Juta</option>
+            <option value="1000000000">> 1 Miliar</option>
+            <option value="5000000000">> 5 Miliar</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label for="filter-board" class="control-label">
+            <span class="label-icon">📊</span>
+            Board Type
+          </label>
+          <select id="filter-board">
+            <option value="ALL">Semua Papan</option>
+            <option value="RG">Regular (RG)</option>
+            <option value="TN">Tunai (TN)</option>
+            <option value="NG">Negosiasi (NG)</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <button id="clear-filters-btn" class="btn-clear" style="display: none;">
+            <span class="btn-icon">✖️</span>
+            Hapus Filter
+          </button>
+        </div>
+        <div class="control-group">
+          <button id="refresh-btn" class="btn-refresh">
+            <span class="btn-icon">🔄</span>
+            Refresh
+          </button>
+        </div>
+      </div>
 
       <!-- Enhanced Whale Alerts Table -->
       <div class="whale-alerts-section">
@@ -635,33 +635,32 @@
   </div>
 
   <div id="followup-modal" class="modal">
-    <div class="modal-content" style="max-width: 500px;">
+    <div class="modal-content" style="max-width: 600px;">
       <div class="modal-header">
-        <h2 id="followup-title">🐳 Analisis Pergerakan Bandar</h2>
-        <button class="modal-close" id="followup-modal-close">&times;</button>
+        <h2>🐳 Analisis Pergerakan Bandar - <span id="followup-symbol">N/A</span></h2>
+        <button class="modal-close" id="followup-close">&times;</button>
       </div>
       <div class="modal-body">
-        <div id="followup-loading" class="loading-small">Menganalisis pergerakan harga...</div>
-        <div id="followup-content" style="display:none;">
-          <div class="followup-stats">
-            <div class="f-stat"><span>Harga Alert:</span> <strong id="f-alert-price">-</strong></div>
-            <div class="f-stat"><span>Harga Sekarang:</span> <strong id="f-current-price">-</strong></div>
-            <div class="f-stat"><span>Perubahan:</span> <strong id="f-price-change">-</strong></div>
-            <div class="f-stat"><span>Waktu Berlalu:</span> <strong id="f-time-elapsed">-</strong></div>
+        <div class="followup-info" style="margin-bottom: 15px;">
+          <div style="font-size: 0.9em; color: var(--text-secondary);">
+            <strong>Harga Trigger:</strong> <span id="followup-trigger-price">N/A</span>
           </div>
-          <div id="followup-analysis" class="followup-box">
-            <!-- Analysis text here -->
+        </div>
+        <div id="followup-data">
+          <div class="placeholder">
+            <span class="placeholder-icon">⏳</span>
+            <p>Memuat data analisis...</p>
           </div>
         </div>
       </div>
     </div>
   </div>
 
+
   <footer>
     <p>Whale Analysis System &copy; 2025</p>
   </footer>
 
-  <script src="script.js?v=12"></script>
   <script type="module" src="js/app.js"></script>
 
 </html>

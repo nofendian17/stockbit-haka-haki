@@ -53,8 +53,8 @@ export const API_ENDPOINTS = {
 
     // Candles & Followup
     CANDLES: '/api/candles',
-    FOLLOWUP: '/api/whale/followup',
-    RECENT_FOLLOWUPS: '/api/whale/recent-followups',
+    FOLLOWUP: '/api/whales',  // Fixed: use /api/whales/{id}/followup
+    RECENT_FOLLOWUPS: '/api/whales/followups',
 };
 
 export default CONFIG;

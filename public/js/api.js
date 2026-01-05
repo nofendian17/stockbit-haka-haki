@@ -77,7 +77,21 @@ export async function fetchAccumulationSummary() {
  * @returns {Promise<Object>} Analytics data
  */
 export async function fetchAnalyticsHub() {
-    return apiFetch(API_ENDPOINTS.ANALYTICS_HUB);
+    try {
+        // Fetch available analytics endpoints
+        const [performance, orderFlow] = await Promise.all([
+            fetchDailyPerformance().catch(() => null),
+            fetchOrderFlow().catch(() => null)
+        ]);
+
+        return {
+            performance: performance || {},
+            orderFlow: orderFlow || {}
+        };
+    } catch (error) {
+        console.error('Failed to fetch analytics hub:', error);
+        return { performance: {}, orderFlow: {} };
+    }
 }
 
 /**
@@ -153,7 +167,7 @@ export async function fetchCandles(symbol, timeframe = '5m') {
  * @returns {Promise<Object>} Followup data
  */
 export async function fetchWhaleFollowup(alertId) {
-    const url = `${API_ENDPOINTS.FOLLOWUP}/${alertId}`;
+    const url = `${API_ENDPOINTS.FOLLOWUP}/${alertId}/followup`;
     return apiFetch(url);
 }
 
@@ -185,3 +199,58 @@ export async function fetchCorrelations(symbol) {
 export async function fetchDailyPerformance() {
     return apiFetch(API_ENDPOINTS.PERFORMANCE);
 }
+
+/**
+ * Fetch market intelligence data
+ * @returns {Promise<Object>} Market intelligence data
+ */
+export async function fetchMarketIntelligence() {
+    try {
+        // Only fetch endpoints that don't require specific symbol
+        const patterns = await fetchDetectedPatterns().catch(() => null);
+
+        return {
+            patterns: patterns || []
+        };
+    } catch (error) {
+        console.error('Failed to fetch market intelligence:', error);
+        return { patterns: [] };
+    }
+}
+
+/**
+ * Fetch statistical baselines for a specific symbol
+ * @param {string} symbol - Stock symbol (required)
+ * @returns {Promise<Object>} Statistical baselines
+ */
+export async function fetchStatisticalBaselines(symbol) {
+    if (!symbol) {
+        throw new Error('Symbol parameter is required');
+    }
+    const params = new URLSearchParams();
+    params.append('symbol', symbol.toUpperCase());
+    return apiFetch(`${CONFIG.API_BASE}/baselines?${params.toString()}`);
+}
+
+/**
+ * Fetch market regime for a specific symbol
+ * @param {string} symbol - Stock symbol (required)
+ * @returns {Promise<Object>} Market regime data
+ */
+export async function fetchMarketRegime(symbol) {
+    if (!symbol) {
+        throw new Error('Symbol parameter is required');
+    }
+    const params = new URLSearchParams();
+    params.append('symbol', symbol.toUpperCase());
+    return apiFetch(`${CONFIG.API_BASE}/regimes?${params.toString()}`);
+}
+
+/**
+ * Fetch detected patterns
+ * @returns {Promise<Object>} Detected patterns
+ */
+export async function fetchDetectedPatterns() {
+    return apiFetch(`${CONFIG.API_BASE}/patterns`);
+}
+

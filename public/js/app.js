@@ -361,22 +361,262 @@ function setupHelpModal() {
  * Setup candle modal
  */
 function setupCandleModal() {
-    // Implementation would go here
-    window.openCandleModal = (symbol) => {
+    const modal = safeGetElement('candle-modal');
+    const closeBtn = safeGetElement('candle-modal-close');
+
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            if (modal) modal.classList.remove('show');
+        });
+    }
+
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.classList.remove('show');
+        });
+    }
+
+    // Setup timeframe tabs
+    const tabs = document.querySelectorAll('.c-tab');
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const timeframe = tab.dataset.timeframe;
+            const symbol = modal.dataset.currentSymbol;
+
+            if (symbol && timeframe) {
+                tabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                fetchAndDisplayCandles(symbol, timeframe);
+            }
+        });
+    });
+
+    // Global function to open modal
+    window.openCandleModal = async (symbol) => {
         console.log('Opening candle modal for:', symbol);
-        // Candle modal logic
+
+        if (!modal) {
+            console.error('Candle modal not found');
+            return;
+        }
+
+        // Update modal title
+        const titleEl = safeGetElement('candle-modal-title');
+        if (titleEl) titleEl.textContent = `📉 Market Details: ${symbol}`;
+
+        // Store current symbol
+        modal.dataset.currentSymbol = symbol;
+
+        // Show modal
+        modal.classList.add('show');
+
+        // Reset to default timeframe
+        const tabs = document.querySelectorAll('.c-tab');
+        tabs.forEach(t => t.classList.remove('active'));
+        const defaultTab = document.querySelector('.c-tab[data-timeframe="5m"]');
+        if (defaultTab) defaultTab.classList.add('active');
+
+        // Fetch and display candles
+        await fetchAndDisplayCandles(symbol, '5m');
     };
 }
+
+/**
+ * Fetch and display candle data
+ * @param {string} symbol - Stock symbol
+ * @param {string} timeframe - Timeframe (5m, 15m, 1h, 1d)
+ */
+async function fetchAndDisplayCandles(symbol, timeframe) {
+    const tbody = safeGetElement('candle-list-body');
+    if (!tbody) return;
+
+    // Show loading
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-secondary);">Loading candles...</td></tr>';
+
+    try {
+        const data = await API.fetchCandles(symbol, timeframe);
+        displayCandles(data.candles || []);
+    } catch (error) {
+        console.error('Failed to fetch candles:', error);
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--accent-sell);">Failed to load candle data</td></tr>';
+    }
+}
+
+/**
+ * Display candles in the table
+ * @param {Array} candles - Array of candle objects
+ */
+function displayCandles(candles) {
+    const tbody = safeGetElement('candle-list-body');
+    if (!tbody) return;
+
+    if (candles.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-secondary);">No candle data available</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = '';
+    candles.forEach(candle => {
+        const row = document.createElement('tr');
+
+        // Determine candle color (green for bullish, red for bearish)
+        const isBullish = candle.close >= candle.open;
+        const priceClass = isBullish ? 'diff-positive' : 'diff-negative';
+
+        // Format time with proper error handling - use 'time' field from API
+        let time = 'N/A';
+        try {
+            const timeField = candle.time || candle.timestamp; // Support both field names
+            if (timeField) {
+                const date = new Date(timeField);
+                if (!isNaN(date.getTime())) {
+                    time = date.toLocaleString('id-ID', {
+                        month: 'short',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('Error formatting time:', candle.time || candle.timestamp, error);
+        }
+
+        // Format trade count if available
+        const tradeInfo = candle.trade_count ? ` (${candle.trade_count} trades)` : '';
+
+        row.innerHTML = `
+            <td style="font-size: 0.85em;" title="Trade Count: ${candle.trade_count || 0}">${time}</td>
+            <td class="text-right">${(candle.open || 0).toLocaleString('id-ID')}</td>
+            <td class="text-right diff-positive">${(candle.high || 0).toLocaleString('id-ID')}</td>
+            <td class="text-right diff-negative">${(candle.low || 0).toLocaleString('id-ID')}</td>
+            <td class="text-right ${priceClass}" style="font-weight: 600;">${(candle.close || 0).toLocaleString('id-ID')}</td>
+            <td class="text-right" style="font-size: 0.85em;" title="Total Value: Rp ${(candle.total_value || 0).toLocaleString('id-ID')}">${(candle.volume || 0).toLocaleString('id-ID')}</td>
+        `;
+
+        // Add hover effect
+        row.addEventListener('mouseenter', () => {
+            row.style.backgroundColor = isBullish ? 'rgba(14, 203, 129, 0.05)' : 'rgba(246, 70, 93, 0.05)';
+        });
+        row.addEventListener('mouseleave', () => {
+            row.style.backgroundColor = '';
+        });
+
+        tbody.appendChild(row);
+    });
+}
+
 
 /**
  * Setup followup modal
  */
 function setupFollowupModal() {
-    // Implementation would go here
-    window.openFollowupModal = (alertId, symbol, price) => {
-        console.log('Opening followup modal for:', alertId, symbol, price);
-        // Followup modal logic
+    const modal = safeGetElement('followup-modal');
+    const closeBtn = safeGetElement('followup-close');
+
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            if (modal) modal.classList.remove('show');
+        });
+    }
+
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.classList.remove('show');
+        });
+    }
+
+    // Global function to open modal
+    window.openFollowupModal = async (alertId, symbol, triggerPrice) => {
+        console.log('Opening followup modal:', { alertId, symbol, triggerPrice });
+
+        if (!modal) {
+            console.error('Followup modal not found');
+            return;
+        }
+
+        // Update modal title
+        const titleEl = safeGetElement('followup-symbol');
+        if (titleEl) titleEl.textContent = symbol || 'N/A';
+
+        const triggerEl = safeGetElement('followup-trigger-price');
+        if (triggerEl) triggerEl.textContent = triggerPrice ? `Rp ${triggerPrice}` : 'N/A';
+
+        // Show modal
+        modal.classList.add('show');
+
+        // Fetch followup data
+        try {
+            const data = await API.fetchWhaleFollowup(alertId);
+            displayFollowupData(data);
+        } catch (error) {
+            console.error('Failed to fetch followup:', error);
+            const container = safeGetElement('followup-data');
+            if (container) {
+                container.innerHTML = '<div class="placeholder"><p style="color: var(--accent-sell);">Gagal memuat data followup</p></div>';
+            }
+        }
     };
+}
+
+/**
+ * Display followup data in modal
+ * @param {Object} data - Followup data
+ */
+function displayFollowupData(data) {
+    if (!data) {
+        console.error('No followup data received');
+        return;
+    }
+
+    // Update modal with followup information
+    const symbolEl = document.getElementById('followup-symbol');
+    const triggerPriceEl = document.getElementById('followup-trigger-price');
+    const followupDataEl = document.getElementById('followup-data');
+
+    if (symbolEl) symbolEl.textContent = data.stock_symbol || 'N/A';
+    if (triggerPriceEl) triggerPriceEl.textContent = data.alert_price ? `Rp ${data.alert_price}` : 'N/A';
+
+    if (!followupDataEl) {
+        console.error('Followup data container not found');
+        return;
+    }
+
+    // Create followup content
+    const priceChange = data.price_change_pct || 0;
+    const priceChangeClass = priceChange >= 0 ? 'diff-positive' : 'diff-negative';
+    const priceChangeSign = priceChange >= 0 ? '+' : '';
+
+    const timeDiff = data.time_since_alert || 'N/A';
+    const currentPrice = data.current_price || 0;
+    const alertPrice = data.alert_price || 0;
+
+    const html = `
+        <div class="followup-stats">
+            <div class="f-stat">
+                <span>Harga Alert:</span> 
+                <strong>Rp ${alertPrice.toLocaleString('id-ID')}</strong>
+            </div>
+            <div class="f-stat">
+                <span>Harga Sekarang:</span> 
+                <strong>Rp ${currentPrice.toLocaleString('id-ID')}</strong>
+            </div>
+            <div class="f-stat">
+                <span>Perubahan:</span> 
+                <strong class="${priceChangeClass}">${priceChangeSign}${priceChange.toFixed(2)}%</strong>
+            </div>
+            <div class="f-stat">
+                <span>Waktu Berlalu:</span> 
+                <strong>${timeDiff}</strong>
+            </div>
+        </div>
+        <div class="followup-analysis">
+            <h4>📊 Analisis Pergerakan</h4>
+            <p>${data.analysis || 'Data analisis tidak tersedia'}</p>
+        </div>
+    `;
+
+    followupDataEl.innerHTML = html;
 }
 
 /**
