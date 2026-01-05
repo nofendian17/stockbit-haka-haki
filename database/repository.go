@@ -1665,11 +1665,15 @@ func (r *TradeRepository) GetCandlesByTimeframe(timeframe string, symbol string,
 		return nil, err
 	}
 
-	// Rename 'bucket' to 'time' for frontend compatibility
+	// Rename fields for frontend compatibility
 	for i := range results {
 		if bucket, ok := results[i]["bucket"]; ok {
 			results[i]["time"] = bucket
 			delete(results[i], "bucket")
+		}
+		if volumeLots, ok := results[i]["volume_lots"]; ok {
+			results[i]["volume"] = volumeLots
+			delete(results[i], "volume_lots")
 		}
 	}
 
