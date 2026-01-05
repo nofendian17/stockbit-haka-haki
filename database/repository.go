@@ -1570,7 +1570,7 @@ func (r *TradeRepository) GetPendingFollowups(maxAge time.Duration) ([]WhaleAler
 func (r *TradeRepository) GetWhaleFollowups(symbol, status string, limit int) ([]WhaleAlertFollowup, error) {
 	var followups []WhaleAlertFollowup
 
-	query := r.db.db.Order("updated_at DESC")
+	query := r.db.db.Order("alert_time DESC") // Changed from updated_at to alert_time
 
 	// Filter by symbol if provided
 	if symbol != "" {
