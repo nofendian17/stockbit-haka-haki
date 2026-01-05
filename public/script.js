@@ -288,6 +288,7 @@ function updateStatsTicker() {
 document.addEventListener('DOMContentLoaded', () => {
     fetchAlerts(true); // true = reset mode
     fetchStats();
+    fetchMarketIntelligence(); // Initialize market intelligence section with placeholder state
 
     // SSE Realtime Connection
     const evtSource = new EventSource('/api/events');
@@ -479,6 +480,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fetchMarketIntelligence();
         fetchAnalyticsHubData();
         fetchOrderFlow();
+        fetchRecentFollowups(); // Update whale followup data periodically
     }, CONFIG.ANALYTICS_POLL_INTERVAL);
 });
 
@@ -822,11 +824,24 @@ function updateActiveFilterCount() {
 // ===== MARKET INTELLIGENCE =====
 async function fetchMarketIntelligence() {
     const symbol = currentFilters.search;
+    const marketIntelSection = document.getElementById('market-intelligence');
+    
     if (!symbol) {
-        document.getElementById('market-intelligence').style.opacity = '0.5';
+        // Show placeholder state when no symbol is selected
+        marketIntelSection.style.opacity = '1';
+        updateRegimeUI(null);
+        updateBaselineUI(null);
+        updatePatternsUI([]);
+        
+        // Clear order flow when no symbol
+        document.getElementById('buy-pressure-fill').style.width = '50%';
+        document.getElementById('sell-pressure-fill').style.width = '50%';
+        document.getElementById('buy-pressure-pct').textContent = '50% BELI';
+        document.getElementById('sell-pressure-pct').textContent = '50% JUAL';
         return;
     }
-    document.getElementById('market-intelligence').style.opacity = '1';
+    
+    marketIntelSection.style.opacity = '1';
 
     try {
         // 1. Fetch Regime
@@ -858,8 +873,8 @@ function updateRegimeUI(data) {
     const badge = document.getElementById('market-regime');
 
     if (!data || !data.regime) {
-        regimeEl.textContent = 'UNKNOWN';
-        descEl.textContent = 'No regime data available';
+        regimeEl.textContent = 'STABIL';
+        descEl.textContent = 'Pilih kode saham untuk melihat kondisi pasar spesifik';
         badge.style.display = 'none';
         return;
     }
@@ -882,9 +897,17 @@ function updateRegimeUI(data) {
 }
 
 function updateBaselineUI(data) {
-    if (!data) return;
-    document.getElementById('b-avg-vol').textContent = formatNumber(data.mean_volume_lots) + ' Lot';
-    document.getElementById('b-std-dev').textContent = formatNumber(data.std_dev_price ? data.std_dev_price.toFixed(2) : 0);
+    const avgVolEl = document.getElementById('b-avg-vol');
+    const stdDevEl = document.getElementById('b-std-dev');
+    
+    if (!data) {
+        avgVolEl.textContent = '-';
+        stdDevEl.textContent = '-';
+        return;
+    }
+    
+    avgVolEl.textContent = formatNumber(data.mean_volume_lots) + ' Lot';
+    stdDevEl.textContent = formatNumber(data.std_dev_price ? data.std_dev_price.toFixed(2) : 0);
 }
 
 function updatePatternsUI(patterns) {
@@ -892,7 +915,7 @@ function updatePatternsUI(patterns) {
     list.innerHTML = '';
 
     if (patterns.length === 0) {
-        list.innerHTML = '<div class="placeholder-small">Tidak ada pola yang terdeteksi baru-baru ini</div>';
+        list.innerHTML = '<div class="placeholder-small">Pilih kode saham untuk melihat pola terkini</div>';
         return;
     }
 
@@ -927,7 +950,7 @@ function setupAnalyticsTabs() {
 async function fetchAnalyticsHubData() {
     const symbol = currentFilters.search;
 
-    // Correlations
+    // Correlations - only fetch if symbol is selected
     if (symbol) {
         try {
             const res = await fetch(`${API_BASE}/analytics/correlations?symbol=${symbol}`);
@@ -935,10 +958,14 @@ async function fetchAnalyticsHubData() {
             renderCorrelations(data.correlations || []);
         } catch (err) {
             console.error("Correlations fetch failed", err);
+            renderCorrelations([]); // Clear on error
         }
+    } else {
+        // Clear correlations if no symbol selected
+        renderCorrelations([]);
     }
 
-    // Daily Performance
+    // Daily Performance - always fetch (doesn't require symbol)
     try {
         const params = new URLSearchParams();
         params.append('limit', '10');
@@ -949,6 +976,7 @@ async function fetchAnalyticsHubData() {
         renderDailyPerformance(data.performance || []);
     } catch (err) {
         console.error("Performance fetch failed", err);
+        renderDailyPerformance([]); // Clear on error
     }
 }
 
@@ -957,7 +985,7 @@ function renderCorrelations(correlations) {
     container.innerHTML = '';
 
     if (correlations.length === 0) {
-        container.innerHTML = '<div class="placeholder-small">No similar stocks found</div>';
+        container.innerHTML = '<div class="placeholder-small">Cari kode saham untuk melihat korelasi</div>';
         return;
     }
 
@@ -1052,6 +1080,57 @@ async function fetchOrderFlow() {
 }
 
 // ===== WHALE FOLLOWUP =====
+async function fetchRecentFollowups() {
+    const symbol = currentFilters.search;
+    
+    try {
+        // Fetch recent followups (active ones being tracked)
+        const url = symbol
+            ? `${API_BASE}/whales/followups?symbol=${symbol}&limit=10&status=active`
+            : `${API_BASE}/whales/followups?limit=10&status=active`;
+        
+        const res = await fetch(url);
+        if (!res.ok) return;
+        
+        const data = await res.json();
+        updateFollowupsDisplay(data.followups || []);
+    } catch (err) {
+        console.error("Failed to fetch recent followups:", err);
+    }
+}
+
+function updateFollowupsDisplay(followups) {
+    const container = document.getElementById('recent-followups-container');
+    if (!container) return;
+    
+    if (followups.length === 0) {
+        container.innerHTML = '<div class="placeholder-small">Tidak ada followup aktif</div>';
+        return;
+    }
+    
+    container.innerHTML = followups.slice(0, 5).map(f => {
+        const changePct = f.price_change_pct || 0;
+        const sign = changePct >= 0 ? '+' : '';
+        const colorClass = changePct >= 0 ? 'diff-positive' : 'diff-negative';
+        const elapsed = Math.floor((new Date() - new Date(f.detected_at)) / 60000); // minutes
+        
+        return `
+            <div class="followup-item" onclick="openFollowupModal(${f.whale_alert_id}, '${f.stock_symbol}', ${f.alert_price})" style="cursor: pointer; padding: 8px; border-bottom: 1px solid var(--border); transition: background 0.2s;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <strong>${f.stock_symbol}</strong>
+                        <span style="font-size: 0.85em; color: var(--text-secondary); margin-left: 8px;">${elapsed}m ago</span>
+                    </div>
+                    <span class="${colorClass}" style="font-weight: 600;">${sign}${changePct.toFixed(2)}%</span>
+                </div>
+                <div style="font-size: 0.8em; color: var(--text-secondary); margin-top: 4px;">
+                    ${formatNumber(f.alert_price)} → ${formatNumber(f.current_price || f.alert_price)}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
 function setupFollowupModal() {
     const modal = document.getElementById('followup-modal');
     const closeBtn = document.getElementById('followup-modal-close');
@@ -1071,6 +1150,12 @@ async function openFollowupModal(alertId, symbol, alertPrice) {
     try {
         const res = await fetch(`${API_BASE}/whales/${alertId}/followup`);
         const data = await res.json();
+
+        // Handle error response
+        if (!res.ok || data.error) {
+            loading.textContent = data.error || "Gagal memuat analisis followup.";
+            return;
+        }
 
         loading.style.display = 'none';
         content.style.display = 'block';

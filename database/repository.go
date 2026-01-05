@@ -1531,6 +1531,39 @@ func (r *TradeRepository) GetPendingFollowups(maxAge time.Duration) ([]WhaleAler
 	return followups, err
 }
 
+// GetWhaleFollowups retrieves list of whale followups with filters
+func (r *TradeRepository) GetWhaleFollowups(symbol, status string, limit int) ([]WhaleAlertFollowup, error) {
+	var followups []WhaleAlertFollowup
+
+	query := r.db.db.Order("updated_at DESC")
+
+	// Filter by symbol if provided
+	if symbol != "" {
+		query = query.Where("stock_symbol = ?", symbol)
+	}
+
+	// Filter by status if provided
+	if status == "active" {
+		// Active followups: being tracked (not completed 1-day followup)
+		query = query.Where("current_price > 0 AND price_1day_later IS NULL")
+	} else if status == "completed" {
+		// Completed followups: 1-day followup done
+		query = query.Where("price_1day_later IS NOT NULL")
+	}
+	// "all" or empty status returns all followups
+
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+
+	err := query.Find(&followups).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return followups, nil
+}
+
 // SaveOrderFlowImbalance persists order flow data
 func (r *TradeRepository) SaveOrderFlowImbalance(flow *OrderFlowImbalance) error {
 	return r.db.db.Create(flow).Error

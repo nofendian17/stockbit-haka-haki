@@ -57,23 +57,29 @@ func (wt *WhaleFollowupTracker) trackWhaleFollowups() {
 		return
 	}
 
+	// Always check for new whale alerts
+	wt.createNewFollowups()
+
 	if len(followups) == 0 {
-		// Also check for new whale alerts without followup
-		wt.createNewFollowups()
 		return
 	}
 
 	updated := 0
+	skipped := 0
 	for _, followup := range followups {
 		if err := wt.updateFollowup(&followup); err != nil {
-			log.Printf("❌ Error updating followup for alert %d: %v", followup.WhaleAlertID, err)
+			if err.Error() == "no update needed" {
+				skipped++
+			} else {
+				log.Printf("❌ Error updating followup for alert %d (%s): %v", followup.WhaleAlertID, followup.StockSymbol, err)
+			}
 		} else {
 			updated++
 		}
 	}
 
 	if updated > 0 {
-		log.Printf("✅ Whale followup: %d updated", updated)
+		log.Printf("✅ Whale followup: %d updated, %d skipped (total pending: %d)", updated, skipped, len(followups))
 	}
 }
 
@@ -125,14 +131,30 @@ func (wt *WhaleFollowupTracker) createNewFollowups() {
 func (wt *WhaleFollowupTracker) updateFollowup(followup *database.WhaleAlertFollowup) error {
 	elapsed := time.Since(followup.AlertTime)
 
-	// Get current price from latest candle
+	// Get current price from latest trades (more reliable than candle view)
+	// Try to get from 1min candle first (aggregated data)
+	var currentPrice float64
+	var currentVolume float64
+
 	candle, err := wt.repo.GetLatestCandle(followup.StockSymbol)
-	if err != nil || candle == nil {
-		return fmt.Errorf("failed to get latest candle: %w", err)
+	if err == nil && candle != nil && candle.Close > 0 {
+		currentPrice = candle.Close
+		currentVolume = candle.VolumeLots
+	} else {
+		// Fallback: Get latest trade price directly from running_trades
+		trades, err := wt.repo.GetRecentTrades(followup.StockSymbol, 1, "")
+		if err != nil || len(trades) == 0 {
+			// No recent data available, skip this update
+			return nil
+		}
+		currentPrice = trades[0].Price
+		currentVolume = trades[0].VolumeLot
 	}
 
-	currentPrice := candle.Close
-	currentVolume := candle.VolumeLots
+	// Validate price
+	if currentPrice <= 0 {
+		return nil // Skip invalid price
+	}
 
 	// Calculate price change percentage
 	priceChange := ((currentPrice - followup.AlertPrice) / followup.AlertPrice) * 100
@@ -193,10 +215,12 @@ func (wt *WhaleFollowupTracker) updateFollowup(followup *database.WhaleAlertFoll
 
 	// Apply updates if any
 	if len(updates) > 0 {
+		log.Printf("🔄 Updating followup for %s (Alert %d): %d fields after %.0f minutes",
+			followup.StockSymbol, followup.WhaleAlertID, len(updates), elapsed.Minutes())
 		return wt.repo.UpdateWhaleFollowup(followup.WhaleAlertID, updates)
 	}
 
-	return nil
+	return fmt.Errorf("no update needed")
 }
 
 // classifyImpact determines if price movement aligns with whale action

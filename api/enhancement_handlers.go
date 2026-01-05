@@ -105,12 +105,46 @@ func (s *Server) handleGetWhaleFollowup(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if followup == nil {
-		http.Error(w, "Followup not found", http.StatusNotFound)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"error": "Followup not found",
+		})
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(followup)
+}
+
+// handleGetWhaleFollowups returns list of whale followups with filters
+func (s *Server) handleGetWhaleFollowups(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+
+	symbol := query.Get("symbol")
+	status := query.Get("status") // active, completed, all
+
+	limit := 50
+	if l := query.Get("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
+			limit = parsed
+			if limit > 200 {
+				limit = 200
+			}
+		}
+	}
+
+	followups, err := s.repo.GetWhaleFollowups(symbol, status, limit)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"followups": followups,
+		"count":     len(followups),
+	})
 }
 
 // handleGetOrderFlow returns order flow imbalance data
