@@ -59,10 +59,10 @@ func (r *TradeRepository) InitSchema() error {
 
 	// Create unique index on (stock_symbol, trade_number, market_board, date)
 	// Trade numbers reset daily in Stockbit system, so we need to include the date
-	// Use date_trunc instead of DATE() which is not immutable
+	// Cast to DATE which is immutable
 	r.db.db.Exec(`
 		CREATE UNIQUE INDEX IF NOT EXISTS idx_running_trades_unique_trade
-		ON running_trades (stock_symbol, trade_number, market_board, date_trunc('day', timestamp))
+		ON running_trades (stock_symbol, trade_number, market_board, (timestamp::DATE))
 		WHERE trade_number IS NOT NULL
 	`)
 
