@@ -107,8 +107,8 @@ func (st *SignalTracker) trackSignalOutcomes() {
 
 // createSignalOutcome creates a new outcome record for a signal
 func (st *SignalTracker) createSignalOutcome(signal *database.TradingSignalDB) error {
-	// Only track BUY and SELL signals
-	if signal.Decision != "BUY" && signal.Decision != "SELL" {
+	// Indonesian market: Only track BUY signals (no short selling)
+	if signal.Decision != "BUY" {
 		return nil
 	}
 
@@ -131,6 +131,12 @@ func (st *SignalTracker) updateSignalOutcome(signal *database.TradingSignalDB, o
 		return nil
 	}
 
+	// Indonesian stock market: Only BUY positions (no short selling)
+	if outcome.EntryDecision != "BUY" {
+		log.Printf("⚠️ Skipping non-BUY signal %d: Indonesia market doesn't support short selling", signal.ID)
+		return nil
+	}
+
 	// Get current price from latest candle
 	candle, err := st.repo.GetLatestCandle(signal.StockSymbol)
 	if err != nil || candle == nil {
@@ -140,14 +146,9 @@ func (st *SignalTracker) updateSignalOutcome(signal *database.TradingSignalDB, o
 	currentPrice := candle.Close
 	entryPrice := outcome.EntryPrice
 
-	// Calculate price change
+	// Calculate price change (only BUY positions)
 	priceChangePct := ((currentPrice - entryPrice) / entryPrice) * 100
-
-	// Adjust for direction (BUY vs SELL)
 	profitLossPct := priceChangePct
-	if outcome.EntryDecision == "SELL" {
-		profitLossPct = -priceChangePct // Inverse for short positions
-	}
 
 	// Calculate holding period
 	holdingMinutes := int(time.Since(outcome.EntryTime).Minutes())
@@ -177,37 +178,23 @@ func (st *SignalTracker) updateSignalOutcome(signal *database.TradingSignalDB, o
 	}
 
 	// Dynamic Take Profit based on order flow momentum
+	// Indonesian market: Only BUY positions
 	if profitLossPct > 0 && orderFlow != nil {
-		// Calculate buy/sell pressure
+		// Calculate sell pressure (for exit signal)
 		totalVolume := orderFlow.BuyVolumeLots + orderFlow.SellVolumeLots
-		var buyPressure, sellPressure float64
+		var sellPressure float64
 		if totalVolume > 0 {
-			buyPressure = (orderFlow.BuyVolumeLots / totalVolume) * 100
 			sellPressure = (orderFlow.SellVolumeLots / totalVolume) * 100
 		}
 
-		// For BUY positions
-		if outcome.EntryDecision == "BUY" {
-			// Take profit jika sell pressure meningkat (momentum melemah)
-			if sellPressure > 60 && profitLossPct >= 1.0 {
-				shouldExit = true
-				exitReason = "TAKE_PROFIT_MOMENTUM_REVERSAL"
-			} else if profitLossPct >= 5.0 {
-				// Maximum take profit di 5%
-				shouldExit = true
-				exitReason = "TAKE_PROFIT_MAX"
-			}
-		} else {
-			// For SELL positions
-			// Take profit jika buy pressure meningkat (momentum melemah)
-			if buyPressure > 60 && profitLossPct >= 1.0 {
-				shouldExit = true
-				exitReason = "TAKE_PROFIT_MOMENTUM_REVERSAL"
-			} else if profitLossPct >= 5.0 {
-				// Maximum take profit di 5%
-				shouldExit = true
-				exitReason = "TAKE_PROFIT_MAX"
-			}
+		// Take profit jika sell pressure meningkat (momentum melemah)
+		if sellPressure > 60 && profitLossPct >= 1.0 {
+			shouldExit = true
+			exitReason = "TAKE_PROFIT_MOMENTUM_REVERSAL"
+		} else if profitLossPct >= 5.0 {
+			// Maximum take profit di 5%
+			shouldExit = true
+			exitReason = "TAKE_PROFIT_MAX"
 		}
 	} else if profitLossPct >= 5.0 {
 		// Fallback: Close at 5% if no order flow data
