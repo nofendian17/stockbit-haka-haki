@@ -1117,11 +1117,11 @@ async function fetchOrderFlow() {
                 return;
             }
 
-            const buyPct = (totalBuy / total) * 100;
-            const sellPct = (totalSell / total) * 100;
+            const buyPct = isFinite(totalBuy / total) ? (totalBuy / total) * 100 : 50;
+            const sellPct = isFinite(totalSell / total) ? (totalSell / total) * 100 : 50;
 
-            document.getElementById('buy-pressure-fill').style.width = `${buyPct}%`;
-            document.getElementById('sell-pressure-fill').style.width = `${sellPct}%`;
+            document.getElementById('buy-pressure-fill').style.width = `${buyPct.toFixed(1)}%`;
+            document.getElementById('sell-pressure-fill').style.width = `${sellPct.toFixed(1)}%`;
             document.getElementById('buy-pressure-pct').textContent = `${buyPct.toFixed(1)}% BELI`;
             document.getElementById('sell-pressure-pct').textContent = `${sellPct.toFixed(1)}% JUAL`;
         } else {
