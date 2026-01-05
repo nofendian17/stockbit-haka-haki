@@ -1661,7 +1661,19 @@ func (r *TradeRepository) GetCandlesByTimeframe(timeframe string, symbol string,
 		Limit(limit).
 		Find(&results).Error
 
-	return results, err
+	if err != nil {
+		return nil, err
+	}
+
+	// Rename 'bucket' to 'time' for frontend compatibility
+	for i := range results {
+		if bucket, ok := results[i]["bucket"]; ok {
+			results[i]["time"] = bucket
+			delete(results[i], "bucket")
+		}
+	}
+
+	return results, nil
 }
 
 // GetActiveSymbols retrieves symbols that had trades in the specified lookback duration
