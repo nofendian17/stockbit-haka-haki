@@ -177,18 +177,6 @@ function renderAlerts() {
         row.className = 'clickable-row';
         row.onclick = () => openFollowupModal(alert.ID, alert.StockSymbol, alert.TriggerPrice || alert.Price || 0);
 
-        // Render cell with event stopPropagation to prevent row click from overriding symbol click
-        const symbolCellHtml = `
-            <td data-label="Saham" class="col-symbol">
-                <div style="display: flex; align-items: center; gap: 4px;">
-                    <strong class="clickable-symbol" onclick="event.stopPropagation(); openCandleModal('${alert.StockSymbol}')">${alert.StockSymbol}</strong>
-                    ${alertTypeBadge}
-                </div>
-                <span class="${confidenceClass}" style="font-size:0.7em;" title="Skor Keyakinan">${confidenceIcon} ${confidenceLabel}</span>
-                ${messageHtml}
-            </td>
-        `;
-
         let badgeClass = 'unknown';
         if (alert.Action === 'BUY') badgeClass = 'buy';
         if (alert.Action === 'SELL') badgeClass = 'sell';
@@ -247,6 +235,18 @@ function renderAlerts() {
         const alertType = alert.AlertType || 'SINGLE_TRADE';
         const alertTypeBadge = alertType !== 'SINGLE_TRADE' ?
             `<span style="font-size:0.65em; padding:2px 4px; background:#333; color:#fff; border-radius:3px; margin-left:4px;">${alertType}</span>` : '';
+
+        // Render cell with event stopPropagation to prevent row click from overriding symbol click
+        const symbolCellHtml = `
+            <td data-label="Saham" class="col-symbol">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                    <strong class="clickable-symbol" onclick="event.stopPropagation(); openCandleModal('${alert.StockSymbol}')">${alert.StockSymbol}</strong>
+                    ${alertTypeBadge}
+                </div>
+                <span class="${confidenceClass}" style="font-size:0.7em;" title="Skor Keyakinan">${confidenceIcon} ${confidenceLabel}</span>
+                ${messageHtml}
+            </td>
+        `;
 
         // Row Content with enhanced data
         row.innerHTML = `
