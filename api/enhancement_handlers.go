@@ -437,11 +437,54 @@ func (s *Server) handleGetOpenPositions(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	log.Printf("✅ Returning %d open positions", len(positions))
+	log.Printf("✅ Found %d open positions", len(positions))
+
+	// Enrich positions with signal details for UI
+	enrichedPositions := make([]map[string]interface{}, 0, len(positions))
+	for _, pos := range positions {
+		// Get the signal details to include strategy and confidence
+		signal, err := s.repo.GetSignalByID(pos.SignalID)
+		if err != nil {
+			log.Printf("⚠️ Failed to get signal %d: %v", pos.SignalID, err)
+			continue
+		}
+
+		// Calculate current P&L percentage
+		var currentPnL float64
+		if pos.ProfitLossPct != nil {
+			currentPnL = *pos.ProfitLossPct
+		}
+
+		// Calculate holding time in minutes
+		holdingMins := 0
+		if pos.HoldingPeriodMinutes != nil {
+			holdingMins = *pos.HoldingPeriodMinutes
+		}
+
+		enrichedPos := map[string]interface{}{
+			"id":             pos.ID,
+			"signal_id":      pos.SignalID,
+			"stock_symbol":   pos.StockSymbol,
+			"strategy":       signal.Strategy,
+			"entry_time":     pos.EntryTime,
+			"entry_price":    pos.EntryPrice,
+			"entry_decision": pos.EntryDecision,
+			"current_pnl":    currentPnL,
+			"holding_mins":   holdingMins,
+			"mfe":            pos.MaxFavorableExcursion,
+			"mae":            pos.MaxAdverseExcursion,
+			"confidence":     signal.Confidence,
+			"status":         pos.OutcomeStatus,
+		}
+
+		enrichedPositions = append(enrichedPositions, enrichedPos)
+	}
+
+	log.Printf("✅ Returning %d enriched open positions", len(enrichedPositions))
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"positions": positions,
-		"count":     len(positions),
+		"positions": enrichedPositions,
+		"count":     len(enrichedPositions),
 	})
 }
