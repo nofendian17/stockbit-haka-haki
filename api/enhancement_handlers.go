@@ -114,8 +114,57 @@ func (s *Server) handleGetWhaleFollowup(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Calculate current_price from the most recent available price field
+	currentPrice := followup.AlertPrice
+	if followup.Price1MinLater != nil && *followup.Price1MinLater > 0 {
+		currentPrice = *followup.Price1MinLater
+	}
+	if followup.Price5MinLater != nil && *followup.Price5MinLater > 0 {
+		currentPrice = *followup.Price5MinLater
+	}
+	if followup.Price15MinLater != nil && *followup.Price15MinLater > 0 {
+		currentPrice = *followup.Price15MinLater
+	}
+	if followup.Price30MinLater != nil && *followup.Price30MinLater > 0 {
+		currentPrice = *followup.Price30MinLater
+	}
+	if followup.Price60MinLater != nil && *followup.Price60MinLater > 0 {
+		currentPrice = *followup.Price60MinLater
+	}
+	if followup.Price1DayLater != nil && *followup.Price1DayLater > 0 {
+		currentPrice = *followup.Price1DayLater
+	}
+
+	// Create response with current_price and detected_at fields
+	response := map[string]interface{}{
+		"id":                    followup.ID,
+		"whale_alert_id":        followup.WhaleAlertID,
+		"stock_symbol":          followup.StockSymbol,
+		"alert_time":            followup.AlertTime,
+		"detected_at":           followup.AlertTime, // Alias for frontend compatibility
+		"alert_price":           followup.AlertPrice,
+		"alert_action":          followup.AlertAction,
+		"current_price":         currentPrice,
+		"price_1min_later":      followup.Price1MinLater,
+		"price_5min_later":      followup.Price5MinLater,
+		"price_15min_later":     followup.Price15MinLater,
+		"price_30min_later":     followup.Price30MinLater,
+		"price_60min_later":     followup.Price60MinLater,
+		"price_1day_later":      followup.Price1DayLater,
+		"change_1min_pct":       followup.Change1MinPct,
+		"change_5min_pct":       followup.Change5MinPct,
+		"change_15min_pct":      followup.Change15MinPct,
+		"change_30min_pct":      followup.Change30MinPct,
+		"change_60min_pct":      followup.Change60MinPct,
+		"change_1day_pct":       followup.Change1DayPct,
+		"immediate_impact":      followup.ImmediateImpact,
+		"sustained_impact":      followup.SustainedImpact,
+		"reversal_detected":     followup.ReversalDetected,
+		"reversal_time_minutes": followup.ReversalTimeMinutes,
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(followup)
+	json.NewEncoder(w).Encode(response)
 }
 
 // handleGetWhaleFollowups returns list of whale followups with filters

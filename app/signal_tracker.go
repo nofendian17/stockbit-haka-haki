@@ -26,7 +26,7 @@ func NewSignalTracker(repo *database.TradeRepository) *SignalTracker {
 func (st *SignalTracker) Start() {
 	log.Println("📊 Signal Outcome Tracker started")
 
-	ticker := time.NewTicker(5 * time.Minute) // Run every 5 minutes
+	ticker := time.NewTicker(2 * time.Minute) // Run every 2 minutes for faster updates
 	defer ticker.Stop()
 
 	// Run immediately on start
@@ -58,12 +58,14 @@ func (st *SignalTracker) trackSignalOutcomes() {
 	}
 
 	if len(signals) == 0 {
-		return // No new signals to track
+		log.Println("📊 No open signals to track")
+		return
 	}
 
 	log.Printf("📊 Tracking %d open signals...", len(signals))
 	created := 0
 	updated := 0
+	closed := 0
 
 	for _, signal := range signals {
 		// Check if outcome already exists
@@ -79,19 +81,27 @@ func (st *SignalTracker) trackSignalOutcomes() {
 				log.Printf("❌ Error creating outcome for signal %d: %v", signal.ID, err)
 			} else {
 				created++
+				log.Printf("✅ Created outcome for signal %d (%s %s)", signal.ID, signal.StockSymbol, signal.Decision)
 			}
 		} else {
 			// Update existing outcome
+			wasClosed := existing.OutcomeStatus != "OPEN"
 			if err := st.updateSignalOutcome(&signal, existing); err != nil {
 				log.Printf("❌ Error updating outcome for signal %d: %v", signal.ID, err)
 			} else {
 				updated++
+				// Check if outcome was closed in this update
+				if !wasClosed && existing.OutcomeStatus != "OPEN" {
+					closed++
+					log.Printf("✅ Closed outcome for signal %d (%s): %s with %.2f%%",
+						signal.ID, signal.StockSymbol, existing.OutcomeStatus, *existing.ProfitLossPct)
+				}
 			}
 		}
 	}
 
 	if created > 0 || updated > 0 {
-		log.Printf("✅ Signal tracking: %d created, %d updated", created, updated)
+		log.Printf("✅ Signal tracking completed: %d created, %d updated, %d closed", created, updated, closed)
 	}
 }
 
@@ -153,26 +163,56 @@ func (st *SignalTracker) updateSignalOutcome(signal *database.TradingSignalDB, o
 		mfe = &profitLossPct
 	}
 
-	// Determine exit conditions
+	// Get latest order flow to determine momentum
+	orderFlow, _ := st.repo.GetLatestOrderFlow(signal.StockSymbol)
+
+	// Determine exit conditions with dynamic take profit
 	shouldExit := false
 	exitReason := ""
 
-	// Exit after 60 minutes (time-based)
-	if holdingMinutes >= 60 {
-		shouldExit = true
-		exitReason = "TIME_BASED"
-	}
-
-	// Exit on stop loss (-3%)
-	if profitLossPct <= -3.0 {
+	// Always enforce stop loss (-2%)
+	if profitLossPct <= -2.0 {
 		shouldExit = true
 		exitReason = "STOP_LOSS"
 	}
 
-	// Exit on take profit (+5%)
-	if profitLossPct >= 5.0 {
+	// Dynamic Take Profit based on order flow momentum
+	if profitLossPct > 0 && orderFlow != nil {
+		// Calculate buy/sell pressure
+		totalVolume := orderFlow.BuyVolumeLots + orderFlow.SellVolumeLots
+		var buyPressure, sellPressure float64
+		if totalVolume > 0 {
+			buyPressure = (orderFlow.BuyVolumeLots / totalVolume) * 100
+			sellPressure = (orderFlow.SellVolumeLots / totalVolume) * 100
+		}
+
+		// For BUY positions
+		if outcome.EntryDecision == "BUY" {
+			// Take profit jika sell pressure meningkat (momentum melemah)
+			if sellPressure > 60 && profitLossPct >= 1.0 {
+				shouldExit = true
+				exitReason = "TAKE_PROFIT_MOMENTUM_REVERSAL"
+			} else if profitLossPct >= 5.0 {
+				// Maximum take profit di 5%
+				shouldExit = true
+				exitReason = "TAKE_PROFIT_MAX"
+			}
+		} else {
+			// For SELL positions
+			// Take profit jika buy pressure meningkat (momentum melemah)
+			if buyPressure > 60 && profitLossPct >= 1.0 {
+				shouldExit = true
+				exitReason = "TAKE_PROFIT_MOMENTUM_REVERSAL"
+			} else if profitLossPct >= 5.0 {
+				// Maximum take profit di 5%
+				shouldExit = true
+				exitReason = "TAKE_PROFIT_MAX"
+			}
+		}
+	} else if profitLossPct >= 5.0 {
+		// Fallback: Close at 5% if no order flow data
 		shouldExit = true
-		exitReason = "TAKE_PROFIT"
+		exitReason = "TAKE_PROFIT_MAX"
 	}
 
 	// Update outcome
@@ -193,10 +233,10 @@ func (st *SignalTracker) updateSignalOutcome(signal *database.TradingSignalDB, o
 		outcome.ExitPrice = &currentPrice
 		outcome.ExitReason = &exitReason
 
-		// Determine outcome status
-		if profitLossPct > 0.5 {
+		// Determine outcome status - More sensitive thresholds
+		if profitLossPct > 0.2 {
 			outcome.OutcomeStatus = "WIN"
-		} else if profitLossPct < -0.5 {
+		} else if profitLossPct < -0.2 {
 			outcome.OutcomeStatus = "LOSS"
 		} else {
 			outcome.OutcomeStatus = "BREAKEVEN"

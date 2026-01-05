@@ -1580,7 +1580,7 @@ func (r *TradeRepository) GetWhaleFollowups(symbol, status string, limit int) ([
 	// Filter by status if provided
 	if status == "active" {
 		// Active followups: being tracked (not completed 1-day followup)
-		query = query.Where("current_price > 0 AND price_1day_later IS NULL")
+		query = query.Where("price_1day_later IS NULL")
 	} else if status == "completed" {
 		// Completed followups: 1-day followup done
 		query = query.Where("price_1day_later IS NOT NULL")

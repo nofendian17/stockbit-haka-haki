@@ -227,9 +227,22 @@ function renderSignalRow(signal, isInitialLoad = false) {
         confidenceLabel = 'Medium';
     }
 
-    // Time formatting - human readable
-    const timeAgo = getTimeAgo(new Date(signal.timestamp));
-    const fullTime = new Date(signal.timestamp).toLocaleString('id-ID');
+    // Time formatting - human readable with validation
+    let timeAgo = 'Baru saja';
+    let fullTime = '-';
+    
+    if (signal.timestamp) {
+        try {
+            const date = new Date(signal.timestamp);
+            // Check if date is valid
+            if (!isNaN(date.getTime())) {
+                timeAgo = getTimeAgo(date);
+                fullTime = date.toLocaleString('id-ID');
+            }
+        } catch (err) {
+            console.error('Error parsing timestamp:', signal.timestamp, err);
+        }
+    }
 
     // Z-Score indicators
     const priceZScore = signal.price_z_score || 0;

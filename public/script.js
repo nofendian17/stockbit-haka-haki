@@ -249,8 +249,17 @@ function renderAlerts() {
         `;
 
         // Row Content with enhanced data
+        const detectedTime = alert.detected_at ? (() => {
+            try {
+                const date = new Date(alert.detected_at);
+                return !isNaN(date.getTime()) ? date.toLocaleString('id-ID') : 'Waktu tidak valid';
+            } catch {
+                return 'Waktu tidak valid';
+            }
+        })() : 'Waktu tidak valid';
+        
         row.innerHTML = `
-            <td data-label="Waktu" class="col-time" title="${new Date(alert.detected_at).toLocaleString('id-ID')}">${formatTime(alert.detected_at)}</td>
+            <td data-label="Waktu" class="col-time" title="${detectedTime}">${formatTime(alert.detected_at)}</td>
             ${symbolCellHtml}
             <td data-label="Aksi"><span class="badge ${badgeClass}">${actionText}</span></td>
             <td data-label="Harga" class="col-price">${formatNumber(price)} ${priceDiff}</td>
@@ -1102,14 +1111,16 @@ async function fetchOrderFlow() {
             let totalSell = 0;
 
             data.flows.forEach(item => {
-                totalBuy += (item.buy_volume_lots || 0);
-                totalSell += (item.sell_volume_lots || 0);
+                const buyVol = parseFloat(item.buy_volume_lots) || 0;
+                const sellVol = parseFloat(item.sell_volume_lots) || 0;
+                totalBuy += buyVol;
+                totalSell += sellVol;
             });
 
             const total = totalBuy + totalSell;
             
             // Handle case where there's no volume data
-            if (total === 0) {
+            if (total === 0 || !isFinite(total)) {
                 document.getElementById('buy-pressure-fill').style.width = '50%';
                 document.getElementById('sell-pressure-fill').style.width = '50%';
                 document.getElementById('buy-pressure-pct').textContent = '50% BELI';
@@ -1117,8 +1128,17 @@ async function fetchOrderFlow() {
                 return;
             }
 
-            const buyPct = isFinite(totalBuy / total) ? (totalBuy / total) * 100 : 50;
-            const sellPct = isFinite(totalSell / total) ? (totalSell / total) * 100 : 50;
+            const buyPct = (totalBuy / total) * 100;
+            const sellPct = (totalSell / total) * 100;
+
+            // Validate percentages are finite numbers
+            if (!isFinite(buyPct) || !isFinite(sellPct)) {
+                document.getElementById('buy-pressure-fill').style.width = '50%';
+                document.getElementById('sell-pressure-fill').style.width = '50%';
+                document.getElementById('buy-pressure-pct').textContent = '50% BELI';
+                document.getElementById('sell-pressure-pct').textContent = '50% JUAL';
+                return;
+            }
 
             document.getElementById('buy-pressure-fill').style.width = `${buyPct.toFixed(1)}%`;
             document.getElementById('sell-pressure-fill').style.width = `${sellPct.toFixed(1)}%`;
@@ -1361,9 +1381,19 @@ function renderCandles(candles) {
 
     candles.forEach(c => {
         const row = document.createElement('tr');
-        const time = new Date(c.time).toLocaleString('id-ID', {
-            day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
-        });
+        let time = '-';
+        if (c.time) {
+            try {
+                const date = new Date(c.time);
+                if (!isNaN(date.getTime())) {
+                    time = date.toLocaleString('id-ID', {
+                        day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+                    });
+                }
+            } catch (err) {
+                console.error('Error parsing candle time:', c.time, err);
+            }
+        }
 
         row.innerHTML = `
             <td>${time}</td>
