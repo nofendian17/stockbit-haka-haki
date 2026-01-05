@@ -462,19 +462,19 @@ func (s *Server) handleGetOpenPositions(w http.ResponseWriter, r *http.Request) 
 		}
 
 		enrichedPos := map[string]interface{}{
-			"id":             pos.ID,
-			"signal_id":      pos.SignalID,
-			"stock_symbol":   pos.StockSymbol,
-			"strategy":       signal.Strategy,
-			"entry_time":     pos.EntryTime,
-			"entry_price":    pos.EntryPrice,
-			"entry_decision": pos.EntryDecision,
-			"current_pnl":    currentPnL,
-			"holding_mins":   holdingMins,
-			"mfe":            pos.MaxFavorableExcursion,
-			"mae":            pos.MaxAdverseExcursion,
-			"confidence":     signal.Confidence,
-			"status":         pos.OutcomeStatus,
+			"id":                      pos.ID,
+			"signal_id":               pos.SignalID,
+			"stock_symbol":            pos.StockSymbol,
+			"strategy":                signal.Strategy,
+			"entry_time":              pos.EntryTime,
+			"entry_price":             pos.EntryPrice,
+			"entry_decision":          pos.EntryDecision,
+			"profit_loss_pct":         currentPnL,
+			"holding_period_minutes":  holdingMins,
+			"max_favorable_excursion": pos.MaxFavorableExcursion,
+			"max_adverse_excursion":   pos.MaxAdverseExcursion,
+			"confidence":              signal.Confidence,
+			"outcome_status":          pos.OutcomeStatus,
 		}
 
 		enrichedPositions = append(enrichedPositions, enrichedPos)
