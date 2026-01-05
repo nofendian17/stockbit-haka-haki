@@ -1,6 +1,7 @@
 package database
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -75,6 +76,17 @@ func (r *TradeRepository) InitSchema() error {
 		&WhaleAlert{},
 		&WhaleWebhook{},
 		&WhaleWebhookLog{},
+		// Phase 1 Enhancement Tables
+		&TradingSignalDB{},
+		&SignalOutcome{},
+		&WhaleAlertFollowup{},
+		&OrderFlowImbalance{},
+		// Phase 2 Enhancement Tables
+		&StatisticalBaseline{},
+		&MarketRegime{},
+		&DetectedPattern{},
+		// Phase 3 Enhancement Tables
+		&StockCorrelation{},
 	)
 	if err != nil {
 		return fmt.Errorf("auto-migration failed: %w", err)
@@ -82,6 +94,11 @@ func (r *TradeRepository) InitSchema() error {
 
 	// Create TimescaleDB extension and hypertables
 	if err := r.setupTimescaleDB(); err != nil {
+		return err
+	}
+
+	// Setup Phase 1 enhancement tables with TimescaleDB features
+	if err := r.setupEnhancedTables(); err != nil {
 		return err
 	}
 
@@ -169,6 +186,284 @@ func (r *TradeRepository) setupTimescaleDB() error {
 		SELECT add_retention_policy('whale_webhook_logs', INTERVAL '30 days', if_not_exists => TRUE)
 	`)
 
+	return nil
+}
+
+// setupEnhancedTables creates hypertables and policies for Phase 1 enhancement tables
+func (r *TradeRepository) setupEnhancedTables() error {
+	// Create hypertable for trading_signals
+	r.db.db.Exec(`
+		SELECT create_hypertable('trading_signals', 'generated_at',
+			chunk_time_interval => INTERVAL '7 days',
+			if_not_exists => TRUE
+		)
+	`)
+
+	// Add retention policy: 2 years
+	r.db.db.Exec(`
+		SELECT add_retention_policy('trading_signals', INTERVAL '2 years', if_not_exists => TRUE)
+	`)
+
+	// Create indexes for trading_signals
+	r.db.db.Exec(`
+		CREATE INDEX IF NOT EXISTS idx_signals_symbol_strategy 
+		ON trading_signals(stock_symbol, strategy, generated_at DESC)
+	`)
+	r.db.db.Exec(`
+		CREATE INDEX IF NOT EXISTS idx_signals_decision 
+		ON trading_signals(decision, confidence DESC)
+	`)
+
+	// Create hypertable for signal_outcomes
+	r.db.db.Exec(`
+		SELECT create_hypertable('signal_outcomes', 'entry_time',
+			chunk_time_interval => INTERVAL '7 days',
+			if_not_exists => TRUE
+		)
+	`)
+
+	// Add retention policy: 2 years
+	r.db.db.Exec(`
+		SELECT add_retention_policy('signal_outcomes', INTERVAL '2 years', if_not_exists => TRUE)
+	`)
+
+	// Create indexes for signal_outcomes
+	r.db.db.Exec(`
+		CREATE INDEX IF NOT EXISTS idx_outcomes_symbol 
+		ON signal_outcomes(stock_symbol, outcome_status)
+	`)
+	r.db.db.Exec(`
+		CREATE INDEX IF NOT EXISTS idx_outcomes_performance 
+		ON signal_outcomes(outcome_status, profit_loss_pct DESC)
+	`)
+
+	// Create hypertable for whale_alert_followup
+	r.db.db.Exec(`
+		SELECT create_hypertable('whale_alert_followup', 'alert_time',
+			chunk_time_interval => INTERVAL '7 days',
+			if_not_exists => TRUE
+		)
+	`)
+
+	// Add retention policy: 1 year
+	r.db.db.Exec(`
+		SELECT add_retention_policy('whale_alert_followup', INTERVAL '1 year', if_not_exists => TRUE)
+	`)
+
+	// Create indexes for whale_alert_followup
+	r.db.db.Exec(`
+		CREATE INDEX IF NOT EXISTS idx_followup_impact 
+		ON whale_alert_followup(immediate_impact, sustained_impact)
+	`)
+
+	// Create hypertable for order_flow_imbalance
+	r.db.db.Exec(`
+		SELECT create_hypertable('order_flow_imbalance', 'bucket',
+			chunk_time_interval => INTERVAL '1 day',
+			if_not_exists => TRUE
+		)
+	`)
+
+	// Add retention policy: 3 months
+	r.db.db.Exec(`
+		SELECT add_retention_policy('order_flow_imbalance', INTERVAL '3 months', if_not_exists => TRUE)
+	`)
+
+	// Create index for order_flow_imbalance
+	r.db.db.Exec(`
+		CREATE INDEX IF NOT EXISTS idx_flow_symbol_bucket 
+		ON order_flow_imbalance(stock_symbol, bucket DESC)
+	`)
+
+	fmt.Println("✅ Phase 1 enhancement tables configured successfully")
+
+	// ========================================================================
+	// Phase 2 Enhancement Tables
+	// ========================================================================
+
+	// 1. Statistical Baselines
+	r.db.db.Exec(`
+		SELECT create_hypertable('statistical_baselines', 'calculated_at',
+			chunk_time_interval => INTERVAL '7 days',
+			if_not_exists => TRUE
+		)
+	`)
+	r.db.db.Exec(`
+		SELECT add_retention_policy('statistical_baselines', INTERVAL '3 months', if_not_exists => TRUE)
+	`)
+
+	// 2. Market Regimes
+	r.db.db.Exec(`
+		SELECT create_hypertable('market_regimes', 'detected_at',
+			chunk_time_interval => INTERVAL '7 days',
+			if_not_exists => TRUE
+		)
+	`)
+	r.db.db.Exec(`
+		SELECT add_retention_policy('market_regimes', INTERVAL '6 months', if_not_exists => TRUE)
+	`)
+
+	// 3. Detected Patterns
+	r.db.db.Exec(`
+		SELECT create_hypertable('detected_patterns', 'detected_at',
+			chunk_time_interval => INTERVAL '7 days',
+			if_not_exists => TRUE
+		)
+	`)
+	r.db.db.Exec(`
+		SELECT add_retention_policy('detected_patterns', INTERVAL '1 year', if_not_exists => TRUE)
+	`)
+
+	// 4. Multi-Timeframe Candles (Continuous Aggregates)
+
+	// 5-minute candles
+	r.db.db.Exec(`
+		CREATE MATERIALIZED VIEW IF NOT EXISTS candle_5min
+		WITH (timescaledb.continuous) AS
+		SELECT
+			time_bucket('5 minutes', timestamp) AS bucket,
+			stock_symbol,
+			FIRST(price, timestamp) AS open,
+			MAX(price) AS high,
+			MIN(price) AS low,
+			LAST(price, timestamp) AS close,
+			SUM(volume_lot) AS volume_lots,
+			SUM(total_amount) AS total_value,
+			COUNT(*) AS trade_count
+		FROM running_trades
+		GROUP BY bucket, stock_symbol
+	`)
+	r.db.db.Exec(`
+		SELECT add_continuous_aggregate_policy('candle_5min',
+			start_offset => INTERVAL '15 minutes',
+			end_offset => INTERVAL '1 minute',
+			schedule_interval => INTERVAL '5 minutes',
+			if_not_exists => TRUE
+		)
+	`)
+
+	// 15-minute candles
+	r.db.db.Exec(`
+		CREATE MATERIALIZED VIEW IF NOT EXISTS candle_15min
+		WITH (timescaledb.continuous) AS
+		SELECT
+			time_bucket('15 minutes', timestamp) AS bucket,
+			stock_symbol,
+			FIRST(price, timestamp) AS open,
+			MAX(price) AS high,
+			MIN(price) AS low,
+			LAST(price, timestamp) AS close,
+			SUM(volume_lot) AS volume_lots,
+			SUM(total_amount) AS total_value,
+			COUNT(*) AS trade_count
+		FROM running_trades
+		GROUP BY bucket, stock_symbol
+	`)
+	r.db.db.Exec(`
+		SELECT add_continuous_aggregate_policy('candle_15min',
+			start_offset => INTERVAL '45 minutes',
+			end_offset => INTERVAL '1 minute',
+			schedule_interval => INTERVAL '15 minutes',
+			if_not_exists => TRUE
+		)
+	`)
+
+	// 1-hour candles
+	r.db.db.Exec(`
+		CREATE MATERIALIZED VIEW IF NOT EXISTS candle_1hour
+		WITH (timescaledb.continuous) AS
+		SELECT
+			time_bucket('1 hour', timestamp) AS bucket,
+			stock_symbol,
+			FIRST(price, timestamp) AS open,
+			MAX(price) AS high,
+			MIN(price) AS low,
+			LAST(price, timestamp) AS close,
+			SUM(volume_lot) AS volume_lots,
+			SUM(total_amount) AS total_value,
+			COUNT(*) AS trade_count
+		FROM running_trades
+		GROUP BY bucket, stock_symbol
+	`)
+	r.db.db.Exec(`
+		SELECT add_continuous_aggregate_policy('candle_1hour',
+			start_offset => INTERVAL '3 hours',
+			end_offset => INTERVAL '1 minute',
+			schedule_interval => INTERVAL '1 hour',
+			if_not_exists => TRUE
+		)
+	`)
+
+	// 1-day candles
+	r.db.db.Exec(`
+		CREATE MATERIALIZED VIEW IF NOT EXISTS candle_1day
+		WITH (timescaledb.continuous) AS
+		SELECT
+			time_bucket('1 day', timestamp) AS bucket,
+			stock_symbol,
+			FIRST(price, timestamp) AS open,
+			MAX(price) AS high,
+			MIN(price) AS low,
+			LAST(price, timestamp) AS close,
+			SUM(volume_lot) AS volume_lots,
+			SUM(total_amount) AS total_value,
+			COUNT(*) AS trade_count
+		FROM running_trades
+		GROUP BY bucket, stock_symbol
+	`)
+	r.db.db.Exec(`
+		SELECT add_continuous_aggregate_policy('candle_1day',
+			start_offset => INTERVAL '3 days',
+			end_offset => INTERVAL '1 hour',
+			schedule_interval => INTERVAL '1 day',
+			if_not_exists => TRUE
+		)
+	`)
+
+	fmt.Println("✅ Phase 2 enhancement tables configured successfully")
+
+	// ========================================================================
+	// Phase 3 Enhancement Tables
+	// ========================================================================
+
+	// 1. Stock Correlations
+	r.db.db.Exec(`
+		SELECT create_hypertable('stock_correlations', 'calculated_at',
+			chunk_time_interval => INTERVAL '7 days',
+			if_not_exists => TRUE
+		)
+	`)
+	r.db.db.Exec(`
+		SELECT add_retention_policy('stock_correlations', INTERVAL '6 months', if_not_exists => TRUE)
+	`)
+
+	// 2. Strategy Performance Daily (Continuous Aggregate)
+	r.db.db.Exec(`
+		CREATE MATERIALIZED VIEW IF NOT EXISTS strategy_performance_daily
+		WITH (timescaledb.continuous) AS
+		SELECT
+			time_bucket('1 day', entry_time) AS day,
+			strategy,
+			stock_symbol,
+			COUNT(*) AS total_signals,
+			SUM(CASE WHEN outcome_status = 'WIN' THEN 1 ELSE 0 END) AS wins,
+			SUM(CASE WHEN outcome_status = 'LOSS' THEN 1 ELSE 0 END) AS losses,
+			AVG(profit_loss_pct) AS avg_profit_pct,
+			SUM(profit_loss_pct) AS total_profit_pct,
+			AVG(risk_reward_ratio) AS avg_risk_reward
+		FROM signal_outcomes
+		GROUP BY day, strategy, stock_symbol
+	`)
+	r.db.db.Exec(`
+		SELECT add_continuous_aggregate_policy('strategy_performance_daily',
+			start_offset => INTERVAL '3 days',
+			end_offset => INTERVAL '1 hour',
+			schedule_interval => INTERVAL '1 day',
+			if_not_exists => TRUE
+		)
+	`)
+
+	fmt.Println("✅ Phase 3 enhancement tables configured successfully")
 	return nil
 }
 
@@ -848,11 +1143,31 @@ func (r *TradeRepository) GetStrategySignals(lookbackMinutes int, minConfidence 
 	prevVolumeZScores := make(map[string]float64)
 
 	for _, alert := range alerts {
-		// Calculate z-scores
+		// PHASE 2 ENHANCEMENTS: Fetch statistical metrics
+		baseline, _ := r.GetLatestBaseline(alert.StockSymbol)
+		regime, _ := r.GetLatestRegime(alert.StockSymbol)
+		patterns, _ := r.GetRecentPatterns(alert.StockSymbol, time.Now().Add(-2*time.Hour))
+
+		// Calculate z-scores using persistent baseline if available
 		volumeLots := alert.TriggerVolumeLots
-		zscores, err := r.GetPriceVolumeZScores(alert.StockSymbol, alert.TriggerPrice, volumeLots, 60)
-		if err != nil || zscores.SampleCount < 10 {
-			continue // Skip if insufficient data
+		var zscores *ZScoreData
+		var err error
+
+		if baseline != nil && baseline.SampleSize > 30 {
+			// Calculate Z-Score using persistent baseline (more accurate)
+			priceZ := (alert.TriggerPrice - baseline.MeanPrice) / baseline.StdDevPrice
+			volZ := (volumeLots - baseline.MeanVolumeLots) / baseline.StdDevVolume
+			zscores = &ZScoreData{
+				PriceZScore:  priceZ,
+				VolumeZScore: volZ,
+				SampleCount:  int64(baseline.SampleSize),
+			}
+		} else {
+			// Fallback to real-time calculation
+			zscores, err = r.GetPriceVolumeZScores(alert.StockSymbol, alert.TriggerPrice, volumeLots, 60)
+			if err != nil || zscores.SampleCount < 10 {
+				continue // Skip if insufficient data
+			}
 		}
 
 		// Evaluate each strategy
@@ -867,16 +1182,62 @@ func (r *TradeRepository) GetStrategySignals(lookbackMinutes int, minConfidence 
 			switch strategy {
 			case "VOLUME_BREAKOUT":
 				signal = r.EvaluateVolumeBreakoutStrategy(&alert, zscores)
+				// Phase 2: Filter breakouts in RANGING markets
+				if signal != nil && regime != nil && regime.Regime == "RANGING" && regime.Confidence > 0.6 {
+					signal.Confidence *= 0.5 // Deprioritize
+					signal.Reason += " (Filtered: Ranging Market)"
+				}
 			case "MEAN_REVERSION":
 				prevZScore := prevVolumeZScores[alert.StockSymbol]
 				signal = r.EvaluateMeanReversionStrategy(&alert, zscores, prevZScore)
+				// Phase 2: Boost Mean Reversion in RANGING/VOLATILE markets
+				if signal != nil && regime != nil && (regime.Regime == "RANGING" || regime.Regime == "VOLATILE") {
+					signal.Confidence *= 1.2
+					signal.Reason += " (Regime Boost)"
+				}
 			case "FAKEOUT_FILTER":
 				signal = r.EvaluateFakeoutFilterStrategy(&alert, zscores)
+			}
+
+			// Phase 2: Pattern Confirmation
+			if signal != nil && len(patterns) > 0 {
+				for _, p := range patterns {
+					if p.PatternType == "RANGE_BREAKOUT" && p.PatternDirection != nil {
+						if *p.PatternDirection == signal.Decision {
+							signal.Confidence *= 1.3 // Strong confirmation
+							signal.Reason += fmt.Sprintf(" (Confirmed by %s)", p.PatternType)
+							break
+						}
+					}
+				}
 			}
 
 			// Only include signals meeting confidence threshold
 			if signal != nil && signal.Confidence >= minConfidence && signal.Decision != "NO_TRADE" {
 				signals = append(signals, *signal)
+
+				// Persist signal to database for tracking (async, don't block on errors)
+				go func(sig TradingSignal, alertID int64) {
+					signalDB := &TradingSignalDB{
+						GeneratedAt:       sig.Timestamp,
+						StockSymbol:       sig.StockSymbol,
+						Strategy:          sig.Strategy,
+						Decision:          sig.Decision,
+						Confidence:        sig.Confidence,
+						TriggerPrice:      sig.Price,
+						TriggerVolumeLots: sig.Volume,
+						PriceZScore:       sig.PriceZScore,
+						VolumeZScore:      sig.VolumeZScore,
+						PriceChangePct:    sig.Change,
+						Reason:            sig.Reason,
+						WhaleAlertID:      &alertID,
+					}
+
+					if err := r.SaveTradingSignal(signalDB); err != nil {
+						// Log error but don't fail signal generation
+						fmt.Printf("⚠️ Failed to persist signal to DB: %v\n", err)
+					}
+				}(*signal, alert.ID)
 			}
 		}
 
@@ -909,4 +1270,409 @@ func calculateConfidence(value, minThreshold, maxThreshold float64) float64 {
 	// Linear interpolation between min and max
 	confidence := (value - minThreshold) / (maxThreshold - minThreshold)
 	return confidence
+}
+
+// ============================================================================
+// Phase 1 Enhancement Repository Methods
+// ============================================================================
+
+// SaveTradingSignal persists a trading signal to the database
+func (r *TradeRepository) SaveTradingSignal(signal *TradingSignalDB) error {
+	return r.db.db.Create(signal).Error
+}
+
+// GetTradingSignals retrieves trading signals with filters
+func (r *TradeRepository) GetTradingSignals(symbol string, strategy string, decision string, startTime, endTime time.Time, limit int) ([]TradingSignalDB, error) {
+	var signals []TradingSignalDB
+	query := r.db.db.Order("generated_at DESC")
+
+	if symbol != "" {
+		query = query.Where("stock_symbol = ?", symbol)
+	}
+	if strategy != "" {
+		query = query.Where("strategy = ?", strategy)
+	}
+	if decision != "" {
+		query = query.Where("decision = ?", decision)
+	}
+	if !startTime.IsZero() {
+		query = query.Where("generated_at >= ?", startTime)
+	}
+	if !endTime.IsZero() {
+		query = query.Where("generated_at <= ?", endTime)
+	}
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+
+	err := query.Find(&signals).Error
+	return signals, err
+}
+
+// GetSignalByID retrieves a specific signal by ID
+func (r *TradeRepository) GetSignalByID(id int64) (*TradingSignalDB, error) {
+	var signal TradingSignalDB
+	err := r.db.db.First(&signal, id).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	return &signal, err
+}
+
+// SaveSignalOutcome creates a new signal outcome record
+func (r *TradeRepository) SaveSignalOutcome(outcome *SignalOutcome) error {
+	return r.db.db.Create(outcome).Error
+}
+
+// UpdateSignalOutcome updates an existing signal outcome
+func (r *TradeRepository) UpdateSignalOutcome(outcome *SignalOutcome) error {
+	return r.db.db.Save(outcome).Error
+}
+
+// GetSignalOutcomes retrieves signal outcomes with filters
+func (r *TradeRepository) GetSignalOutcomes(symbol string, status string, startTime, endTime time.Time, limit int) ([]SignalOutcome, error) {
+	var outcomes []SignalOutcome
+	query := r.db.db.Order("entry_time DESC")
+
+	if symbol != "" {
+		query = query.Where("stock_symbol = ?", symbol)
+	}
+	if status != "" {
+		query = query.Where("outcome_status = ?", status)
+	}
+	if !startTime.IsZero() {
+		query = query.Where("entry_time >= ?", startTime)
+	}
+	if !endTime.IsZero() {
+		query = query.Where("entry_time <= ?", endTime)
+	}
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+
+	err := query.Find(&outcomes).Error
+	return outcomes, err
+}
+
+// GetSignalOutcomeBySignalID retrieves outcome for a specific signal
+func (r *TradeRepository) GetSignalOutcomeBySignalID(signalID int64) (*SignalOutcome, error) {
+	var outcome SignalOutcome
+	err := r.db.db.Where("signal_id = ?", signalID).First(&outcome).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	return &outcome, err
+}
+
+// PerformanceStats holds aggregated performance metrics
+type PerformanceStats struct {
+	Strategy       string  `json:"strategy"`
+	StockSymbol    string  `json:"stock_symbol"`
+	TotalSignals   int64   `json:"total_signals"`
+	Wins           int64   `json:"wins"`
+	Losses         int64   `json:"losses"`
+	WinRate        float64 `json:"win_rate"`
+	AvgProfitPct   float64 `json:"avg_profit_pct"`
+	TotalProfitPct float64 `json:"total_profit_pct"`
+	MaxWinPct      float64 `json:"max_win_pct"`
+	MaxLossPct     float64 `json:"max_loss_pct"`
+	AvgRiskReward  float64 `json:"avg_risk_reward"`
+	Expectancy     float64 `json:"expectancy"`
+}
+
+// GetSignalPerformanceStats calculates performance statistics
+func (r *TradeRepository) GetSignalPerformanceStats(strategy string, symbol string) (*PerformanceStats, error) {
+	var stats PerformanceStats
+
+	query := `
+		SELECT 
+			ts.strategy,
+			ts.stock_symbol,
+			COUNT(*) AS total_signals,
+			SUM(CASE WHEN so.outcome_status = 'WIN' THEN 1 ELSE 0 END) AS wins,
+			SUM(CASE WHEN so.outcome_status = 'LOSS' THEN 1 ELSE 0 END) AS losses,
+			ROUND(
+				(SUM(CASE WHEN so.outcome_status = 'WIN' THEN 1 ELSE 0 END)::DECIMAL / 
+				 NULLIF(COUNT(*), 0)) * 100, 
+				2
+			) AS win_rate,
+			COALESCE(AVG(so.profit_loss_pct), 0) AS avg_profit_pct,
+			COALESCE(SUM(so.profit_loss_pct), 0) AS total_profit_pct,
+			COALESCE(MAX(so.profit_loss_pct), 0) AS max_win_pct,
+			COALESCE(MIN(so.profit_loss_pct), 0) AS max_loss_pct,
+			COALESCE(AVG(so.risk_reward_ratio), 0) AS avg_risk_reward,
+			(COALESCE(AVG(so.profit_loss_pct), 0) * 
+			 (SUM(CASE WHEN so.outcome_status = 'WIN' THEN 1 ELSE 0 END)::DECIMAL / NULLIF(COUNT(*), 0))
+			) AS expectancy
+		FROM trading_signals ts
+		JOIN signal_outcomes so ON ts.id = so.signal_id
+		WHERE so.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN')
+	`
+
+	if strategy != "" {
+		query += " AND ts.strategy = @strategy"
+	}
+	if symbol != "" {
+		query += " AND ts.stock_symbol = @symbol"
+	}
+
+	query += " GROUP BY ts.strategy, ts.stock_symbol"
+
+	err := r.db.db.Raw(query, map[string]interface{}{
+		"strategy": strategy,
+		"symbol":   symbol,
+	}).Scan(&stats).Error
+
+	return &stats, err
+}
+
+// SaveWhaleFollowup creates a new whale alert followup record
+func (r *TradeRepository) SaveWhaleFollowup(followup *WhaleAlertFollowup) error {
+	return r.db.db.Create(followup).Error
+}
+
+// UpdateWhaleFollowup updates specific fields of a whale followup
+func (r *TradeRepository) UpdateWhaleFollowup(alertID int64, updates map[string]interface{}) error {
+	return r.db.db.Model(&WhaleAlertFollowup{}).
+		Where("whale_alert_id = ?", alertID).
+		Updates(updates).Error
+}
+
+// GetWhaleFollowup retrieves followup data for a specific whale alert
+func (r *TradeRepository) GetWhaleFollowup(alertID int64) (*WhaleAlertFollowup, error) {
+	var followup WhaleAlertFollowup
+	err := r.db.db.Where("whale_alert_id = ?", alertID).First(&followup).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	return &followup, err
+}
+
+// GetPendingFollowups retrieves whale alerts that need followup updates
+func (r *TradeRepository) GetPendingFollowups(maxAge time.Duration) ([]WhaleAlertFollowup, error) {
+	var followups []WhaleAlertFollowup
+	cutoffTime := time.Now().Add(-maxAge)
+
+	// Get followups where latest price update is still pending
+	err := r.db.db.Where("alert_time >= ?", cutoffTime).
+		Where("price_1day_later IS NULL"). // Still tracking
+		Order("alert_time ASC").
+		Find(&followups).Error
+
+	return followups, err
+}
+
+// SaveOrderFlowImbalance persists order flow data
+func (r *TradeRepository) SaveOrderFlowImbalance(flow *OrderFlowImbalance) error {
+	return r.db.db.Create(flow).Error
+}
+
+// GetOrderFlowImbalance retrieves order flow data with filters
+func (r *TradeRepository) GetOrderFlowImbalance(symbol string, startTime, endTime time.Time, limit int) ([]OrderFlowImbalance, error) {
+	var flows []OrderFlowImbalance
+	query := r.db.db.Order("bucket DESC")
+
+	if symbol != "" {
+		query = query.Where("stock_symbol = ?", symbol)
+	}
+	if !startTime.IsZero() {
+		query = query.Where("bucket >= ?", startTime)
+	}
+	if !endTime.IsZero() {
+		query = query.Where("bucket <= ?", endTime)
+	}
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+
+	err := query.Find(&flows).Error
+	return flows, err
+}
+
+// GetLatestOrderFlow retrieves the most recent order flow for a symbol
+func (r *TradeRepository) GetLatestOrderFlow(symbol string) (*OrderFlowImbalance, error) {
+	var flow OrderFlowImbalance
+	err := r.db.db.Where("stock_symbol = ?", symbol).
+		Order("bucket DESC").
+		First(&flow).Error
+
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	return &flow, err
+}
+
+// GetOpenSignals retrieves signals that don't have outcomes yet
+func (r *TradeRepository) GetOpenSignals(limit int) ([]TradingSignalDB, error) {
+	var signals []TradingSignalDB
+
+	// Subquery to find signal IDs that already have outcomes
+	subQuery := r.db.db.Model(&SignalOutcome{}).Select("signal_id")
+
+	// Get signals NOT IN the subquery
+	query := r.db.db.Where("id NOT IN (?)", subQuery).
+		Where("decision IN ('BUY', 'SELL')"). // Only actionable signals
+		Order("generated_at DESC")
+
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+
+	err := query.Find(&signals).Error
+	return signals, err
+}
+
+// ============================================================================
+// Phase 2 Enhancement Methods
+// ============================================================================
+
+// SaveStatisticalBaseline persists a statistical baseline to the database
+func (r *TradeRepository) SaveStatisticalBaseline(baseline *StatisticalBaseline) error {
+	return r.db.db.Create(baseline).Error
+}
+
+// GetLatestBaseline retrieves the most recent statistical baseline for a symbol
+func (r *TradeRepository) GetLatestBaseline(symbol string) (*StatisticalBaseline, error) {
+	var baseline StatisticalBaseline
+	err := r.db.db.Where("stock_symbol = ?", symbol).Order("calculated_at DESC").First(&baseline).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &baseline, nil
+}
+
+// SaveMarketRegime persists a market regime detection to the database
+func (r *TradeRepository) SaveMarketRegime(regime *MarketRegime) error {
+	return r.db.db.Create(regime).Error
+}
+
+// GetLatestRegime retrieves the most recent market regime for a symbol
+func (r *TradeRepository) GetLatestRegime(symbol string) (*MarketRegime, error) {
+	var regime MarketRegime
+	err := r.db.db.Where("stock_symbol = ?", symbol).Order("detected_at DESC").First(&regime).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &regime, nil
+}
+
+// SaveDetectedPattern persists a detected chart pattern to the database
+func (r *TradeRepository) SaveDetectedPattern(pattern *DetectedPattern) error {
+	return r.db.db.Create(pattern).Error
+}
+
+// GetRecentPatterns retrieves recently detected patterns for a symbol
+func (r *TradeRepository) GetRecentPatterns(symbol string, since time.Time) ([]DetectedPattern, error) {
+	var patterns []DetectedPattern
+	err := r.db.db.Where("stock_symbol = ? AND detected_at >= ?", symbol, since).Order("detected_at DESC").Find(&patterns).Error
+	return patterns, err
+}
+
+// UpdatePatternOutcome updates the outcome of a detected pattern
+func (r *TradeRepository) UpdatePatternOutcome(id int64, outcome string, breakout bool, maxMove float64) error {
+	return r.db.db.Model(&DetectedPattern{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"outcome":         outcome,
+		"actual_breakout": breakout,
+		"max_move_pct":    maxMove,
+	}).Error
+}
+
+// GetCandlesByTimeframe returns candles for a specific timeframe and symbol
+func (r *TradeRepository) GetCandlesByTimeframe(timeframe string, symbol string, limit int) ([]map[string]interface{}, error) {
+	var viewName string
+	switch timeframe {
+	case "5min":
+		viewName = "candle_5min"
+	case "15min":
+		viewName = "candle_15min"
+	case "1hour":
+		viewName = "candle_1hour"
+	case "1day":
+		viewName = "candle_1day"
+	case "1min":
+		viewName = "candle_1min"
+	default:
+		return nil, fmt.Errorf("unsupported timeframe: %s", timeframe)
+	}
+
+	var results []map[string]interface{}
+	err := r.db.db.Table(viewName).
+		Where("stock_symbol = ?", symbol).
+		Order("bucket DESC").
+		Limit(limit).
+		Find(&results).Error
+
+	return results, err
+}
+
+// GetActiveSymbols retrieves symbols that had trades in the specified lookback duration
+func (r *TradeRepository) GetActiveSymbols(since time.Time) ([]string, error) {
+	var symbols []string
+	err := r.db.db.Table("running_trades").
+		Where("timestamp >= ?", since).
+		Distinct("stock_symbol").
+		Pluck("stock_symbol", &symbols).Error
+	return symbols, err
+}
+
+// GetTradesByTimeRange retrieves trades for a symbol within a time range
+func (r *TradeRepository) GetTradesByTimeRange(symbol string, startTime, endTime time.Time) ([]Trade, error) {
+	var trades []Trade
+	err := r.db.db.Where("stock_symbol = ? AND timestamp >= ? AND timestamp <= ?", symbol, startTime, endTime).
+		Order("timestamp ASC").
+		Find(&trades).Error
+	return trades, err
+}
+
+// ============================================================================
+// Phase 3 Enhancement Repository Methods
+// ============================================================================
+
+// SaveStockCorrelation persists a stock correlation record
+func (r *TradeRepository) SaveStockCorrelation(correlation *StockCorrelation) error {
+	return r.db.db.Create(correlation).Error
+}
+
+// GetStockCorrelations retrieves recent correlations for a symbol
+func (r *TradeRepository) GetStockCorrelations(symbol string, limit int) ([]StockCorrelation, error) {
+	var correlations []StockCorrelation
+	err := r.db.db.Where("stock_a = ? OR stock_b = ?", symbol, symbol).
+		Order("calculated_at DESC").
+		Limit(limit).
+		Find(&correlations).Error
+	return correlations, err
+}
+
+// GetCorrelationsForPair retrieves historical correlations between two specific stocks
+func (r *TradeRepository) GetCorrelationsForPair(stockA, stockB string) ([]StockCorrelation, error) {
+	var correlations []StockCorrelation
+	err := r.db.db.Where("(stock_a = ? AND stock_b = ?) OR (stock_a = ? AND stock_b = ?)", stockA, stockB, stockB, stockA).
+		Order("calculated_at DESC").
+		Find(&correlations).Error
+	return correlations, err
+}
+
+// GetDailyStrategyPerformance retrieves daily aggregated performance data
+func (r *TradeRepository) GetDailyStrategyPerformance(strategy, symbol string, limit int) ([]map[string]interface{}, error) {
+	var results []map[string]interface{}
+	query := r.db.db.Table("strategy_performance_daily").Order("day DESC")
+
+	if strategy != "" && strategy != "ALL" {
+		query = query.Where("strategy = ?", strategy)
+	}
+	if symbol != "" {
+		query = query.Where("stock_symbol = ?", symbol)
+	}
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+
+	err := query.Find(&results).Error
+	return results, err
 }

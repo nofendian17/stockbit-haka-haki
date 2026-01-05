@@ -35,7 +35,13 @@ type App struct {
 	tradeRepo       *database.TradeRepository
 	webhookManager  *notifications.WebhookManager
 	broker          *realtime.Broker
-	lastMessageTime time.Time // Track last message for health monitoring
+	signalTracker   *SignalTracker        // Phase 1: Signal outcome tracking
+	whaleFollowup   *WhaleFollowupTracker // Phase 1: Whale alert followup
+	baselineCalc    *BaselineCalculator   // Phase 2: Statistical baselines
+	regimeDetector  *RegimeDetector       // Phase 2: Market regime detection
+	patternDetector *PatternDetector      // Phase 2: Chart pattern detection
+	correlationAnal *CorrelationAnalyzer  // Phase 3: Stock correlations
+	lastMessageTime time.Time             // Track last message for health monitoring
 	lastMessageMu   sync.RWMutex
 }
 
@@ -193,6 +199,39 @@ func (a *App) Start() error {
 		}
 	}()
 
+	// 10. Start Phase 1 Enhancement Trackers
+	log.Println("🚀 Starting Phase 1 enhancement trackers...")
+
+	// Signal Outcome Tracker
+	a.signalTracker = NewSignalTracker(a.tradeRepo)
+	go a.signalTracker.Start()
+
+	// Whale Followup Tracker
+	a.whaleFollowup = NewWhaleFollowupTracker(a.tradeRepo)
+	go a.whaleFollowup.Start()
+
+	// 11. Start Phase 2 Enhancement Trackers
+	log.Println("🚀 Starting Phase 2 enhancement calculators...")
+
+	// Statistical Baseline Calculator
+	a.baselineCalc = NewBaselineCalculator(a.tradeRepo)
+	go a.baselineCalc.Start()
+
+	// Market Regime Detector
+	a.regimeDetector = NewRegimeDetector(a.tradeRepo)
+	go a.regimeDetector.Start()
+
+	// Chart Pattern Detector
+	a.patternDetector = NewPatternDetector(a.tradeRepo)
+	go a.patternDetector.Start()
+
+	// 12. Start Phase 3 Enhancement Trackers
+	log.Println("🚀 Starting Phase 3 advanced analytics...")
+
+	// Correlation Analyzer
+	a.correlationAnal = NewCorrelationAnalyzer(a.tradeRepo)
+	go a.correlationAnal.Start()
+
 	// Setup WaitGroup for goroutines
 	var wg sync.WaitGroup
 
@@ -293,6 +332,32 @@ func (a *App) gracefulShutdown(cancel context.CancelFunc) error {
 	// Shutdown tasks with timeout
 	shutdownComplete := make(chan struct{})
 	go func() {
+		// Stop trackers
+		if a.signalTracker != nil {
+			fmt.Println("📊 Stopping signal tracker...")
+			a.signalTracker.Stop()
+		}
+		if a.whaleFollowup != nil {
+			fmt.Println("🐋 Stopping whale followup tracker...")
+			a.whaleFollowup.Stop()
+		}
+		if a.baselineCalc != nil {
+			fmt.Println("📊 Stopping statistical baseline calculator...")
+			a.baselineCalc.Stop()
+		}
+		if a.regimeDetector != nil {
+			fmt.Println("📈 Stopping market regime detector...")
+			a.regimeDetector.Stop()
+		}
+		if a.patternDetector != nil {
+			fmt.Println("🎨 Stopping chart pattern detector...")
+			a.patternDetector.Stop()
+		}
+		if a.correlationAnal != nil {
+			fmt.Println("🔗 Stopping correlation analyzer...")
+			a.correlationAnal.Stop()
+		}
+
 		// Close WebSocket connection
 		if a.tradingWS != nil {
 			fmt.Println("📡 Closing trading WebSocket connection...")

@@ -9,7 +9,8 @@ const CONFIG = {
     CURRENCY_MILLION_THRESHOLD: 1_000_000,
     TIME_SECOND: 1000,
     TIME_MINUTE: 60,
-    TIME_HOUR: 3600
+    TIME_HOUR: 3600,
+    ANALYTICS_POLL_INTERVAL: 30000, // 30 seconds
 };
 
 const API_BASE = CONFIG.API_BASE;
@@ -39,6 +40,10 @@ const formatTime = (isoString) => {
     if (diffSec < CONFIG.TIME_HOUR) return `${Math.floor(diffSec / CONFIG.TIME_MINUTE)}m ago`;
 
     return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+};
+
+const formatPercent = (val) => {
+    return (val || 0).toFixed(1) + '%';
 };
 
 // ===== STATE =====
@@ -145,6 +150,8 @@ function renderAlerts() {
 
     filtered.forEach(alert => {
         const row = document.createElement('tr');
+        row.className = 'clickable-row';
+        row.onclick = () => openFollowupModal(alert.ID, alert.StockSymbol, alert.TriggerPrice || alert.Price || 0);
 
         let badgeClass = 'unknown';
         if (alert.Action === 'BUY') badgeClass = 'buy';
@@ -207,7 +214,7 @@ function renderAlerts() {
             <td data-label="Time" class="col-time" title="${new Date(alert.DetectedAt).toLocaleString('id-ID')}">${formatTime(alert.DetectedAt)}</td>
             <td data-label="Symbol" class="col-symbol">
                 <div style="display: flex; align-items: center; gap: 4px;">
-                    <strong>${alert.StockSymbol}</strong>
+                    <strong class="clickable-symbol" onclick="openCandleModal('${alert.StockSymbol}')">${alert.StockSymbol}</strong>
                     ${alertTypeBadge}
                 </div>
                 <span class="${confidenceClass}" style="font-size:0.7em;" title="Confidence Score">${confidenceIcon} ${confidence.toFixed(0)}%</span>
@@ -420,6 +427,20 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // Phase 4: UI Integration - Initialization
+    setupAnalyticsTabs();
+    setupCandleModal();
+    setupFollowupModal();
+    fetchMarketIntelligence();
+    fetchAnalyticsHubData();
+    fetchGlobalPerformance();
+
+    setInterval(() => {
+        fetchMarketIntelligence();
+        fetchAnalyticsHubData();
+        fetchOrderFlow();
+    }, CONFIG.ANALYTICS_POLL_INTERVAL);
 });
 
 // ===== ACCUMULATION/DISTRIBUTION SUMMARY =====
@@ -754,3 +775,361 @@ function updateActiveFilterCount() {
         }
     }
 }
+// ===== MARKET INTELLIGENCE =====
+async function fetchMarketIntelligence() {
+    const symbol = currentFilters.search;
+    if (!symbol) {
+        document.getElementById('market-intelligence').style.opacity = '0.5';
+        return;
+    }
+    document.getElementById('market-intelligence').style.opacity = '1';
+
+    try {
+        // 1. Fetch Regime
+        const regimeRes = await fetch(`${API_BASE}/regimes?symbol=${symbol}`);
+        const regimeData = await regimeRes.json();
+        updateRegimeUI(regimeData);
+
+        // 2. Fetch Baseline
+        const baselineRes = await fetch(`${API_BASE}/baselines?symbol=${symbol}`);
+        const baselineData = await baselineRes.json();
+        updateBaselineUI(baselineData);
+
+        // 3. Fetch Patterns
+        const patternRes = await fetch(`${API_BASE}/patterns?symbol=${symbol}&since=${new Date(Date.now() - 24 * 3600 * 1000).toISOString()}`);
+        const patternData = await patternRes.json();
+        updatePatternsUI(patternData.patterns || []);
+
+        // 4. Fetch Order Flow
+        fetchOrderFlow();
+
+    } catch (err) {
+        console.error("Failed to fetch market intel:", err);
+    }
+}
+
+function updateRegimeUI(data) {
+    const regimeEl = document.getElementById('intel-regime');
+    const descEl = document.getElementById('intel-regime-desc');
+    const badge = document.getElementById('market-regime');
+
+    if (!data || !data.regime) {
+        regimeEl.textContent = 'UNKNOWN';
+        descEl.textContent = 'No regime data available';
+        badge.style.display = 'none';
+        return;
+    }
+
+    const regime = data.regime.replace(/_/g, ' ');
+    regimeEl.textContent = regime;
+    descEl.textContent = `Confidence: ${formatPercent(data.confidence * 100)} | Last updated: ${formatTime(data.detected_at)}`;
+
+    // Update Header Badge
+    badge.textContent = regime;
+    badge.style.display = 'inline-block';
+
+    // Reset classes
+    badge.className = 'status-badge';
+    const lowRegime = data.regime.toLowerCase();
+    if (lowRegime.includes('up')) badge.classList.add('regime-trending-up');
+    else if (lowRegime.includes('down')) badge.classList.add('regime-trending-down');
+    else if (lowRegime.includes('ranging')) badge.classList.add('regime-ranging');
+    else if (lowRegime.includes('volatile')) badge.classList.add('regime-volatile');
+}
+
+function updateBaselineUI(data) {
+    if (!data) return;
+    document.getElementById('b-avg-vol').textContent = formatNumber(data.avg_volume_lot) + ' Lots';
+    document.getElementById('b-std-dev').textContent = formatNumber(data.std_dev_price.toFixed(2));
+}
+
+function updatePatternsUI(patterns) {
+    const list = document.getElementById('pattern-list');
+    list.innerHTML = '';
+
+    if (patterns.length === 0) {
+        list.innerHTML = '<div class="placeholder-small">No patterns detected recently</div>';
+        return;
+    }
+
+    patterns.forEach(p => {
+        const div = document.createElement('div');
+        div.className = 'pattern-item';
+        div.innerHTML = `
+            <span class="pattern-type">${p.pattern_type.replace(/_/g, ' ')}</span>
+            <span class="pattern-conf">${formatPercent(p.confidence * 100)} Conf.</span>
+        `;
+        list.appendChild(div);
+    });
+}
+
+// ===== ANALYTICS HUB =====
+function setupAnalyticsTabs() {
+    const tabs = document.querySelectorAll('.s-tab');
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            tabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+
+            const target = tab.dataset.target;
+            document.querySelectorAll('.tab-panel').forEach(panel => {
+                panel.classList.remove('active');
+            });
+            document.getElementById(target).classList.add('active');
+        });
+    });
+}
+
+async function fetchAnalyticsHubData() {
+    const symbol = currentFilters.search;
+
+    // Correlations
+    if (symbol) {
+        try {
+            const res = await fetch(`${API_BASE}/analytics/correlations?symbol=${symbol}`);
+            const data = await res.json();
+            renderCorrelations(data.correlations || []);
+        } catch (err) {
+            console.error("Correlations fetch failed", err);
+        }
+    }
+
+    // Daily Performance
+    try {
+        const res = await fetch(`${API_BASE}/analytics/performance/daily?limit=10`);
+        const data = await res.json();
+        renderDailyPerformance(data.performance || []);
+    } catch (err) {
+        console.error("Performance fetch failed", err);
+    }
+}
+
+function renderCorrelations(correlations) {
+    const container = document.getElementById('correlation-container');
+    container.innerHTML = '';
+
+    if (correlations.length === 0) {
+        container.innerHTML = '<div class="placeholder-small">No similar stocks found</div>';
+        return;
+    }
+
+    correlations.forEach(c => {
+        const other = c.stock_a === currentFilters.search ? c.stock_b : c.stock_a;
+        const coef = c.correlation_coefficient;
+        let colorClass = 'corr-low';
+        if (coef > 0.7) colorClass = 'corr-high';
+        else if (coef > 0.4) colorClass = 'corr-med';
+
+        const div = document.createElement('div');
+        div.className = 'corr-item';
+        div.innerHTML = `
+            <span class="corr-symbol">${other}</span>
+            <span class="corr-value ${colorClass}">${coef.toFixed(2)}</span>
+        `;
+        container.appendChild(div);
+    });
+}
+
+function renderDailyPerformance(performance) {
+    const tbody = document.getElementById('daily-performance-body');
+    tbody.innerHTML = '';
+
+    performance.forEach(p => {
+        const winRate = (p.wins / p.total_signals) * 100;
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${new Date(p.day).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}</td>
+            <td>${p.strategy.replace(/_/g, ' ')}</td>
+            <td class="text-right ${winRate >= 50 ? 'diff-positive' : 'diff-negative'}">${winRate.toFixed(1)}%</td>
+            <td class="text-right">${p.total_profit_pct.toFixed(2)}%</td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+async function fetchGlobalPerformance() {
+    try {
+        const res = await fetch(`${API_BASE}/signals/performance?strategy=ALL`);
+        const data = await res.json();
+        if (data && data.win_rate !== undefined) {
+            document.getElementById('global-win-rate').textContent = (data.win_rate * 100).toFixed(1) + '%';
+        }
+    } catch (err) {
+        console.error("Global performance fetch failed", err);
+    }
+}
+
+// ===== ORDER FLOW =====
+async function fetchOrderFlow() {
+    const symbol = currentFilters.search;
+    if (!symbol) return;
+
+    try {
+        const res = await fetch(`${API_BASE}/orderflow?symbol=${symbol}&limit=50`);
+        const data = await res.json();
+
+        if (data && data.length > 0) {
+            let totalBuy = 0;
+            let totalSell = 0;
+
+            data.forEach(item => {
+                totalBuy += item.buy_volume;
+                totalSell += item.sell_volume;
+            });
+
+            const total = totalBuy + totalSell;
+            const buyPct = (totalBuy / total) * 100;
+            const sellPct = (totalSell / total) * 100;
+
+            document.getElementById('buy-pressure-fill').style.width = `${buyPct}%`;
+            document.getElementById('sell-pressure-fill').style.width = `${sellPct}%`;
+            document.getElementById('buy-pressure-pct').textContent = `${buyPct.toFixed(1)}% BUY`;
+            document.getElementById('sell-pressure-pct').textContent = `${sellPct.toFixed(1)}% SELL`;
+        }
+    } catch (err) {
+        console.error("Order flow fetch failed", err);
+    }
+}
+
+// ===== WHALE FOLLOWUP =====
+function setupFollowupModal() {
+    const modal = document.getElementById('followup-modal');
+    const closeBtn = document.getElementById('followup-modal-close');
+    if (closeBtn) closeBtn.onclick = () => modal.classList.remove('show');
+}
+
+async function openFollowupModal(alertId, symbol, alertPrice) {
+    const modal = document.getElementById('followup-modal');
+    const loading = document.getElementById('followup-loading');
+    const content = document.getElementById('followup-content');
+
+    document.getElementById('followup-title').textContent = `🐳 Followup: ${symbol}`;
+    loading.style.display = 'block';
+    content.style.display = 'none';
+    modal.classList.add('show');
+
+    try {
+        const res = await fetch(`${API_BASE}/whales/${alertId}/followup`);
+        const data = await res.json();
+
+        loading.style.display = 'none';
+        content.style.display = 'block';
+
+        const currentPrice = data.current_price;
+        const changePct = ((currentPrice - alertPrice) / alertPrice) * 100;
+        const sign = changePct >= 0 ? '+' : '';
+        const color = changePct >= 0 ? 'var(--accent-buy)' : 'var(--accent-sell)';
+
+        document.getElementById('f-alert-price').textContent = formatNumber(alertPrice);
+        document.getElementById('f-current-price').textContent = formatNumber(currentPrice);
+        document.getElementById('f-price-change').textContent = `${sign}${changePct.toFixed(2)}%`;
+        document.getElementById('f-price-change').style.color = color;
+        document.getElementById('f-time-elapsed').textContent = formatTime(data.detected_at);
+
+        const analysis = document.getElementById('followup-analysis');
+        if (changePct > 2) {
+            analysis.innerHTML = `🌟 <strong>Strong Follow-through!</strong> Whale alert terbukti efektif. Harga telah naik signifikan sejak deteksi awal.`;
+            analysis.style.borderColor = 'var(--accent-buy)';
+            analysis.style.background = 'rgba(14, 203, 129, 0.1)';
+        } else if (changePct < -2) {
+            analysis.innerHTML = `⚠️ <strong>Correction Detected.</strong> Harga turun dari level whale alert. Mungkin ini adalah distribusi atau profit taking.`;
+            analysis.style.borderColor = 'var(--accent-sell)';
+            analysis.style.background = 'rgba(246, 70, 93, 0.1)';
+        } else {
+            analysis.innerHTML = `⚖️ <strong>Consolidating.</strong> Harga masih berada di sekitar level whale alert. Menunggu konfirmasi arah selanjutnya.`;
+            analysis.style.borderColor = 'var(--accent-blue)';
+            analysis.style.background = 'rgba(59, 130, 246, 0.1)';
+        }
+
+    } catch (err) {
+        console.error("Followup fetch failed", err);
+        loading.textContent = "Gagal memuat analisis followup.";
+    }
+}
+
+// ===== CANDLE VIEWER MODAL =====
+let currentCandleSymbol = '';
+let currentCandleTimeframe = '1h';
+
+function setupCandleModal() {
+    const modal = document.getElementById('candle-modal');
+    const closeBtn = document.getElementById('candle-modal-close');
+    const tabs = document.querySelectorAll('.c-tab');
+
+    if (closeBtn) closeBtn.onclick = () => modal.classList.remove('show');
+
+    tabs.forEach(tab => {
+        tab.onclick = () => {
+            tabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            currentCandleTimeframe = tab.dataset.timeframe;
+            fetchCandleData(currentCandleSymbol, currentCandleTimeframe);
+        };
+    });
+
+    // Close on outside click
+    window.addEventListener('click', (e) => {
+        if (e.target === modal) modal.classList.remove('show');
+    });
+}
+
+function openCandleModal(symbol) {
+    currentCandleSymbol = symbol;
+    const modal = document.getElementById('candle-modal');
+    document.getElementById('candle-modal-title').textContent = `📉 Market Details: ${symbol}`;
+
+    // Reset tabs to default (1h)
+    document.querySelectorAll('.c-tab').forEach(t => {
+        t.classList.remove('active');
+        if (t.dataset.timeframe === '1h') t.classList.add('active');
+    });
+    currentCandleTimeframe = '1h';
+
+    modal.classList.add('show');
+    fetchCandleData(symbol, '1h');
+}
+
+async function fetchCandleData(symbol, timeframe) {
+    const tbody = document.getElementById('candle-list-body');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center">Loading candle data...</td></tr>';
+
+    try {
+        const res = await fetch(`${API_BASE}/candles?symbol=${symbol}&timeframe=${timeframe}&limit=50`);
+        const data = await res.json();
+        renderCandles(data.candles || []);
+    } catch (err) {
+        console.error("Candle fetch failed", err);
+        if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center">Error loading candles</td></tr>';
+    }
+}
+
+function renderCandles(candles) {
+    const tbody = document.getElementById('candle-list-body');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    if (candles.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center">No snapshot data found for this timeframe</td></tr>';
+        return;
+    }
+
+    candles.forEach(c => {
+        const row = document.createElement('tr');
+        const time = new Date(c.time).toLocaleString('id-ID', {
+            day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+        });
+
+        row.innerHTML = `
+            <td>${time}</td>
+            <td class="text-right">${formatNumber(c.open)}</td>
+            <td class="text-right">${formatNumber(c.high)}</td>
+            <td class="text-right">${formatNumber(c.low)}</td>
+            <td class="text-right ${c.close >= c.open ? 'diff-positive' : 'diff-negative'}">${formatNumber(c.close)}</td>
+            <td class="text-right">${formatNumber(c.volume)}</td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+// Global expose for onclick
+window.openCandleModal = openCandleModal;

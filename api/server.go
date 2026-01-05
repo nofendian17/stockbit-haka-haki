@@ -63,6 +63,23 @@ func (s *Server) Start(port int) error {
 	mux.HandleFunc("GET /api/strategies/signals", s.handleGetStrategySignals)
 	mux.HandleFunc("GET /api/strategies/signals/stream", s.handleStrategySignalsStream)
 
+	// Phase 1 Enhancement Routes
+	mux.HandleFunc("GET /api/signals/history", s.handleGetSignalHistory)
+	mux.HandleFunc("GET /api/signals/performance", s.handleGetSignalPerformance)
+	mux.HandleFunc("GET /api/signals/{id}/outcome", s.handleGetSignalOutcome)
+	mux.HandleFunc("GET /api/whales/{id}/followup", s.handleGetWhaleFollowup)
+	mux.HandleFunc("GET /api/orderflow", s.handleGetOrderFlow)
+
+	// Phase 2 Enhancement Routes
+	mux.HandleFunc("GET /api/baselines", s.handleGetStatisticalBaselines)
+	mux.HandleFunc("GET /api/regimes", s.handleGetMarketRegimes)
+	mux.HandleFunc("GET /api/patterns", s.handleGetDetectedPatterns)
+	mux.HandleFunc("GET /api/candles", s.handleGetCandles)
+
+	// Phase 3 Enhancement Routes
+	mux.HandleFunc("GET /api/analytics/correlations", s.handleGetStockCorrelations)
+	mux.HandleFunc("GET /api/analytics/performance/daily", s.handleGetDailyPerformance)
+
 	// Accumulation/Distribution Summary Route
 	mux.HandleFunc("GET /api/accumulation-summary", s.handleAccumulationSummary)
 

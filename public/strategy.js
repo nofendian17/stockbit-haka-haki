@@ -106,18 +106,21 @@ function setupStrategyTabs() {
             // Update filter
             activeStrategyFilter = tab.dataset.strategy;
 
-            // Clear table and reconnect
+            // Clear table
             const tbody = safeGetElement('signals-table-body', 'TabSwitch');
             if (tbody) {
                 tbody.innerHTML = '';
             }
             renderedSignalIds.clear();
 
-            // Fetch initial signals first, then connect SSE
-            // This prevents race condition where SSE signals arrive before initial load completes
-            fetchInitialSignals().then(() => {
-                connectStrategySSE();
-            });
+            if (activeStrategyFilter === 'HISTORY') {
+                if (strategyEventSource) strategyEventSource.close();
+                fetchSignalHistory();
+            } else {
+                fetchInitialSignals().then(() => {
+                    connectStrategySSE();
+                });
+            }
         });
     });
 }
@@ -244,9 +247,11 @@ function renderSignalRow(signal, isInitialLoad = false) {
         <td title="${signal.strategy.replace(/_/g, ' ')}">${formatStrategyName(signal.strategy)}</td>
         <td><span class="${badgeClass}">${decisionIcon} ${signal.decision}</span></td>
         <td class="col-price">Rp ${price}</td>
-        <td class="text-right"><span class="${changeClass}">${changeSign}${change}%</span></td>
         <td class="text-right">
             <span class="${confidenceClass}" title="${confidenceLabel} Confidence (${confidence}%)">${confidenceIcon} ${confidence}%</span>
+        </td>
+        <td class="text-center">
+            ${renderOutcome(signal)}
         </td>
         <td class="reason-cell" title="${zScoreInfo}">
             ${enhancedReason}
@@ -310,3 +315,62 @@ function getTimeAgo(date) {
 
     return date.toLocaleDateString('id-ID', { month: 'short', day: 'numeric' });
 }
+
+function renderOutcome(signal) {
+    if (!signal.outcome) {
+        return `<span class="outcome-badge outcome-pending">PENDING</span>`;
+    }
+
+    const profit = signal.profit_loss_pct || 0;
+    const outcomeClass = signal.outcome === 'WIN' ? 'outcome-win' : 'outcome-loss';
+    const sign = profit >= 0 ? '+' : '';
+
+    return `<span class="outcome-badge ${outcomeClass}">${signal.outcome} (${sign}${profit.toFixed(1)}%)</span>`;
+}
+
+async function fetchSignalHistory() {
+    const symbol = document.getElementById('symbol-filter-input')?.value || '';
+    const loading = safeGetElement('signals-loading', 'FetchHistory');
+    const tbody = safeGetElement('signals-table-body', 'FetchHistory');
+    const placeholder = safeGetElement('signals-placeholder', 'FetchHistory');
+
+    if (!tbody) return;
+
+    if (loading) loading.style.display = 'flex';
+    if (placeholder) placeholder.style.display = 'none';
+    tbody.innerHTML = '';
+    renderedSignalIds.clear();
+
+    try {
+        const url = `/api/signals/history?limit=50${symbol ? `&symbol=${symbol.toUpperCase()}` : ''}`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (loading) loading.style.display = 'none';
+
+        if (!data || data.length === 0) {
+            if (placeholder) placeholder.style.display = 'flex';
+            return;
+        }
+
+        data.forEach(signal => {
+            renderSignalRow(signal, true);
+        });
+
+    } catch (err) {
+        console.error("Failed to fetch history:", err);
+        if (loading) loading.style.display = 'none';
+    }
+}
+
+// Live Outcome Polling
+setInterval(async () => {
+    // Collect all pending signals in the current DOM
+    const pendingBadges = document.querySelectorAll('.outcome-pending');
+    if (pendingBadges.length === 0) return;
+
+    // If we are not in HISTORY mode, we can refresh current signals to update outcomes
+    if (activeStrategyFilter !== 'HISTORY') {
+        fetchInitialSignals();
+    }
+}, 30000); // Poll every 30s to avoid excessive load

@@ -1,0 +1,306 @@
+package api
+
+// Phase 1 Enhancement Handlers
+
+import (
+	"encoding/json"
+	"net/http"
+	"strconv"
+	"time"
+)
+
+// handleGetSignalHistory returns historical trading signals with filters
+func (s *Server) handleGetSignalHistory(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+
+	symbol := query.Get("symbol")
+	strategy := query.Get("strategy")
+	decision := query.Get("decision")
+
+	limit := 100
+	if l := query.Get("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
+			limit = parsed
+			if limit > 500 {
+				limit = 500
+			}
+		}
+	}
+
+	var startTime, endTime time.Time
+	if start := query.Get("start"); start != "" {
+		startTime, _ = time.Parse(time.RFC3339, start)
+	}
+	if end := query.Get("end"); end != "" {
+		endTime, _ = time.Parse(time.RFC3339, end)
+	}
+
+	signals, err := s.repo.GetTradingSignals(symbol, strategy, decision, startTime, endTime, limit)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"signals": signals,
+		"count":   len(signals),
+	})
+}
+
+// handleGetSignalPerformance returns performance statistics for strategies
+func (s *Server) handleGetSignalPerformance(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+
+	strategy := query.Get("strategy")
+	symbol := query.Get("symbol")
+
+	stats, err := s.repo.GetSignalPerformanceStats(strategy, symbol)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(stats)
+}
+
+// handleGetSignalOutcome returns outcome for a specific signal
+func (s *Server) handleGetSignalOutcome(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid signal ID", http.StatusBadRequest)
+		return
+	}
+
+	outcome, err := s.repo.GetSignalOutcomeBySignalID(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if outcome == nil {
+		http.Error(w, "Outcome not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(outcome)
+}
+
+// handleGetWhaleFollowup returns followup data for a whale alert
+func (s *Server) handleGetWhaleFollowup(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid whale alert ID", http.StatusBadRequest)
+		return
+	}
+
+	followup, err := s.repo.GetWhaleFollowup(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if followup == nil {
+		http.Error(w, "Followup not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(followup)
+}
+
+// handleGetOrderFlow returns order flow imbalance data
+func (s *Server) handleGetOrderFlow(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+
+	symbol := query.Get("symbol")
+
+	limit := 100
+	if l := query.Get("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
+			limit = parsed
+			if limit > 500 {
+				limit = 500
+			}
+		}
+	}
+
+	var startTime, endTime time.Time
+	if start := query.Get("start"); start != "" {
+		startTime, _ = time.Parse(time.RFC3339, start)
+	}
+	if end := query.Get("end"); end != "" {
+		endTime, _ = time.Parse(time.RFC3339, end)
+	}
+
+	flows, err := s.repo.GetOrderFlowImbalance(symbol, startTime, endTime, limit)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"flows": flows,
+		"count": len(flows),
+	})
+}
+
+// Phase 2 Enhancement Handlers
+
+// handleGetStatisticalBaselines returns latest statistical baselines for a symbol
+func (s *Server) handleGetStatisticalBaselines(w http.ResponseWriter, r *http.Request) {
+	symbol := r.URL.Query().Get("symbol")
+	if symbol == "" {
+		http.Error(w, "Symbol is required", http.StatusBadRequest)
+		return
+	}
+
+	baseline, err := s.repo.GetLatestBaseline(symbol)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(baseline)
+}
+
+// handleGetMarketRegimes returns latest market regimes for a symbol
+func (s *Server) handleGetMarketRegimes(w http.ResponseWriter, r *http.Request) {
+	symbol := r.URL.Query().Get("symbol")
+	if symbol == "" {
+		http.Error(w, "Symbol is required", http.StatusBadRequest)
+		return
+	}
+
+	regime, err := s.repo.GetLatestRegime(symbol)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(regime)
+}
+
+// handleGetDetectedPatterns returns recently detected patterns
+func (s *Server) handleGetDetectedPatterns(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	symbol := query.Get("symbol")
+
+	since := time.Now().Add(-24 * time.Hour)
+	if s := query.Get("since"); s != "" {
+		if t, err := time.Parse(time.RFC3339, s); err == nil {
+			since = t
+		}
+	}
+
+	patterns, err := s.repo.GetRecentPatterns(symbol, since)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"patterns": patterns,
+		"count":    len(patterns),
+	})
+}
+
+// handleGetCandles returns candles for a specific timeframe
+func (s *Server) handleGetCandles(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	symbol := query.Get("symbol")
+	timeframe := query.Get("timeframe") // 1min, 5min, 15min, 1hour, 1day
+
+	if symbol == "" || timeframe == "" {
+		http.Error(w, "Symbol and timeframe are required", http.StatusBadRequest)
+		return
+	}
+
+	limit := 100
+	if l := query.Get("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+
+	candles, err := s.repo.GetCandlesByTimeframe(timeframe, symbol, limit)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"candles":   candles,
+		"symbol":    symbol,
+		"timeframe": timeframe,
+		"count":     len(candles),
+	})
+}
+
+// Phase 3 Enhancement Handlers
+
+// handleGetStockCorrelations returns correlations for a symbol
+func (s *Server) handleGetStockCorrelations(w http.ResponseWriter, r *http.Request) {
+	symbol := r.URL.Query().Get("symbol")
+	if symbol == "" {
+		http.Error(w, "Symbol is required", http.StatusBadRequest)
+		return
+	}
+
+	limit := 20
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+
+	correlations, err := s.repo.GetStockCorrelations(symbol, limit)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"symbol":       symbol,
+		"correlations": correlations,
+		"count":        len(correlations),
+	})
+}
+
+// handleGetDailyPerformance returns daily strategy performance analytics
+func (s *Server) handleGetDailyPerformance(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	strategy := query.Get("strategy")
+	symbol := query.Get("symbol")
+
+	limit := 30
+	if l := query.Get("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+
+	performance, err := s.repo.GetDailyStrategyPerformance(strategy, symbol, limit)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"performance": performance,
+		"strategy":    strategy,
+		"symbol":      symbol,
+		"count":       len(performance),
+	})
+}

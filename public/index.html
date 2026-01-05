@@ -1,54 +1,61 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Stockbit Whale Radar 🐋</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="stylesheet" href="style.css?v=10" />
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  </head>
-  <body>
-    <div class="background-glow"></div>
 
-    <header>
-      <div class="logo">
-        <span class="icon">🐋</span>
-        <div>
-          <h1>Whale Radar</h1>
-          <span class="subtitle">Real-time Big Fund Flow</span>
-        </div>
-      </div>
-      <div class="stats-ticker" id="stats-ticker">
-        <div class="stat-item">
-          <span class="label">Total Alerts</span>
-          <span class="value" id="total-alerts">0</span>
-        </div>
-        <div class="stat-item">
-          <span class="label">Today's Volume</span>
-          <span class="value" id="total-volume">0</span>
-        </div>
-        <div class="stat-item">
-          <span class="label">Largest Value</span>
-          <span class="value" id="largest-value">0</span>
-        </div>
-      </div>
-      <div class="header-actions">
-        <button id="help-btn" class="help-button" title="Panduan Penggunaan">
-          <span class="help-icon">❓</span>
-        </button>
-        <div class="status-indicator"><span class="dot"></span> Live</div>
-      </div>
-    </header>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stockbit Whale Radar 🐋</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css?v=10" />
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
 
-    <main>
-      <!-- Enhanced Filter Controls -->
-      <div class="controls-section">
+<body>
+  <div class="background-glow"></div>
+
+  <header>
+    <div class="logo">
+      <span class="icon">🐋</span>
+      <div>
+        <h1>Whale Radar</h1>
+        <span class="subtitle">Real-time Big Fund Flow</span>
+      </div>
+    </div>
+    <div class="stats-ticker" id="stats-ticker">
+      <div class="stat-item">
+        <span class="label">Total Alerts</span>
+        <span class="value" id="total-alerts">0</span>
+      </div>
+      <div class="stat-item">
+        <span class="label">Today's Volume</span>
+        <span class="value" id="total-volume">0</span>
+      </div>
+      <div class="stat-item">
+        <span class="label">Largest Value</span>
+        <span class="value" id="largest-value">0</span>
+      </div>
+      <div class="stat-item">
+        <span class="label">System Win Rate</span>
+        <span class="value" id="global-win-rate"
+          style="background: linear-gradient(135deg, var(--accent-gold) 0%, #b8860b 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">0%</span>
+      </div>
+    </div>
+    <div class="header-actions">
+      <div id="market-regime-container" class="regime-badge-container">
+        <span id="market-regime" class="status-badge" style="display:none;">RANGING</span>
+      </div>
+      <button id="help-btn" class="help-button" title="Panduan Penggunaan">
+        <span class="help-icon">❓</span>
+      </button>
+      <div class="status-indicator"><span class="dot"></span> Live</div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Enhanced Filter Controls -->
+    <div class="controls-section">
       <div class="controls-section">
         <div class="section-title-small">
           <span class="icon-accent">🔍</span>
@@ -60,11 +67,7 @@
               <span class="label-icon">🔎</span>
               Symbol
             </label>
-            <input
-              type="text"
-              id="search"
-              placeholder="Search Symbol (e.g. BBCA)..."
-            />
+            <input type="text" id="search" placeholder="Search Symbol (e.g. BBCA)..." />
           </div>
           <div class="control-group">
             <label for="filter-action" class="control-label">
@@ -128,23 +131,26 @@
             <p class="section-subtitle">Real-time large transaction monitoring</p>
           </div>
         </div>
-        
+
         <div class="table-container">
           <table>
-              <thead>
-                  <tr>
-                      <th><span class="th-icon">⏰</span> Time</th>
-                      <th><span class="th-icon">📈</span> Symbol</th>
-                      <th><span class="th-icon">⚡</span> Action</th>
-                      <th><span class="th-icon">💵</span> Price</th>
-                      <th class="text-right"><span class="th-icon">💰</span> Value</th>
-                      <th class="text-right"><span class="th-icon">📊</span> Volume</th>
-                      <th><span class="th-icon">ℹ️</span> Details</th>
-                  </tr>
-              </thead>
-              <tbody id="alerts-table-body">
-                  <!-- Rows injected here -->
-              </tbody>
+            <thead>
+              <tr>
+                <th><span class="th-icon">⏰</span> Time</th>
+                <th><span class="th-icon">📈</span> Symbol <span
+                    style="font-size: 0.6em; color: var(--text-secondary); cursor: pointer;"
+                    title="Click any symbol to see technical details">(Click for stats)</span></th>
+                <th><span class="th-icon">⚡</span> Action</th>
+                <th><span class="th-icon">💵</span> Price</th>
+                <th class="text-right"><span class="th-icon">💰</span> Value</th>
+                <th><span class="th-icon">📊</span> Volume</th>
+                <th><span class="th-icon">ℹ️</span> Details <span
+                    style="font-size: 0.6em; color: var(--text-secondary);">(Click for followup)</span></th>
+              </tr>
+            </thead>
+            <tbody id="alerts-table-body">
+              <!-- Rows injected here -->
+            </tbody>
           </table>
           <div id="loading" class="loading">
             <div class="loading-spinner"></div>
@@ -164,11 +170,11 @@
             <p class="section-subtitle">AI-powered trading signals and pattern detection</p>
           </div>
           <div class="strategy-status">
-            <span id="strategy-live-indicator" class="dot"></span> 
+            <span id="strategy-live-indicator" class="dot"></span>
             <span id="strategy-connection-status">Connecting...</span>
           </div>
         </div>
-        
+
         <div class="strategy-tabs">
           <button class="strategy-tab active" data-strategy="ALL">
             <span class="tab-icon">📋</span>
@@ -186,8 +192,12 @@
             <span class="tab-icon">🛡️</span>
             Fakeout Filter
           </button>
+          <button class="strategy-tab" data-strategy="HISTORY">
+            <span class="tab-icon">📜</span>
+            History Archive
+          </button>
         </div>
-        
+
         <div class="strategy-content">
           <div class="table-container">
             <table id="signals-table">
@@ -199,7 +209,8 @@
                   <th><span class="th-icon">⚡</span> Action</th>
                   <th><span class="th-icon">💵</span> Price</th>
                   <th class="text-right"><span class="th-icon">📈</span> Change</th>
-                  <th class="text-right"><span class="th-icon">🎲</span> Confidence</th>
+                  <th><span class="th-icon">🎲</span> Confidence</th>
+                  <th><span class="th-icon">🏆</span> Outcome</th>
                   <th><span class="th-icon">💡</span> Reason</th>
                 </tr>
               </thead>
@@ -230,7 +241,7 @@
             <p class="section-subtitle">Top 20 masing-masing (24 jam terakhir)</p>
           </div>
         </div>
-        
+
         <!-- 2 Column Grid Layout -->
         <div class="summary-grid">
           <!-- Top 20 Accumulation Table -->
@@ -300,6 +311,98 @@
         </div>
       </div>
 
+      <!-- NEW: Market Intelligence & Analytics Hub -->
+      <div class="analytics-row">
+        <!-- Market Intelligence Section -->
+        <div class="intel-section" id="market-intelligence">
+          <div class="section-header">
+            <div class="header-content">
+              <h2>
+                <span class="section-icon">🧠</span>
+                Market Intelligence
+              </h2>
+              <p class="section-subtitle">Real-time regime and statistical baselines</p>
+            </div>
+          </div>
+          <div class="intel-grid">
+            <div class="intel-card" id="regime-card">
+              <span class="card-label">CURRENT REGIME</span>
+              <div class="regime-display" id="intel-regime">STABLE</div>
+              <div class="regime-meta" id="intel-regime-desc">Identifying market conditions...</div>
+            </div>
+            <div class="intel-card" id="baseline-card">
+              <span class="card-label">STATISTICAL BASELINE</span>
+              <div class="baseline-stats">
+                <div class="b-stat"><span>Avg Vol:</span> <strong id="b-avg-vol">-</strong></div>
+                <div class="b-stat"><span>Std Dev:</span> <strong id="b-std-dev">-</strong></div>
+              </div>
+            </div>
+            <div class="intel-card" id="orderflow-card">
+              <span class="card-label">ORDER FLOW PRESSURE</span>
+              <div class="pressure-bar-container">
+                <div class="pressure-bar">
+                  <div id="buy-pressure-fill" class="pressure-fill buy" style="width: 50%"></div>
+                  <div id="sell-pressure-fill" class="pressure-fill sell" style="width: 50%"></div>
+                </div>
+                <div class="pressure-labels">
+                  <span id="buy-pressure-pct">50% BUY</span>
+                  <span id="sell-pressure-pct">50% SELL</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="pattern-feed">
+            <h4>Recent Patterns</h4>
+            <div id="pattern-list" class="pattern-scroll">
+              <div class="placeholder-small">Waiting for patterns...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Correlations & Performance Section -->
+        <div class="performance-section" id="analytics-hub">
+          <div class="section-header">
+            <div class="header-content">
+              <h2>
+                <span class="section-icon">📈</span>
+                Advanced Analytics
+              </h2>
+              <p class="section-subtitle">Relationship and performance metrics</p>
+            </div>
+          </div>
+          <div class="stats-tabs">
+            <button class="s-tab active" data-target="correlations-view">Correlations</button>
+            <button class="s-tab" data-target="performance-view">Strategy Growth</button>
+          </div>
+          <div class="tab-viewport">
+            <!-- Correlation View -->
+            <div id="correlations-view" class="tab-panel active">
+              <div class="correlation-grid" id="correlation-container">
+                <div class="placeholder-small">Search a symbol to see correlations</div>
+              </div>
+            </div>
+            <!-- Performance View -->
+            <div id="performance-view" class="tab-panel">
+              <div class="mini-table-container">
+                <table id="daily-performance-table">
+                  <thead>
+                    <tr>
+                      <th>Day</th>
+                      <th>Strategy</th>
+                      <th class="text-right">Win Rate</th>
+                      <th class="text-right">Profit %</th>
+                    </tr>
+                  </thead>
+                  <tbody id="daily-performance-body">
+                    <!-- Rows injected here -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Pattern Analysis Section -->
       <div class="pattern-analysis-section" id="pattern-analysis">
         <div class="pattern-header">
@@ -308,7 +411,7 @@
             <span id="llm-status" class="status-badge">Ready</span>
           </div>
         </div>
-        
+
         <div class="pattern-tabs">
           <button class="tab-btn active" data-type="accumulation">
             <span class="tab-icon">📈</span>
@@ -331,15 +434,10 @@
         <div class="pattern-content">
           <!-- Symbol Input (for Symbol tab) -->
           <div id="symbol-input-container" class="symbol-input-container" style="display:none;">
-            <input 
-              type="text" 
-              id="symbol-input" 
-              placeholder="Masukkan kode saham (contoh: BBCA, TLKM)" 
-              maxlength="4"
-              style="text-transform: uppercase;"
-            />
+            <input type="text" id="symbol-input" placeholder="Masukkan kode saham (contoh: BBCA, TLKM)" maxlength="4"
+              style="text-transform: uppercase;" />
           </div>
-          
+
           <!-- LLM Stream Output (for other tabs) -->
           <div id="llm-stream-output" class="stream-output">
             <div class="placeholder">
@@ -359,105 +457,170 @@
       </div>
 
 
+    </div>
+  </main>
+
+  <!-- Help Modal -->
+  <div id="help-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>🎯 Panduan Whale Radar</h2>
+        <button class="modal-close" id="modal-close">&times;</button>
       </div>
-    </main>
+      <div class="modal-body">
+        <section class="help-section">
+          <h3>📖 Apa itu Whale Radar?</h3>
+          <p>Dashboard real-time yang memantau transaksi saham besar ("whale" / ikan paus) di pasar modal Indonesia.
+            Sistem ini mendeteksi aktivitas fund besar yang bisa menjadi indikator pergerakan harga.</p>
+        </section>
 
-    <!-- Help Modal -->
-    <div id="help-modal" class="modal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h2>🎯 Panduan Whale Radar</h2>
-          <button class="modal-close" id="modal-close">&times;</button>
-        </div>
-        <div class="modal-body">
-          <section class="help-section">
-            <h3>📖 Apa itu Whale Radar?</h3>
-            <p>Dashboard real-time yang memantau transaksi saham besar ("whale" / ikan paus) di pasar modal Indonesia. Sistem ini mendeteksi aktivitas fund besar yang bisa menjadi indikator pergerakan harga.</p>
-          </section>
+        <section class="help-section">
+          <h3>🐋 Whale Alerts Feed</h3>
+          <p>Menampilkan transaksi besar secara real-time dengan fitur filter:</p>
+          <ul>
+            <li><strong>Symbol</strong>: Cari kode saham tertentu (contoh: BBCA, TLKM)</li>
+            <li><strong>Action</strong>: Filter BUY (akumulasi) atau SELL (distribusi)</li>
+            <li><strong>Min Value</strong>: Filter berdasarkan nilai transaksi minimum</li>
+            <li><strong>Board Type</strong>: RG (Regular), TN (Tunai), NG (Negosiasi)</li>
+          </ul>
+          <p><strong>Informasi yang ditampilkan:</strong> Waktu, kode saham, aksi, harga, total nilai, volume lot, dan
+            anomali (jika ada).</p>
+        </section>
 
-          <section class="help-section">
-            <h3>🐋 Whale Alerts Feed</h3>
-            <p>Menampilkan transaksi besar secara real-time dengan fitur filter:</p>
-            <ul>
-              <li><strong>Symbol</strong>: Cari kode saham tertentu (contoh: BBCA, TLKM)</li>
-              <li><strong>Action</strong>: Filter BUY (akumulasi) atau SELL (distribusi)</li>
-              <li><strong>Min Value</strong>: Filter berdasarkan nilai transaksi minimum</li>
-              <li><strong>Board Type</strong>: RG (Regular), TN (Tunai), NG (Negosiasi)</li>
-            </ul>
-            <p><strong>Informasi yang ditampilkan:</strong> Waktu, kode saham, aksi, harga, total nilai, volume lot, dan anomali (jika ada).</p>
-          </section>
+        <section class="help-section">
+          <h3>🎯 Trading Strategies</h3>
+          <p>Sinyal trading berbasis AI dengan 3 strategi utama:</p>
+          <ul>
+            <li><strong>Volume Breakout</strong>: Deteksi lonjakan volume yang signifikan</li>
+            <li><strong>Mean Reversion</strong>: Identifikasi saham yang oversold/overbought</li>
+            <li><strong>Fakeout Filter</strong>: Menghindari sinyal palsu dengan validasi tambahan</li>
+          </ul>
+          <p>Setiap sinyal menampilkan confidence level, rekomendasi aksi, dan reasoning dari AI.</p>
+        </section>
 
-          <section class="help-section">
-            <h3>🎯 Trading Strategies</h3>
-            <p>Sinyal trading berbasis AI dengan 3 strategi utama:</p>
-            <ul>
-              <li><strong>Volume Breakout</strong>: Deteksi lonjakan volume yang signifikan</li>
-              <li><strong>Mean Reversion</strong>: Identifikasi saham yang oversold/overbought</li>
-              <li><strong>Fakeout Filter</strong>: Menghindari sinyal palsu dengan validasi tambahan</li>
-            </ul>
-            <p>Setiap sinyal menampilkan confidence level, rekomendasi aksi, dan reasoning dari AI.</p>
-          </section>
+        <section class="help-section">
+          <h3>📊 Akumulasi vs Distribusi</h3>
+          <p>Menampilkan Top 20 saham dengan aktivitas tertinggi dalam 24 jam terakhir:</p>
+          <ul>
+            <li><strong>Akumulasi</strong>: Saham dengan pembelian besar (potensi naik)</li>
+            <li><strong>Distribusi</strong>: Saham dengan penjualan besar (potensi turun)</li>
+          </ul>
+          <p>Data mencakup persentase BUY/SELL, net value, dan total alerts per saham.</p>
+        </section>
 
-          <section class="help-section">
-            <h3>📊 Akumulasi vs Distribusi</h3>
-            <p>Menampilkan Top 20 saham dengan aktivitas tertinggi dalam 24 jam terakhir:</p>
-            <ul>
-              <li><strong>Akumulasi</strong>: Saham dengan pembelian besar (potensi naik)</li>
-              <li><strong>Distribusi</strong>: Saham dengan penjualan besar (potensi turun)</li>
-            </ul>
-            <p>Data mencakup persentase BUY/SELL, net value, dan total alerts per saham.</p>
-          </section>
+        <section class="help-section">
+          <h3>🤖 AI Pattern Analysis</h3>
+          <p>Analisis pola real-time menggunakan AI dengan 4 jenis analisis:</p>
+          <ul>
+            <li><strong>Akumulasi</strong>: Deteksi pola pembelian masif</li>
+            <li><strong>Anomali</strong>: Identifikasi aktivitas tidak normal</li>
+            <li><strong>Timing</strong>: Analisis waktu trading optimal</li>
+            <li><strong>Symbol</strong>: Analisis mendalam untuk saham tertentu</li>
+          </ul>
+        </section>
 
-          <section class="help-section">
-            <h3>🤖 AI Pattern Analysis</h3>
-            <p>Analisis pola real-time menggunakan AI dengan 4 jenis analisis:</p>
-            <ul>
-              <li><strong>Akumulasi</strong>: Deteksi pola pembelian masif</li>
-              <li><strong>Anomali</strong>: Identifikasi aktivitas tidak normal</li>
-              <li><strong>Timing</strong>: Analisis waktu trading optimal</li>
-              <li><strong>Symbol</strong>: Analisis mendalam untuk saham tertentu</li>
-            </ul>
-          </section>
+        <section class="help-section">
+          <h3>💡 Tips Penggunaan</h3>
+          <ul>
+            <li><strong>Scalper</strong>: Fokus ke Whale Alerts Feed + filter RG board</li>
+            <li><strong>Swing Trader</strong>: Gunakan Trading Strategies + Akumulasi/Distribusi</li>
+            <li><strong>Research</strong>: Manfaatkan AI Pattern Analysis tab Symbol</li>
+            <li><strong>Deteksi Bandarmain</strong>: Perhatikan kolom "Anomali" pada whale alerts</li>
+          </ul>
+        </section>
 
-          <section class="help-section">
-            <h3>💡 Tips Penggunaan</h3>
-            <ul>
-              <li><strong>Scalper</strong>: Fokus ke Whale Alerts Feed + filter RG board</li>
-              <li><strong>Swing Trader</strong>: Gunakan Trading Strategies + Akumulasi/Distribusi</li>
-              <li><strong>Research</strong>: Manfaatkan AI Pattern Analysis tab Symbol</li>
-              <li><strong>Deteksi Bandarmain</strong>: Perhatikan kolom "Anomali" pada whale alerts</li>
-            </ul>
-          </section>
-
-          <section class="help-section">
-            <h3>🎨 Code Warna</h3>
-            <div class="color-guide">
-              <div class="color-item">
-                <span class="badge buy">BUY</span>
-                <span>Akumulasi / Pembelian besar</span>
-              </div>
-              <div class="color-item">
-                <span class="badge sell">SELL</span>
-                <span>Distribusi / Penjualan besar</span>
-              </div>
-              <div class="color-item">
-                <span class="table-anomaly">ANOMALY</span>
-                <span>Pola tidak normal terdeteksi</span>
-              </div>
+        <section class="help-section">
+          <h3>🎨 Code Warna</h3>
+          <div class="color-guide">
+            <div class="color-item">
+              <span class="badge buy">BUY</span>
+              <span>Akumulasi / Pembelian besar</span>
             </div>
-          </section>
+            <div class="color-item">
+              <span class="badge sell">SELL</span>
+              <span>Distribusi / Penjualan besar</span>
+            </div>
+            <div class="color-item">
+              <span class="table-anomaly">ANOMALY</span>
+              <span>Pola tidak normal terdeteksi</span>
+            </div>
+          </div>
+        </section>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-primary" id="modal-got-it">Mengerti!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Candle Viewer Modal -->
+  <div id="candle-modal" class="modal">
+    <div class="modal-content" style="max-width: 900px;">
+      <div class="modal-header">
+        <h2 id="candle-modal-title">📉 Market Details: SYMBOL</h2>
+        <button class="modal-close" id="candle-modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="candle-tabs">
+          <button class="c-tab active" data-timeframe="5m">5m</button>
+          <button class="c-tab" data-timeframe="15m">15m</button>
+          <button class="c-tab" data-timeframe="1h">1h</button>
+          <button class="c-tab" data-timeframe="1d">1d</button>
         </div>
-        <div class="modal-footer">
-          <button class="btn-primary" id="modal-got-it">Mengerti!</button>
+        <div class="candle-viewport">
+          <!-- Simple Candle List -->
+          <div class="mini-table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th class="text-right">Open</th>
+                  <th class="text-right">High</th>
+                  <th class="text-right">Low</th>
+                  <th class="text-right">Close</th>
+                  <th class="text-right">Vol</th>
+                </tr>
+              </thead>
+              <tbody id="candle-list-body">
+                <!-- Rows injected here -->
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
+  </div>
 
-    <footer>
-      <p>Whale Analysis System &copy; 2025</p>
-    </footer>
+  <!-- Whale Followup Modal -->
+  <div id="followup-modal" class="modal">
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-header">
+        <h2 id="followup-title">🐳 Whale Alert Followup</h2>
+        <button class="modal-close" id="followup-modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="followup-loading" class="loading-small">Menganalisis pergerakan harga...</div>
+        <div id="followup-content" style="display:none;">
+          <div class="followup-stats">
+            <div class="f-stat"><span>Alert Price:</span> <strong id="f-alert-price">-</strong></div>
+            <div class="f-stat"><span>Current Price:</span> <strong id="f-current-price">-</strong></div>
+            <div class="f-stat"><span>Price Change:</span> <strong id="f-price-change">-</strong></div>
+            <div class="f-stat"><span>Time Elapsed:</span> <strong id="f-time-elapsed">-</strong></div>
+          </div>
+          <div id="followup-analysis" class="followup-box">
+            <!-- Analysis text here -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-    <script src="script.js?v=11"></script>
-    <script src="strategy.js?v=10"></script>
-  </body>
+  <footer>
+    <p>Whale Analysis System &copy; 2025</p>
+  </footer>
+
+  <script src="script.js?v=11"></script>
+  <script src="strategy.js?v=10"></script>
+</body>
+
 </html>

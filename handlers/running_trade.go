@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"stockbit-haka-haki/cache"
@@ -36,16 +37,46 @@ type RunningTradeHandler struct {
 	webhookManager *notifications.WebhookManager // Manager untuk notifikasi webhook
 	redis          *cache.RedisClient            // Redis client for config caching
 	broker         *realtime.Broker              // Realtime SSE broker
+
+	// Order Flow Aggregation (Phase 1 Enhancement)
+	flowAggregator *OrderFlowAggregator
+}
+
+// OrderFlowAggregator aggregates buy/sell volume per minute
+type OrderFlowAggregator struct {
+	repo          *database.TradeRepository
+	currentBucket time.Time
+	flows         map[string]*OrderFlowData // key: stock_symbol
+	mu            sync.RWMutex
+}
+
+// OrderFlowData holds aggregated order flow for a stock
+type OrderFlowData struct {
+	StockSymbol    string
+	BuyVolumeLots  float64
+	SellVolumeLots float64
+	BuyTradeCount  int
+	SellTradeCount int
+	BuyValue       float64
+	SellValue      float64
 }
 
 // NewRunningTradeHandler membuat instance handler baru
 func NewRunningTradeHandler(tradeRepo *database.TradeRepository, webhookManager *notifications.WebhookManager, redis *cache.RedisClient, broker *realtime.Broker) *RunningTradeHandler {
-	return &RunningTradeHandler{
+	handler := &RunningTradeHandler{
 		tradeRepo:      tradeRepo,
 		webhookManager: webhookManager,
 		redis:          redis,
 		broker:         broker,
 	}
+
+	// Initialize order flow aggregator
+	if tradeRepo != nil {
+		handler.flowAggregator = NewOrderFlowAggregator(tradeRepo)
+		go handler.flowAggregator.Start() // Start background aggregation
+	}
+
+	return handler
 }
 
 // Handle adalah method legacy - tidak digunakan dengan implementasi protobuf baru
@@ -199,6 +230,11 @@ func (h *RunningTradeHandler) ProcessTrade(t *pb.RunningTrade) {
 
 			// Log unexpected errors
 			log.Printf("⚠️  Failed to save trade to database: %v", err)
+		}
+
+		// Add to order flow aggregation (Phase 1 Enhancement)
+		if h.flowAggregator != nil {
+			h.flowAggregator.AddTrade(t.Stock, actionDb, volumeLot, totalAmount)
 		}
 
 		// 🐋 WHALE DETECTION - STATISTICAL MODEL
@@ -393,4 +429,122 @@ func containsAny(s string, substrs []string) bool {
 		}
 	}
 	return false
+}
+
+// ============================================================================
+// Order Flow Aggregation Implementation (Phase 1 Enhancement)
+// ============================================================================
+
+// NewOrderFlowAggregator creates a new order flow aggregator
+func NewOrderFlowAggregator(repo *database.TradeRepository) *OrderFlowAggregator {
+	return &OrderFlowAggregator{
+		repo:          repo,
+		currentBucket: time.Now().Truncate(time.Minute),
+		flows:         make(map[string]*OrderFlowData),
+	}
+}
+
+// Start begins the aggregation loop
+func (ofa *OrderFlowAggregator) Start() {
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+
+	log.Println("📊 Order Flow Aggregator started")
+
+	for range ticker.C {
+		ofa.flushAndReset()
+	}
+}
+
+// AddTrade adds a trade to the current minute's aggregation
+func (ofa *OrderFlowAggregator) AddTrade(stock, action string, volumeLots, value float64) {
+	ofa.mu.Lock()
+	defer ofa.mu.Unlock()
+
+	// Get or create flow data for this stock
+	flow, exists := ofa.flows[stock]
+	if !exists {
+		flow = &OrderFlowData{
+			StockSymbol: stock,
+		}
+		ofa.flows[stock] = flow
+	}
+
+	// Aggregate based on action
+	if action == "BUY" {
+		flow.BuyVolumeLots += volumeLots
+		flow.BuyValue += value
+		flow.BuyTradeCount++
+	} else if action == "SELL" {
+		flow.SellVolumeLots += volumeLots
+		flow.SellValue += value
+		flow.SellTradeCount++
+	}
+}
+
+// flushAndReset persists current bucket and resets for next minute
+func (ofa *OrderFlowAggregator) flushAndReset() {
+	ofa.mu.Lock()
+
+	// Save current bucket and flows
+	bucket := ofa.currentBucket
+	flows := ofa.flows
+
+	// Reset for next minute
+	ofa.currentBucket = time.Now().Truncate(time.Minute)
+	ofa.flows = make(map[string]*OrderFlowData)
+
+	ofa.mu.Unlock()
+
+	// Persist to database (async to avoid blocking)
+	if len(flows) > 0 {
+		go ofa.persistFlows(bucket, flows)
+	}
+}
+
+// persistFlows saves aggregated flows to database
+func (ofa *OrderFlowAggregator) persistFlows(bucket time.Time, flows map[string]*OrderFlowData) {
+	saved := 0
+	for _, flow := range flows {
+		// Calculate imbalance ratios
+		totalVolume := flow.BuyVolumeLots + flow.SellVolumeLots
+		totalValue := flow.BuyValue + flow.SellValue
+
+		volumeImbalance := 0.0
+		valueImbalance := 0.0
+
+		if totalVolume > 0 {
+			volumeImbalance = (flow.BuyVolumeLots - flow.SellVolumeLots) / totalVolume
+		}
+		if totalValue > 0 {
+			valueImbalance = (flow.BuyValue - flow.SellValue) / totalValue
+		}
+
+		deltaVolume := flow.BuyVolumeLots - flow.SellVolumeLots
+
+		// Create database record
+		flowDB := &database.OrderFlowImbalance{
+			Bucket:               bucket,
+			StockSymbol:          flow.StockSymbol,
+			BuyVolumeLots:        flow.BuyVolumeLots,
+			SellVolumeLots:       flow.SellVolumeLots,
+			BuyTradeCount:        flow.BuyTradeCount,
+			SellTradeCount:       flow.SellTradeCount,
+			BuyValue:             flow.BuyValue,
+			SellValue:            flow.SellValue,
+			VolumeImbalanceRatio: volumeImbalance,
+			ValueImbalanceRatio:  valueImbalance,
+			DeltaVolume:          deltaVolume,
+		}
+
+		if err := ofa.repo.SaveOrderFlowImbalance(flowDB); err != nil {
+			log.Printf("⚠️  Failed to save order flow for %s: %v", flow.StockSymbol, err)
+		} else {
+			saved++
+		}
+	}
+
+	if saved > 0 {
+		log.Printf("✅ Order flow: saved %d symbols for bucket %s", saved, bucket.Format("15:04"))
+	}
 }
