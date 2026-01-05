@@ -1049,7 +1049,7 @@ function renderDailyPerformance(performance) {
     tbody.innerHTML = '';
 
     if (!performance || performance.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" class="text-center">Belum ada data performa tercatat</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center">Belum ada data performa tercatat</td></tr>';
         return;
     }
 
@@ -1057,17 +1057,76 @@ function renderDailyPerformance(performance) {
         // Safe access for daily stats
         const signals = p.total_signals || 0;
         const wins = p.wins || 0;
+        const losses = p.losses || 0;
         const winRate = signals > 0 ? (wins / signals) * 100 : 0;
         const profit = p.total_profit_pct || 0;
         const strategyName = (p.strategy || 'Unknown').replace(/_/g, ' ');
+        const symbol = p.stock_symbol || '-';
+        
+        // Price information
+        const avgEntry = p.avg_entry_price || 0;
+        const avgExit = p.avg_exit_price || 0;
+        const avgWin = p.avg_win_pct || 0;
+        const avgLoss = p.avg_loss_pct || 0;
+        const bestTrade = p.best_trade_pct || 0;
+        const worstTrade = p.worst_trade_pct || 0;
+        const avgHolding = p.avg_holding_minutes || 0;
 
         const row = document.createElement('tr');
+        row.style.cursor = 'pointer';
+        row.title = `Klik untuk detail: ${symbol} - ${strategyName}`;
+        
+        // Format holding time
+        let holdingText = '-';
+        if (avgHolding > 0) {
+            if (avgHolding >= 60) {
+                holdingText = `${(avgHolding / 60).toFixed(1)}h`;
+            } else {
+                holdingText = `${avgHolding.toFixed(0)}m`;
+            }
+        }
+        
         row.innerHTML = `
+            <td><strong>${symbol}</strong></td>
             <td>${p.day ? new Date(p.day).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }) : '-'}</td>
-            <td>${strategyName}</td>
-            <td class="text-right ${winRate >= 50 ? 'diff-positive' : 'diff-negative'}">${winRate.toFixed(1)}%</td>
-            <td class="text-right ${profit >= 0 ? 'diff-positive' : 'diff-negative'}">${profit.toFixed(2)}%</td>
+            <td style="font-size: 0.85em;">${strategyName}</td>
+            <td class="text-right">
+                <span class="${winRate >= 50 ? 'diff-positive' : 'diff-negative'}" style="font-weight: 600;">
+                    ${winRate.toFixed(0)}%
+                </span>
+                <div style="font-size: 0.7em; color: var(--text-secondary); margin-top: 2px;">
+                    ${wins}W / ${losses}L
+                </div>
+            </td>
+            <td class="text-right">
+                <div class="${profit >= 0 ? 'diff-positive' : 'diff-negative'}" style="font-weight: 600;">
+                    ${profit >= 0 ? '+' : ''}${profit.toFixed(2)}%
+                </div>
+                <div style="font-size: 0.7em; color: var(--text-secondary); margin-top: 2px;">
+                    ${avgEntry > 0 ? formatNumber(avgEntry) : '-'}
+                </div>
+            </td>
+            <td class="text-right">
+                <span class="diff-positive" style="font-size: 0.85em;">+${avgWin.toFixed(1)}%</span><br>
+                <span class="diff-negative" style="font-size: 0.85em;">${avgLoss.toFixed(1)}%</span>
+            </td>
+            <td class="text-right">
+                <span class="diff-positive" style="font-size: 0.85em;">+${bestTrade.toFixed(1)}%</span><br>
+                <span class="diff-negative" style="font-size: 0.85em;">${worstTrade.toFixed(1)}%</span>
+            </td>
+            <td class="text-right" style="font-size: 0.85em;">
+                ${holdingText}
+            </td>
         `;
+        
+        // Add hover effect
+        row.addEventListener('mouseenter', () => {
+            row.style.backgroundColor = 'rgba(59, 130, 246, 0.05)';
+        });
+        row.addEventListener('mouseleave', () => {
+            row.style.backgroundColor = '';
+        });
+        
         tbody.appendChild(row);
     });
 }
