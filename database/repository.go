@@ -36,13 +36,13 @@ func (r *TradeRepository) InitSchema() error {
 		CREATE TABLE IF NOT EXISTS running_trades (
 			id BIGSERIAL,
 			timestamp TIMESTAMPTZ NOT NULL,
-			stock_symbol VARCHAR(10) NOT NULL,
-			action VARCHAR(10) NOT NULL,
+			stock_symbol TEXT NOT NULL,
+			action TEXT NOT NULL,
 			price DOUBLE PRECISION NOT NULL,
 			volume BIGINT NOT NULL,
 			volume_lot DOUBLE PRECISION NOT NULL,
 			total_amount DOUBLE PRECISION NOT NULL,
-			market_board VARCHAR(10) NOT NULL,
+			market_board TEXT NOT NULL,
 			change DOUBLE PRECISION,
 			trade_number BIGINT,
 			PRIMARY KEY (id, timestamp)
@@ -53,15 +53,16 @@ func (r *TradeRepository) InitSchema() error {
 
 	// Add trade_number column if it doesn't exist (migration for existing databases)
 	r.db.db.Exec(`
-		ALTER TABLE running_trades 
+		ALTER TABLE running_trades
 		ADD COLUMN IF NOT EXISTS trade_number BIGINT
 	`)
 
 	// Create unique index on (stock_symbol, trade_number, market_board, date)
 	// Trade numbers reset daily in Stockbit system, so we need to include the date
+	// Use date_trunc instead of DATE() which is not immutable
 	r.db.db.Exec(`
-		CREATE UNIQUE INDEX IF NOT EXISTS idx_running_trades_unique_trade 
-		ON running_trades (stock_symbol, trade_number, market_board, DATE(timestamp))
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_running_trades_unique_trade
+		ON running_trades (stock_symbol, trade_number, market_board, date_trunc('day', timestamp))
 		WHERE trade_number IS NOT NULL
 	`)
 
@@ -72,24 +73,262 @@ func (r *TradeRepository) InitSchema() error {
 		WHERE trade_number IS NOT NULL
 	`)
 
-	// Auto-migrate other tables
+	// Create hypertable tables manually with proper composite primary keys
+	// GORM AutoMigrate doesn't properly handle composite PKs needed for hypertables
+
+	// WhaleAlert table
+	r.db.db.Exec(`
+		CREATE TABLE IF NOT EXISTS whale_alerts (
+			id BIGSERIAL,
+			detected_at TIMESTAMPTZ NOT NULL,
+			stock_symbol TEXT NOT NULL,
+			alert_type TEXT NOT NULL,
+			action TEXT NOT NULL,
+			trigger_price DECIMAL(15,2),
+			trigger_volume_lots DECIMAL(15,2),
+			trigger_value DECIMAL(20,2),
+			pattern_duration_sec INTEGER,
+			pattern_trade_count INTEGER,
+			total_pattern_volume DECIMAL(15,2),
+			total_pattern_value DECIMAL(20,2),
+			z_score DECIMAL(10,4),
+			volume_vs_avg_pct DECIMAL(10,2),
+			avg_price DECIMAL(15,2),
+			confidence_score DECIMAL(5,2) NOT NULL,
+			market_board TEXT,
+			PRIMARY KEY (id, detected_at)
+		)
+	`)
+
+	// WhaleWebhookLog table
+	r.db.db.Exec(`
+		CREATE TABLE IF NOT EXISTS whale_webhook_logs (
+			id BIGSERIAL,
+			webhook_id INTEGER NOT NULL,
+			whale_alert_id BIGINT,
+			triggered_at TIMESTAMPTZ NOT NULL,
+			status TEXT,
+			http_status_code INTEGER,
+			response_body TEXT,
+			error_message TEXT,
+			retry_attempt INTEGER DEFAULT 0,
+			PRIMARY KEY (id, triggered_at)
+		)
+	`)
+
+	// TradingSignals table
+	r.db.db.Exec(`
+		CREATE TABLE IF NOT EXISTS trading_signals (
+			id BIGSERIAL,
+			generated_at TIMESTAMPTZ NOT NULL,
+			stock_symbol TEXT NOT NULL,
+			strategy TEXT NOT NULL,
+			decision TEXT NOT NULL,
+			confidence DECIMAL(5,2) NOT NULL,
+			trigger_price DECIMAL(15,2),
+			trigger_volume_lots DECIMAL(15,2),
+			price_z_score DECIMAL(10,4),
+			volume_z_score DECIMAL(10,4),
+			price_change_pct DECIMAL(10,4),
+			reason TEXT,
+			market_regime TEXT,
+			volume_imbalance_ratio DECIMAL(10,4),
+			whale_alert_id BIGINT,
+			PRIMARY KEY (id, generated_at)
+		)
+	`)
+
+	// SignalOutcome table
+	r.db.db.Exec(`
+		CREATE TABLE IF NOT EXISTS signal_outcomes (
+			id BIGSERIAL,
+			signal_id BIGINT NOT NULL,
+			stock_symbol TEXT NOT NULL,
+			entry_time TIMESTAMPTZ NOT NULL,
+			entry_price DECIMAL(15,2) NOT NULL,
+			entry_decision TEXT NOT NULL,
+			exit_time TIMESTAMPTZ,
+			exit_price DECIMAL(15,2),
+			exit_reason TEXT,
+			holding_period_minutes INTEGER,
+			price_change_pct DECIMAL(10,4),
+			profit_loss_pct DECIMAL(10,4),
+			max_favorable_excursion DECIMAL(10,4),
+			max_adverse_excursion DECIMAL(10,4),
+			risk_reward_ratio DECIMAL(10,4),
+			outcome_status TEXT,
+			PRIMARY KEY (id, entry_time)
+		)
+	`)
+
+	// WhaleAlertFollowup table
+	r.db.db.Exec(`
+		CREATE TABLE IF NOT EXISTS whale_alert_followup (
+			id BIGSERIAL,
+			whale_alert_id BIGINT NOT NULL,
+			stock_symbol TEXT NOT NULL,
+			alert_time TIMESTAMPTZ NOT NULL,
+			alert_price DECIMAL(15,2) NOT NULL,
+			alert_action TEXT NOT NULL,
+			price_1min_later DECIMAL(15,2),
+			price_5min_later DECIMAL(15,2),
+			price_15min_later DECIMAL(15,2),
+			price_30min_later DECIMAL(15,2),
+			price_60min_later DECIMAL(15,2),
+			price_1day_later DECIMAL(15,2),
+			change_1min_pct DECIMAL(10,4),
+			change_5min_pct DECIMAL(10,4),
+			change_15min_pct DECIMAL(10,4),
+			change_30min_pct DECIMAL(10,4),
+			change_60min_pct DECIMAL(10,4),
+			change_1day_pct DECIMAL(10,4),
+			volume_1min_later DECIMAL(15,2),
+			volume_5min_later DECIMAL(15,2),
+			volume_15min_later DECIMAL(15,2),
+			immediate_impact TEXT,
+			sustained_impact TEXT,
+			reversal_detected BOOLEAN,
+			reversal_time_minutes INTEGER,
+			PRIMARY KEY (id, alert_time)
+		)
+	`)
+
+	// OrderFlowImbalance table
+	r.db.db.Exec(`
+		CREATE TABLE IF NOT EXISTS order_flow_imbalance (
+			id BIGSERIAL,
+			bucket TIMESTAMPTZ NOT NULL,
+			stock_symbol TEXT NOT NULL,
+			buy_volume_lots DECIMAL(15,2) NOT NULL,
+			sell_volume_lots DECIMAL(15,2) NOT NULL,
+			buy_trade_count INTEGER NOT NULL,
+			sell_trade_count INTEGER NOT NULL,
+			buy_value DECIMAL(20,2),
+			sell_value DECIMAL(20,2),
+			volume_imbalance_ratio DECIMAL(10,4),
+			value_imbalance_ratio DECIMAL(10,4),
+			delta_volume DECIMAL(15,2),
+			aggressive_buy_pct DECIMAL(5,2),
+			aggressive_sell_pct DECIMAL(5,2),
+			PRIMARY KEY (id, bucket),
+			UNIQUE (bucket, stock_symbol)
+		)
+	`)
+
+	// StatisticalBaseline table
+	r.db.db.Exec(`
+		CREATE TABLE IF NOT EXISTS statistical_baselines (
+			id BIGSERIAL,
+			stock_symbol TEXT NOT NULL,
+			calculated_at TIMESTAMPTZ NOT NULL,
+			lookback_hours INTEGER NOT NULL,
+			sample_size INTEGER,
+			mean_price DECIMAL(15,2),
+			std_dev_price DECIMAL(15,4),
+			median_price DECIMAL(15,2),
+			price_p25 DECIMAL(15,2),
+			price_p75 DECIMAL(15,2),
+			mean_volume_lots DECIMAL(15,2),
+			std_dev_volume DECIMAL(15,4),
+			median_volume_lots DECIMAL(15,2),
+			volume_p25 DECIMAL(15,2),
+			volume_p75 DECIMAL(15,2),
+			mean_value DECIMAL(20,2),
+			std_dev_value DECIMAL(20,4),
+			PRIMARY KEY (id, calculated_at)
+		)
+	`)
+
+	// MarketRegime table
+	r.db.db.Exec(`
+		CREATE TABLE IF NOT EXISTS market_regimes (
+			id BIGSERIAL,
+			stock_symbol TEXT NOT NULL,
+			detected_at TIMESTAMPTZ NOT NULL,
+			lookback_periods INTEGER NOT NULL,
+			regime TEXT NOT NULL,
+			confidence DECIMAL(5,4),
+			adx DECIMAL(10,4),
+			atr DECIMAL(15,4),
+			bollinger_width DECIMAL(10,4),
+			price_change_pct DECIMAL(10,4),
+			volatility DECIMAL(10,4),
+			PRIMARY KEY (id, detected_at)
+		)
+	`)
+
+	// DetectedPattern table
+	r.db.db.Exec(`
+		CREATE TABLE IF NOT EXISTS detected_patterns (
+			id BIGSERIAL,
+			stock_symbol TEXT NOT NULL,
+			detected_at TIMESTAMPTZ NOT NULL,
+			pattern_type TEXT NOT NULL,
+			pattern_direction TEXT,
+			confidence DECIMAL(5,4),
+			pattern_start TIMESTAMPTZ,
+			pattern_end TIMESTAMPTZ,
+			price_range DECIMAL(15,2),
+			volume_profile TEXT,
+			breakout_level DECIMAL(15,2),
+			target_price DECIMAL(15,2),
+			stop_loss DECIMAL(15,2),
+			outcome TEXT,
+			actual_breakout BOOLEAN,
+			max_move_pct DECIMAL(10,4),
+			llm_analysis TEXT,
+			PRIMARY KEY (id, detected_at)
+		)
+	`)
+
+	// StockCorrelation table
+	r.db.db.Exec(`
+		CREATE TABLE IF NOT EXISTS stock_correlations (
+			id BIGSERIAL,
+			stock_a TEXT NOT NULL,
+			stock_b TEXT NOT NULL,
+			calculated_at TIMESTAMPTZ NOT NULL,
+			correlation_coefficient DOUBLE PRECISION,
+			lookback_days INTEGER,
+			period TEXT,
+			PRIMARY KEY (id, calculated_at)
+		)
+	`)
+
+	// Create indexes after tables
+	r.db.db.Exec(`CREATE INDEX IF NOT EXISTS idx_whale_alerts_symbol ON whale_alerts(stock_symbol)`)
+	r.db.db.Exec(`CREATE INDEX IF NOT EXISTS idx_whale_alerts_detected ON whale_alerts(detected_at)`)
+	r.db.db.Exec(`CREATE INDEX IF NOT EXISTS idx_whale_webhook_logs_webhook ON whale_webhook_logs(webhook_id)`)
+	r.db.db.Exec(`CREATE INDEX IF NOT EXISTS idx_trading_signals_symbol ON trading_signals(stock_symbol, strategy, generated_at DESC)`)
+	r.db.db.Exec(`CREATE INDEX IF NOT EXISTS idx_trading_signals_decision ON trading_signals(decision, confidence DESC)`)
+	r.db.db.Exec(`CREATE INDEX IF NOT EXISTS idx_signal_outcomes_signal ON signal_outcomes(signal_id)`)
+	r.db.db.Exec(`CREATE INDEX IF NOT EXISTS idx_signal_outcomes_symbol ON signal_outcomes(stock_symbol, outcome_status)`)
+	r.db.db.Exec(`CREATE INDEX IF NOT EXISTS idx_whale_followup_alert ON whale_alert_followup(whale_alert_id)`)
+	r.db.db.Exec(`CREATE INDEX IF NOT EXISTS idx_baselines_symbol_time ON statistical_baselines(stock_symbol, calculated_at)`)
+	r.db.db.Exec(`CREATE INDEX IF NOT EXISTS idx_regimes_symbol_time ON market_regimes(stock_symbol, detected_at)`)
+	r.db.db.Exec(`CREATE INDEX IF NOT EXISTS idx_regimes_regime ON market_regimes(regime, confidence)`)
+	r.db.db.Exec(`CREATE INDEX IF NOT EXISTS idx_patterns_symbol_time ON detected_patterns(stock_symbol, detected_at, pattern_type)`)
+	r.db.db.Exec(`CREATE INDEX IF NOT EXISTS idx_patterns_outcome ON detected_patterns(outcome)`)
+	r.db.db.Exec(`CREATE INDEX IF NOT EXISTS idx_correlations_pair ON stock_correlations(stock_a, stock_b, calculated_at)`)
+
+	// Auto-migrate remaining tables (non-hypertables)
 	err := r.db.db.AutoMigrate(
 		// &Trade{}, // Managed manually above
 		// &Candle{}, // Managed as TimescaleDB Continuous Aggregate
-		&WhaleAlert{},
+		// &WhaleAlert{}, // Managed manually above
 		&WhaleWebhook{},
-		&WhaleWebhookLog{},
+		// &WhaleWebhookLog{}, // Managed manually above
 		// Phase 1 Enhancement Tables
-		&TradingSignalDB{},
-		&SignalOutcome{},
-		&WhaleAlertFollowup{},
-		&OrderFlowImbalance{},
+		// &TradingSignalDB{}, // Managed manually above
+		// &SignalOutcome{}, // Managed manually above
+		// &WhaleAlertFollowup{}, // Managed manually above
+		// &OrderFlowImbalance{}, // Managed manually above
 		// Phase 2 Enhancement Tables
-		&StatisticalBaseline{},
-		&MarketRegime{},
-		&DetectedPattern{},
+		// &StatisticalBaseline{}, // Managed manually above
+		// &MarketRegime{}, // Managed manually above
+		// &DetectedPattern{}, // Managed manually above
 		// Phase 3 Enhancement Tables
-		&StockCorrelation{},
+		// &StockCorrelation{}, // Managed manually above
 	)
 	if err != nil {
 		return fmt.Errorf("auto-migration failed: %w", err)
