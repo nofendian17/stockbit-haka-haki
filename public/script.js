@@ -1033,8 +1033,8 @@ async function fetchOrderFlow() {
             let totalSell = 0;
 
             data.flows.forEach(item => {
-                totalBuy += item.buy_volume;
-                totalSell += item.sell_volume;
+                totalBuy += item.buy_volume_lots;
+                totalSell += item.sell_volume_lots;
             });
 
             const total = totalBuy + totalSell;
