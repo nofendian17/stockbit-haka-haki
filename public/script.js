@@ -13,6 +13,16 @@ const CONFIG = {
     ANALYTICS_POLL_INTERVAL: 30000, // 30 seconds
 };
 
+// Configure marked.js for better analysis formatting
+if (typeof marked !== 'undefined') {
+    marked.setOptions({
+        breaks: true,
+        gfm: true,
+        headerIds: false,
+        mangle: false
+    });
+}
+
 const API_BASE = CONFIG.API_BASE;
 // ===== FORMATTERS =====
 const formatCurrency = (val) => {
@@ -605,16 +615,19 @@ function startPatternAnalysis(type) {
 
         // Remove loading message on first chunk
         if (streamText === '') {
-            outputDiv.innerHTML = '<div class="streaming-text"></div>';
+            outputDiv.innerHTML = '<div class="message-bubble"><div class="streaming-text"></div></div>';
         }
 
         streamText += chunk;
 
-        // Parse markdown using marked.js
+        // Parse markdown
         const htmlContent = marked.parse(streamText);
 
-        // Update output with streaming cursor
-        outputDiv.innerHTML = `<div class="streaming-text">${htmlContent}<span class="streaming-cursor"></span></div>`;
+        // Update output
+        const textContainer = outputDiv.querySelector('.streaming-text');
+        if (textContainer) {
+            textContainer.innerHTML = `${htmlContent}<span class="streaming-cursor"></span>`;
+        }
 
         // Auto-scroll to bottom
         outputDiv.scrollTop = outputDiv.scrollHeight;
@@ -622,7 +635,9 @@ function startPatternAnalysis(type) {
 
     streamEventSource.addEventListener('done', () => {
         // Remove cursor and update status
-        outputDiv.innerHTML = `<div class="streaming-text">${marked.parse(streamText)}</div>`;
+        const htmlContent = marked.parse(streamText);
+        outputDiv.innerHTML = `<div class="message-bubble"><div class="streaming-text">${htmlContent}</div></div>`;
+
         statusBadge.textContent = 'Completed';
         statusBadge.className = 'status-badge';
         streamEventSource.close();

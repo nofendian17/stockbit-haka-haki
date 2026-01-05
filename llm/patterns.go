@@ -75,45 +75,46 @@ func safeFloat64(ptr *float64, defaultValue float64) float64 {
 }
 
 // FormatAccumulationPrompt creates a prompt for LLM to analyze accumulation/distribution patterns
-func FormatAccumulationPrompt(patterns []database.AccumulationPattern) string {
+func FormatAccumulationPrompt(patterns []database.AccumulationPattern, regimes map[string]database.MarketRegime) string {
 	var sb strings.Builder
-	sb.Grow(1024 + len(patterns)*200)
+	sb.Grow(1024 + len(patterns)*300)
 
-	sb.WriteString("Anda adalah analis pasar saham expert spesialis Bandarlogy (Analisis Arus Dana Institusi). Analisis pola berikut berdasarkan DATA FAKTUAL:\n\n")
+	sb.WriteString("Anda adalah analis market saham expert spesialis Bandarlogy (Institusi). Analisis pola berikut berdasarkan DATA FAKTUAL:\n\n")
 
 	for i, p := range patterns {
 		duration := p.LastAlertTime.Sub(p.FirstAlertTime).Minutes()
-
-		// Calculate derived metrics
-		// TotalValue is in Rp, TotalVolumeLots is in lots (1 lot = 100 shares)
-		// AvgPrice = TotalValue / (TotalVolumeLots * 100)
 		avgPrice := 0.0
 		if p.TotalVolumeLots > 0 {
 			avgPrice = p.TotalValue / (p.TotalVolumeLots * 100)
 		}
 
+		regimeText := "N/A"
+		if r, ok := regimes[p.StockSymbol]; ok {
+			regimeText = fmt.Sprintf("%s (Conf: %.0f%%)", r.Regime, r.Confidence*100)
+		}
+
 		sb.WriteString(fmt.Sprintf("%d. **%s** (%s)\n", i+1, p.StockSymbol, p.Action))
-		sb.WriteString(fmt.Sprintf("   - Intensitas: %d kali 'HAKA' dalam %.0f menit (Avg Interval: %.1f menit)\n", p.AlertCount, duration, duration/float64(p.AlertCount)))
-		sb.WriteString(fmt.Sprintf("   - Aggregated Value: Rp %.2f Miliar\n", p.TotalValue/billionDivisor))
-		sb.WriteString(fmt.Sprintf("   - Avg Price Estimation: %.0f\n", avgPrice))
+		sb.WriteString(fmt.Sprintf("   - Intensitas: %d alert dlm %.0f mnt (Interval: %.1f mnt)\n", p.AlertCount, duration, duration/float64(p.AlertCount)))
+		sb.WriteString(fmt.Sprintf("   - Total Value: Rp %.2f Miliar | Avg Price: %.0f\n", p.TotalValue/billionDivisor, avgPrice))
+		sb.WriteString(fmt.Sprintf("   - Market Context: %s\n", regimeText))
 		sb.WriteString(fmt.Sprintf("   - Kekuatan Anomali (Avg Z-Score): %.2f\n\n", p.AvgZScore))
 	}
 
 	sb.WriteString("Tugas Analisis (DATA DRIVEN):\n")
-	sb.WriteString("1. **Identifikasi Fase**: Berdasarkan ritme pembelian (interval) dan volume, apakah ini Akumulasi rapi atau Hajar Kanan panik?\n")
-	sb.WriteString("2. **Signifikansi Dana**: Apakah nilai total transaksi ini cukup besar untuk menggerakkan harga saham ini?\n")
-	sb.WriteString("3. **Skenario Taktis**: Jika harga koreksi ke level average price, apakah itu 'Buy on Dip' yang valid?\n")
-	sb.WriteString(fmt.Sprintf("\nJawab dalam Bahasa Indonesia yang tajam. Fokus pada angka. Maksimal %d kata.", maxPromptWords))
+	sb.WriteString("1. **Identifikasi Fase**: Lihat interval & volume, apakah Akumulasi rapi atau Haka panik?\n")
+	sb.WriteString("2. **Signifikansi**: Apakah nilai ini cukup besar dibanding 'Market Context' (Regime) saham tersebut?\n")
+	sb.WriteString("3. **Skenario**: Jika harga koreksi ke level average price, apakah 'Buy on Dip' valid?\n")
+	sb.WriteString(fmt.Sprintf("\nJawab tajam, fokus pada angka. Maksimal %d kata.", maxPromptWords))
 
 	return sb.String()
 }
 
-// FormatAnomalyPrompt creates a prompt for analyzing extreme Z-score events
-func FormatAnomalyPrompt(anomalies []database.WhaleAlert) string {
+// FormatAnomalyPrompt creates a prompt for analyzing extreme Z-score events with market context
+func FormatAnomalyPrompt(anomalies []database.WhaleAlert, regimes map[string]database.MarketRegime) string {
 	var sb strings.Builder
-	sb.Grow(1024 + len(anomalies)*200)
+	sb.Grow(1024 + len(anomalies)*300)
 
-	sb.WriteString("Anda mendeteksi anomali statistik ekstrem (Black Swan Event). Analisis mikrosturktur market berikut:\n\n")
+	sb.WriteString("Analisis Black Swan Event / Anomali Statistik Ekstrem:\n\n")
 
 	for i, a := range anomalies {
 		if i >= maxAnomalies {
@@ -125,25 +126,31 @@ func FormatAnomalyPrompt(anomalies []database.WhaleAlert) string {
 		timeSince := time.Since(a.DetectedAt).Minutes()
 		avgPrice := safeFloat64(a.AvgPrice, a.TriggerPrice)
 
-		// Deviation calc
 		devPct := 0.0
 		if avgPrice > 0 {
 			devPct = ((a.TriggerPrice - avgPrice) / avgPrice) * 100
 		}
 
-		sb.WriteString(fmt.Sprintf("%d. **%s** - %s Ekstrem!\n", i+1, a.StockSymbol, a.Action))
-		sb.WriteString(fmt.Sprintf("   - Waktu: %.0f menit yang lalu\n", timeSince))
-		sb.WriteString(fmt.Sprintf("   - Kekuatan Anomali (Z-Score): %.2f\n", zScore))
-		sb.WriteString(fmt.Sprintf("   - Volume Spike: %.0f%% vs Rata-rata\n", volPct))
-		sb.WriteString(fmt.Sprintf("   - Harga Eksekusi: %.0f (Deviasi dari Avg Price: %+.2f%%)\n", a.TriggerPrice, devPct))
-		sb.WriteString(fmt.Sprintf("   - Nilai Transaksi: Rp %.2f Juta\n\n", a.TriggerValue/millionDivisor))
+		regimeText := "N/A"
+		if r, ok := regimes[a.StockSymbol]; ok {
+			volatility := 0.0
+			if r.Volatility != nil {
+				volatility = *r.Volatility
+			}
+			regimeText = fmt.Sprintf("%s (Volatilitas: %.2f%%)", r.Regime, volatility*100)
+		}
+
+		sb.WriteString(fmt.Sprintf("%d. **%s** (%s) - Z:%.2f\n", i+1, a.StockSymbol, a.Action, zScore))
+		sb.WriteString(fmt.Sprintf("   - Waktu: %.0f mnt lalu | Vol Spike: %.0f%% vs Avg\n", timeSince, volPct))
+		sb.WriteString(fmt.Sprintf("   - Harga: %.0f (Dev: %+.2f%%) | Value: Rp %.1f Juta\n", a.TriggerPrice, devPct, a.TriggerValue/millionDivisor))
+		sb.WriteString(fmt.Sprintf("   - Market Regime: %s\n\n", regimeText))
 	}
 
 	sb.WriteString("Analisis Forensik:\n")
-	sb.WriteString("1. **Sifat Anomali**: Apakah deviasi harga dan Z-score menunjukkan 'Breakout' valid atau 'Fat Finger'?\n")
-	sb.WriteString("2. **Psikologi Pelaku**: Adakah urgensi ekstrim (FOMO Buying / Panic Selling)?\n")
+	sb.WriteString("1. **Sifat**: Berdasarkan Regime & Deviasi, apakah ini 'Breakout' valid atau 'Fat Finger'?\n")
+	sb.WriteString("2. **Psikologi**: Adakah urgensi ekstrim (Panic/FOMO) dlm konteks volatilitas saat ini?\n")
 	sb.WriteString("3. **Rekomendasi**: Follow the flow atau Fade the move?\n")
-	sb.WriteString("\nBerikan insight singkat & padat seolah-olah Anda adalah algoritmik trader.")
+	sb.WriteString("\nBerikan insight algoritmik, singkat & padat.")
 
 	return sb.String()
 }
@@ -236,67 +243,81 @@ func AnalyzeSymbolContext(client *Client, symbol string, alerts []database.Whale
 }
 
 // FormatSymbolAnalysisPrompt creates a detailed prompt for symbol-specific streaming analysis
-func FormatSymbolAnalysisPrompt(symbol string, alerts []database.WhaleAlert) string {
+func FormatSymbolAnalysisPrompt(
+	symbol string,
+	alerts []database.WhaleAlert,
+	regime *database.MarketRegime,
+	baseline *database.StatisticalBaseline,
+	orderFlow *database.OrderFlowImbalance,
+	followups []database.WhaleAlertFollowup,
+) string {
 	var sb strings.Builder
-	sb.Grow(2048 + len(alerts)*50)
+	sb.Grow(2048 + len(alerts)*100)
 
-	sb.WriteString(fmt.Sprintf("Anda adalah AI Quantum Trader (Data-Driven Analyst). Lakukan Deep Dive pada **%s** berdasarkan data berikut:\n\n", symbol))
+	sb.WriteString(fmt.Sprintf("Lakukan Deep Dive Analisis Arus Dana untuk **%s**:\n\n", symbol))
 
-	if len(alerts) == 0 {
-		sb.WriteString("Info: Tidak ada jejak aktivitas Big Player terdeteksi. Market sepi.\n")
-		return sb.String()
+	// 1. Market Context & Statistics
+	sb.WriteString("🌐 **Market Context & Baselines**:\n")
+	if regime != nil {
+		sb.WriteString(fmt.Sprintf("- Regime: **%s** (Conf: %.1f%%)\n", regime.Regime, regime.Confidence*100))
+		if regime.Volatility != nil {
+			sb.WriteString(fmt.Sprintf("- Volatility Index: %.2f%%\n", *regime.Volatility*100))
+		}
 	}
+	if baseline != nil {
+		sb.WriteString(fmt.Sprintf("- Stat Baseline: Mean Price %.0f, StdDev Vol %.1f Lots (Sample: %d)\n",
+			baseline.MeanPrice, baseline.StdDevVolume, baseline.SampleSize))
+	}
+	if orderFlow != nil {
+		sb.WriteString(fmt.Sprintf("- Order Flow Imbalance: **%.1f%%** (Aggressive Buy: %.1f%%, Aggressive Sell: %.1f%%)\n",
+			orderFlow.ValueImbalanceRatio*100,
+			safeFloat64(orderFlow.AggressiveBuyPct, 0),
+			safeFloat64(orderFlow.AggressiveSellPct, 0)))
+	}
+	sb.WriteString("\n")
 
+	// 2. Whale Activity Summary
 	counts := countAlerts(alerts, true)
 	totalVal := counts.totalBuyValue + counts.totalSellValue + counts.totalUnknownValue
-
 	buyPct := 0.0
 	if totalVal > 0 {
 		buyPct = (counts.totalBuyValue / totalVal) * 100
 	}
 
-	// Avg Trade Size
-	avgBuy := 0.0
-	if counts.buyCount > 0 {
-		avgBuy = counts.totalBuyValue / float64(counts.buyCount)
-	}
-
-	avgSell := 0.0
-	if counts.sellCount > 0 {
-		avgSell = counts.totalSellValue / float64(counts.sellCount)
-	}
-
-	// Summary Statistic
-	sb.WriteString(fmt.Sprintf("📊 **Peta Kekuatan Bandar (%d Transaksi)**:\n", len(alerts)))
-	sb.WriteString(fmt.Sprintf("Total Volume: Rp %.1f Miliar\n", totalVal/billionDivisor))
-	sb.WriteString(fmt.Sprintf("- 🐂 Buyer Power: Rp %.1f M (%.1f%%) | Avg Order: Rp %.0f Juta\n", counts.totalBuyValue/millionDivisor, buyPct, avgBuy/millionDivisor))
-	sb.WriteString(fmt.Sprintf("- 🐻 Seller Power: Rp %.1f M (%.1f%%) | Avg Order: Rp %.0f Juta\n", counts.totalSellValue/millionDivisor, 100-buyPct, avgSell/millionDivisor))
+	sb.WriteString(fmt.Sprintf("📊 **Whale Flow Metrics (%d Transaksi Terakhir)**:\n", len(alerts)))
+	sb.WriteString(fmt.Sprintf("- Total Flow: Rp %.1f Miliar\n", totalVal/billionDivisor))
+	sb.WriteString(fmt.Sprintf("- 🐂 Buyer: Rp %.1f M (%.1f%%) | Avg Order: Rp %.0f Jt\n",
+		counts.totalBuyValue/millionDivisor, buyPct, (counts.totalBuyValue/float64(counts.buyCount+1))/millionDivisor))
+	sb.WriteString(fmt.Sprintf("- 🐻 Seller: Rp %.1f M (%.1f%%) | Avg Order: Rp %.0f Jt\n",
+		counts.totalSellValue/millionDivisor, 100-buyPct, (counts.totalSellValue/float64(counts.sellCount+1))/millionDivisor))
 	sb.WriteString("\n")
 
-	// Whale Tracking
-	sb.WriteString("🐋 **Whale Radar (Top Transactions)**:\n")
-	if counts.maxBuyValue > 0 {
-		sb.WriteString(fmt.Sprintf("✅ **Biggest Buy**: Rp %.1f M", counts.maxBuyValue/millionDivisor))
-		if counts.maxBuyAlert.ZScore != nil {
-			sb.WriteString(fmt.Sprintf(" (Z-Score: %.2f - %.0fx Avg Vol)", *counts.maxBuyAlert.ZScore, safeFloat64(counts.maxBuyAlert.VolumeVsAvgPct, 0)/100))
+	// 3. Post-Trade Impact (Followups)
+	if len(followups) > 0 {
+		sb.WriteString("🔄 **Historical Post-Whale Impact**:\n")
+		posImpact, negImpact := 0, 0
+		for _, f := range followups {
+			if f.ImmediateImpact != nil {
+				if *f.ImmediateImpact == "POSITIVE" {
+					posImpact++
+				} else if *f.ImmediateImpact == "NEGATIVE" {
+					negImpact++
+				}
+			}
 		}
-		sb.WriteString("\n")
-	}
-	if counts.maxSellValue > 0 {
-		sb.WriteString(fmt.Sprintf("❌ **Biggest Sell**: Rp %.1f M", counts.maxSellValue/millionDivisor))
-		if counts.maxSellAlert.ZScore != nil {
-			sb.WriteString(fmt.Sprintf(" (Z-Score: %.2f)", *counts.maxSellAlert.ZScore))
-		}
+		sb.WriteString(fmt.Sprintf("- Reactivity: %.0f%% Positive Impact, %.0f%% Negative Impact setelah Whale masuk.\n",
+			float64(posImpact)/float64(len(followups))*100,
+			float64(negImpact)/float64(len(followups))*100))
 		sb.WriteString("\n")
 	}
 
-	sb.WriteString("\n**Executive Summary (DATA-DRIVEN ONLY)**:\n")
-	sb.WriteString("1. **Market Structure**: Siapa yang mendominasi 'Average Order Size'? Jika Buyer > Seller, apakah ini akumulasi tersembunyi?\n")
-	sb.WriteString("2. **Key Action**: Deteksi support nyata dari level harga transaksi terbesar.\n")
-	sb.WriteString("3. **Final Verdict**: \n")
+	sb.WriteString("**Analisis Strategis (Instruksi)**:\n")
+	sb.WriteString("1. **Market Structure**: Bandingkan Order Size & Flow Imbalance. Apakah ada akumulasi stealth?\n")
+	sb.WriteString("2. **Impact Analysis**: Berdasarkan historical reactivity, seberapa kuat probabilitas harga akan merespon whale saat ini?\n")
+	sb.WriteString("3. **Executive Verdict**: \n")
 	sb.WriteString("   - **Signal**: AGGRESSIVE BUY / ACCUMULATION / WAIT / DISTRIBUTION\n")
-	sb.WriteString("   - **Rationale**: Jelaskan alasan matematis berdasarkan flow di atas.\n")
-	sb.WriteString(fmt.Sprintf("\nBerikan analisis mendalam, tajam, dan profesional. Dilarang berhalusinasi. Maksimal %d kata.", maxPromptWords))
+	sb.WriteString("   - **Rationale**: Penjelasan matematis berdasarkan Flow + Regime + Impact.\n")
+	sb.WriteString(fmt.Sprintf("\nJawab tajam, profesional, dilarang halusinasi. Maksimal %d kata.", maxPromptWords))
 
 	return sb.String()
 }

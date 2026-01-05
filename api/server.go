@@ -347,7 +347,15 @@ func (s *Server) handleAccumulationPattern(w http.ResponseWriter, r *http.Reques
 
 	// Add LLM insights if enabled
 	if s.llmEnabled && s.llmClient != nil && len(patterns) > 0 {
-		prompt := llm.FormatAccumulationPrompt(patterns)
+		// Fetch regimes for all symbols in patterns
+		regimes := make(map[string]database.MarketRegime)
+		for _, p := range patterns {
+			if r, err := s.repo.GetLatestRegime(p.StockSymbol); err == nil && r != nil {
+				regimes[p.StockSymbol] = *r
+			}
+		}
+
+		prompt := llm.FormatAccumulationPrompt(patterns, regimes)
 		if insight, err := s.llmClient.Analyze(r.Context(), prompt); err == nil {
 			response["llm_insight"] = insight
 		} else {
@@ -389,7 +397,17 @@ func (s *Server) handleExtremeAnomalies(w http.ResponseWriter, r *http.Request) 
 
 	// Add LLM insights if enabled
 	if s.llmEnabled && s.llmClient != nil && len(anomalies) > 0 {
-		prompt := llm.FormatAnomalyPrompt(anomalies)
+		// Fetch regimes for all symbols in anomalies
+		regimes := make(map[string]database.MarketRegime)
+		for _, a := range anomalies {
+			if _, ok := regimes[a.StockSymbol]; !ok {
+				if r, err := s.repo.GetLatestRegime(a.StockSymbol); err == nil && r != nil {
+					regimes[a.StockSymbol] = *r
+				}
+			}
+		}
+
+		prompt := llm.FormatAnomalyPrompt(anomalies, regimes)
 		if insight, err := s.llmClient.Analyze(r.Context(), prompt); err == nil {
 			response["llm_insight"] = insight
 		} else {
@@ -485,8 +503,16 @@ func (s *Server) handleAccumulationPatternStream(w http.ResponseWriter, r *http.
 		return
 	}
 
+	// Fetch regimes for context
+	regimes := make(map[string]database.MarketRegime)
+	for _, p := range patterns {
+		if r, err := s.repo.GetLatestRegime(p.StockSymbol); err == nil && r != nil {
+			regimes[p.StockSymbol] = *r
+		}
+	}
+
 	// Generate prompt
-	prompt := llm.FormatAccumulationPrompt(patterns)
+	prompt := llm.FormatAccumulationPrompt(patterns, regimes)
 
 	// Stream LLM response
 	err = s.llmClient.AnalyzeStream(r.Context(), prompt, func(chunk string) error {
@@ -554,8 +580,18 @@ func (s *Server) handleExtremeAnomaliesStream(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// Fetch regimes for context
+	regimes := make(map[string]database.MarketRegime)
+	for _, a := range anomalies {
+		if _, ok := regimes[a.StockSymbol]; !ok {
+			if r, err := s.repo.GetLatestRegime(a.StockSymbol); err == nil && r != nil {
+				regimes[a.StockSymbol] = *r
+			}
+		}
+	}
+
 	// Generate prompt
-	prompt := llm.FormatAnomalyPrompt(anomalies)
+	prompt := llm.FormatAnomalyPrompt(anomalies, regimes)
 
 	// Stream LLM response
 	err = s.llmClient.AnalyzeStream(r.Context(), prompt, func(chunk string) error {

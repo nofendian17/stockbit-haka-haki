@@ -720,21 +720,22 @@ td {
 
 .stream-output {
   min-height: 300px;
-  max-height: 600px;
+  max-height: 700px;
   overflow-y: auto;
-  background: rgba(15, 17, 21, 0.6);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(42, 46, 55, 0.6);
-  border-radius: 12px;
-  padding: 1.5rem;
-  font-size: 0.95rem;
-  line-height: 1.7;
+  background: rgba(10, 12, 16, 0.7);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(42, 46, 55, 0.8);
+  border-radius: 16px;
+  padding: 2rem;
+  font-size: 0.98rem;
+  line-height: 1.8;
   color: var(--text-primary);
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 1.5rem;
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.4);
 }
 
 /* ChatGPT-style message bubbles */
@@ -764,15 +765,19 @@ td {
 
 /* Markdown-like formatting within bubbles */
 .message-bubble h3 {
-  font-size: 1.15rem;
+  font-size: 1.25rem;
   font-weight: 700;
-  background: linear-gradient(135deg, var(--accent-buy), #0ab370);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  margin: 0 0 0.75rem 0;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid rgba(42, 46, 55, 0.6);
+  color: var(--text-primary);
+  margin: 1.5rem 0 1rem 0;
+  padding-bottom: 0.6rem;
+  border-bottom: 2px solid rgba(14, 203, 129, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.message-bubble h3:first-child {
+  margin-top: 0;
 }
 
 .message-bubble h4 {
@@ -814,8 +819,43 @@ td {
 }
 
 .message-bubble em {
-  color: var(--accent-buy);
+  color: var(--accent-blue);
   font-style: italic;
+}
+
+.streaming-text h1,
+.streaming-text h2,
+.streaming-text h3,
+.streaming-text h4 {
+  color: var(--text-primary);
+  margin-top: 1.5rem;
+  margin-bottom: 0.8rem;
+  font-weight: 700;
+}
+
+.streaming-text h3 {
+  font-size: 1.2rem;
+  color: var(--accent-buy);
+  border-left: 4px solid var(--accent-buy);
+  padding-left: 12px;
+}
+
+.streaming-text p {
+  margin-bottom: 1rem;
+}
+
+.streaming-text ul,
+.streaming-text ol {
+  margin-bottom: 1rem;
+  padding-left: 1.5rem;
+}
+
+.streaming-text li {
+  margin-bottom: 0.5rem;
+}
+
+.streaming-text strong {
+  color: var(--accent-blue);
 }
 
 .stream-output::-webkit-scrollbar {
@@ -974,7 +1014,6 @@ td {
 }
 
 .streaming-text {
-  white-space: pre-wrap;
   word-wrap: break-word;
 }
 

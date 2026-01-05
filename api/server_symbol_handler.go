@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"stockbit-haka-haki/database"
 	"stockbit-haka-haki/llm"
 )
 
@@ -43,6 +44,19 @@ func (s *Server) handleSymbolAnalysisStream(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// Fetch enriched metadata for context
+	regime, _ := s.repo.GetLatestRegime(symbol)
+	baseline, _ := s.repo.GetLatestBaseline(symbol)
+	orderFlow, _ := s.repo.GetLatestOrderFlow(symbol)
+
+	// Fetch followups for the specific alerts retrieved
+	var followups []database.WhaleAlertFollowup
+	for _, a := range alerts {
+		if f, err := s.repo.GetWhaleFollowup(a.ID); err == nil && f != nil {
+			followups = append(followups, *f)
+		}
+	}
+
 	// Set SSE headers
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -55,8 +69,8 @@ func (s *Server) handleSymbolAnalysisStream(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Generate prompt
-	prompt := llm.FormatSymbolAnalysisPrompt(symbol, alerts)
+	// Generate prompt with enriched data
+	prompt := llm.FormatSymbolAnalysisPrompt(symbol, alerts, regime, baseline, orderFlow, followups)
 
 	// Stream LLM response
 	err = s.llmClient.AnalyzeStream(r.Context(), prompt, func(chunk string) error {
