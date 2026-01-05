@@ -215,21 +215,21 @@ type WhaleAlertFollowup struct {
 	AlertTime           time.Time `gorm:"index;not null"`
 	AlertPrice          float64   `gorm:"type:decimal(15,2);not null"`
 	AlertAction         string    `gorm:"size:10;not null"` // BUY or SELL
-	Price1MinLater      *float64  `gorm:"type:decimal(15,2)"`
-	Price5MinLater      *float64  `gorm:"type:decimal(15,2)"`
-	Price15MinLater     *float64  `gorm:"type:decimal(15,2)"`
-	Price30MinLater     *float64  `gorm:"type:decimal(15,2)"`
-	Price60MinLater     *float64  `gorm:"type:decimal(15,2)"`
-	Price1DayLater      *float64  `gorm:"type:decimal(15,2)"`
-	Change1MinPct       *float64  `gorm:"type:decimal(10,4)"`
-	Change5MinPct       *float64  `gorm:"type:decimal(10,4)"`
-	Change15MinPct      *float64  `gorm:"type:decimal(10,4)"`
-	Change30MinPct      *float64  `gorm:"type:decimal(10,4)"`
-	Change60MinPct      *float64  `gorm:"type:decimal(10,4)"`
-	Change1DayPct       *float64  `gorm:"type:decimal(10,4)"`
-	Volume1MinLater     *float64  `gorm:"type:decimal(15,2)"`
-	Volume5MinLater     *float64  `gorm:"type:decimal(15,2)"`
-	Volume15MinLater    *float64  `gorm:"type:decimal(15,2)"`
+	Price1MinLater      *float64  `gorm:"column:price_1min_later;type:decimal(15,2)"`
+	Price5MinLater      *float64  `gorm:"column:price_5min_later;type:decimal(15,2)"`
+	Price15MinLater     *float64  `gorm:"column:price_15min_later;type:decimal(15,2)"`
+	Price30MinLater     *float64  `gorm:"column:price_30min_later;type:decimal(15,2)"`
+	Price60MinLater     *float64  `gorm:"column:price_60min_later;type:decimal(15,2)"`
+	Price1DayLater      *float64  `gorm:"column:price_1day_later;type:decimal(15,2)"`
+	Change1MinPct       *float64  `gorm:"column:change_1min_pct;type:decimal(10,4)"`
+	Change5MinPct       *float64  `gorm:"column:change_5min_pct;type:decimal(10,4)"`
+	Change15MinPct      *float64  `gorm:"column:change_15min_pct;type:decimal(10,4)"`
+	Change30MinPct      *float64  `gorm:"column:change_30min_pct;type:decimal(10,4)"`
+	Change60MinPct      *float64  `gorm:"column:change_60min_pct;type:decimal(10,4)"`
+	Change1DayPct       *float64  `gorm:"column:change_1day_pct;type:decimal(10,4)"`
+	Volume1MinLater     *float64  `gorm:"column:volume_1min_later;type:decimal(15,2)"`
+	Volume5MinLater     *float64  `gorm:"column:volume_5min_later;type:decimal(15,2)"`
+	Volume15MinLater    *float64  `gorm:"column:volume_15min_later;type:decimal(15,2)"`
 	ImmediateImpact     *string   `gorm:"size:20"` // POSITIVE, NEGATIVE, NEUTRAL (5min)
 	SustainedImpact     *string   `gorm:"size:20"` // POSITIVE, NEGATIVE, NEUTRAL (1hr)
 	ReversalDetected    *bool

@@ -92,6 +92,26 @@ func (r *TradeRepository) InitSchema() error {
 		return fmt.Errorf("auto-migration failed: %w", err)
 	}
 
+	// Manual migrations for whale_alert_followup columns (GORM sometimes struggles with Hypertables)
+	r.db.db.Exec(`
+		ALTER TABLE whale_alert_followup 
+		ADD COLUMN IF NOT EXISTS price_1min_later DECIMAL(15,2),
+		ADD COLUMN IF NOT EXISTS price_5min_later DECIMAL(15,2),
+		ADD COLUMN IF NOT EXISTS price_15min_later DECIMAL(15,2),
+		ADD COLUMN IF NOT EXISTS price_30min_later DECIMAL(15,2),
+		ADD COLUMN IF NOT EXISTS price_60min_later DECIMAL(15,2),
+		ADD COLUMN IF NOT EXISTS price_1day_later DECIMAL(15,2),
+		ADD COLUMN IF NOT EXISTS change_1min_pct DECIMAL(10,4),
+		ADD COLUMN IF NOT EXISTS change_5min_pct DECIMAL(10,4),
+		ADD COLUMN IF NOT EXISTS change_15min_pct DECIMAL(10,4),
+		ADD COLUMN IF NOT EXISTS change_30min_pct DECIMAL(10,4),
+		ADD COLUMN IF NOT EXISTS change_60min_pct DECIMAL(10,4),
+		ADD COLUMN IF NOT EXISTS change_1day_pct DECIMAL(10,4),
+		ADD COLUMN IF NOT EXISTS volume_1min_later DECIMAL(15,2),
+		ADD COLUMN IF NOT EXISTS volume_5min_later DECIMAL(15,2),
+		ADD COLUMN IF NOT EXISTS volume_15min_later DECIMAL(15,2)
+	`)
+
 	// Create TimescaleDB extension and hypertables
 	if err := r.setupTimescaleDB(); err != nil {
 		return err
