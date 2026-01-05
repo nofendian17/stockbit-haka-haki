@@ -1320,8 +1320,24 @@ func calculateConfidence(value, minThreshold, maxThreshold float64) float64 {
 	if value >= maxThreshold {
 		return 1.0
 	}
+
+	// Prevent division by zero
+	denominator := maxThreshold - minThreshold
+	if denominator <= 0 {
+		return 0.5 // Return neutral confidence if thresholds are invalid
+	}
+
 	// Linear interpolation between min and max
-	confidence := (value - minThreshold) / (maxThreshold - minThreshold)
+	confidence := (value - minThreshold) / denominator
+
+	// Clamp to [0, 1] range to prevent overflow
+	if confidence < 0 {
+		return 0.0
+	}
+	if confidence > 1 {
+		return 1.0
+	}
+
 	return confidence
 }
 
