@@ -21,6 +21,8 @@ func NewTradeRepository(db *Database) *TradeRepository {
 
 // InitSchema performs auto-migration and TimescaleDB setup
 func (r *TradeRepository) InitSchema() error {
+	fmt.Println("🔄 Starting database schema initialization...")
+
 	// Drop continuous aggregate view if exists to allow table alterations
 	// This is necessary because TimescaleDB/Postgres locks columns used in views
 	if err := r.db.db.Exec("DROP MATERIALIZED VIEW IF EXISTS candle_1min CASCADE").Error; err != nil {
@@ -122,15 +124,19 @@ func (r *TradeRepository) InitSchema() error {
 		return err
 	}
 
+	fmt.Println("✅ Database schema initialization completed successfully")
 	return nil
 }
 
 // setupTimescaleDB creates hypertables and policies
 func (r *TradeRepository) setupTimescaleDB() error {
+	fmt.Println("⏰ Setting up TimescaleDB extension and hypertables...")
+
 	// Enable TimescaleDB extension
 	if err := r.db.db.Exec("CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE").Error; err != nil {
 		return fmt.Errorf("failed to create TimescaleDB extension: %w", err)
 	}
+	fmt.Println("✅ TimescaleDB extension enabled")
 
 	// Create hypertable for running_trades
 	r.db.db.Exec(`
@@ -240,12 +246,18 @@ func (r *TradeRepository) setupEnhancedTables() error {
 
 	// Create hypertable for signal_outcomes
 	// Note: We need to ensure Primary Key includes time column for Hypertables
-	r.db.db.Exec(`
+	fmt.Println("🔄 Setting up signal_outcomes hypertable...")
+	if err := r.db.db.Exec(`
 		ALTER TABLE signal_outcomes DROP CONSTRAINT IF EXISTS signal_outcomes_pkey;
-	`)
-	r.db.db.Exec(`
+	`).Error; err != nil {
+		fmt.Printf("⚠️ Warning: Failed to drop signal_outcomes primary key: %v\n", err)
+	}
+
+	if err := r.db.db.Exec(`
 		ALTER TABLE signal_outcomes ADD PRIMARY KEY (id, entry_time);
-	`)
+	`).Error; err != nil {
+		fmt.Printf("⚠️ Warning: Failed to add signal_outcomes composite primary key: %v\n", err)
+	}
 
 	if err := r.db.db.Exec(`
 		SELECT create_hypertable('signal_outcomes', 'entry_time',
@@ -254,6 +266,8 @@ func (r *TradeRepository) setupEnhancedTables() error {
 		)
 	`).Error; err != nil {
 		fmt.Printf("⚠️ Warning: Failed to create hypertable for signal_outcomes: %v\n", err)
+	} else {
+		fmt.Println("✅ signal_outcomes hypertable created successfully")
 	}
 
 	// Add retention policy: 2 years
@@ -472,35 +486,47 @@ func (r *TradeRepository) setupEnhancedTables() error {
 	`)
 
 	// 2. Strategy Performance Daily (Continuous Aggregate)
-	// 2. Strategy Performance Daily (Continuous Aggregate)
-	if err := r.db.db.Exec(`
-		CREATE MATERIALIZED VIEW IF NOT EXISTS strategy_performance_daily
-		WITH (timescaledb.continuous) AS
-		SELECT
-			time_bucket('1 day', entry_time) AS day,
-			strategy,
-			stock_symbol,
-			COUNT(*) AS total_signals,
-			SUM(CASE WHEN outcome_status = 'WIN' THEN 1 ELSE 0 END) AS wins,
-			SUM(CASE WHEN outcome_status = 'LOSS' THEN 1 ELSE 0 END) AS losses,
-			AVG(profit_loss_pct) AS avg_profit_pct,
-			SUM(profit_loss_pct) AS total_profit_pct,
-			AVG(risk_reward_ratio) AS avg_risk_reward
-		FROM signal_outcomes
-		GROUP BY day, strategy, stock_symbol
-	`).Error; err != nil {
-		fmt.Printf("⚠️ Warning: Failed to create view strategy_performance_daily: %v\n", err)
-	}
+	fmt.Println("📊 Checking if signal_outcomes table exists before creating strategy_performance_daily view...")
+	var count int64
+	if err := r.db.db.Table("signal_outcomes").Count(&count).Error; err != nil {
+		fmt.Printf("⚠️ Warning: signal_outcomes table may not exist: %v\n", err)
+		fmt.Println("⚠️ Skipping strategy_performance_daily view creation")
+	} else {
+		fmt.Printf("✅ signal_outcomes table exists with %d records\n", count)
 
-	if err := r.db.db.Exec(`
-		SELECT add_continuous_aggregate_policy('strategy_performance_daily',
-			start_offset => INTERVAL '3 days',
-			end_offset => INTERVAL '1 minute',
-			schedule_interval => INTERVAL '15 minutes',
-			if_not_exists => TRUE
-		)
-	`).Error; err != nil {
-		fmt.Printf("⚠️ Warning: Failed to add policy for strategy_performance_daily: %v\n", err)
+		if err := r.db.db.Exec(`
+			CREATE MATERIALIZED VIEW IF NOT EXISTS strategy_performance_daily
+			WITH (timescaledb.continuous) AS
+			SELECT
+				time_bucket('1 day', entry_time) AS day,
+				strategy,
+				stock_symbol,
+				COUNT(*) AS total_signals,
+				SUM(CASE WHEN outcome_status = 'WIN' THEN 1 ELSE 0 END) AS wins,
+				SUM(CASE WHEN outcome_status = 'LOSS' THEN 1 ELSE 0 END) AS losses,
+				AVG(profit_loss_pct) AS avg_profit_pct,
+				SUM(profit_loss_pct) AS total_profit_pct,
+				AVG(risk_reward_ratio) AS avg_risk_reward
+			FROM signal_outcomes
+			GROUP BY day, strategy, stock_symbol
+		`).Error; err != nil {
+			fmt.Printf("⚠️ Warning: Failed to create view strategy_performance_daily: %v\n", err)
+		} else {
+			fmt.Println("✅ strategy_performance_daily view created successfully")
+		}
+
+		if err := r.db.db.Exec(`
+			SELECT add_continuous_aggregate_policy('strategy_performance_daily',
+				start_offset => INTERVAL '3 days',
+				end_offset => INTERVAL '1 minute',
+				schedule_interval => INTERVAL '15 minutes',
+				if_not_exists => TRUE
+			)
+		`).Error; err != nil {
+			fmt.Printf("⚠️ Warning: Failed to add policy for strategy_performance_daily: %v\n", err)
+		} else {
+			fmt.Println("✅ strategy_performance_daily policy added successfully")
+		}
 	}
 
 	fmt.Println("✅ Phase 3 enhancement tables configured successfully")
