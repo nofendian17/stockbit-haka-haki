@@ -292,19 +292,10 @@ func (r *TradeRepository) setupEnhancedTables() error {
 	`)
 
 	// Create hypertable for signal_outcomes
-	// Note: We need to ensure Primary Key includes time column for Hypertables
 	fmt.Println("🔄 Setting up signal_outcomes hypertable...")
-	if err := r.db.db.Exec(`
-		ALTER TABLE signal_outcomes DROP CONSTRAINT IF EXISTS signal_outcomes_pkey;
-	`).Error; err != nil {
-		fmt.Printf("⚠️ Warning: Failed to drop signal_outcomes primary key: %v\n", err)
-	}
 
-	if err := r.db.db.Exec(`
-		ALTER TABLE signal_outcomes ADD PRIMARY KEY (id, entry_time);
-	`).Error; err != nil {
-		fmt.Printf("⚠️ Warning: Failed to add signal_outcomes composite primary key: %v\n", err)
-	}
+	// Remove the unique index on signal_id since it conflicts with composite primary key
+	r.db.db.Exec(`DROP INDEX IF EXISTS idx_signal_outcomes_signal_id`)
 
 	if err := r.db.db.Exec(`
 		SELECT create_hypertable('signal_outcomes', 'entry_time',
