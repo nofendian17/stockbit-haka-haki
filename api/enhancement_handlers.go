@@ -4,6 +4,7 @@ package api
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -171,11 +172,16 @@ func (s *Server) handleGetOrderFlow(w http.ResponseWriter, r *http.Request) {
 		endTime, _ = time.Parse(time.RFC3339, end)
 	}
 
+	log.Printf("📊 Fetching order flow for symbol: %s (limit: %d)", symbol, limit)
+
 	flows, err := s.repo.GetOrderFlowImbalance(symbol, startTime, endTime, limit)
 	if err != nil {
+		log.Printf("❌ Failed to fetch order flow for %s: %v", symbol, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	log.Printf("✅ Returning %d order flow records for %s", len(flows), symbol)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -297,11 +303,16 @@ func (s *Server) handleGetStockCorrelations(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
+	log.Printf("📊 Fetching correlations for symbol: %s (limit: %d)", symbol, limit)
+
 	correlations, err := s.repo.GetStockCorrelations(symbol, limit)
 	if err != nil {
+		log.Printf("❌ Failed to fetch correlations for %s: %v", symbol, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	log.Printf("✅ Returning %d correlations for %s", len(correlations), symbol)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -324,11 +335,16 @@ func (s *Server) handleGetDailyPerformance(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
+	log.Printf("📈 Fetching daily performance (strategy: %s, symbol: %s, limit: %d)", strategy, symbol, limit)
+
 	performance, err := s.repo.GetDailyStrategyPerformance(strategy, symbol, limit)
 	if err != nil {
+		log.Printf("❌ Failed to fetch daily performance: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	log.Printf("✅ Returning %d performance records", len(performance))
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{

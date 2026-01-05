@@ -62,8 +62,11 @@ func (ca *CorrelationAnalyzer) runAnalysis() {
 	}
 
 	if len(symbols) < 2 {
+		log.Printf("ℹ️  Not enough symbols for correlation analysis (found %d, need at least 2)", len(symbols))
 		return
 	}
+
+	log.Printf("📊 Found %d active symbols for correlation analysis", len(symbols))
 
 	// Limit to top 100 symbols to avoid N^2 explosion (increased from 50)
 	if len(symbols) > 100 {
@@ -72,21 +75,56 @@ func (ca *CorrelationAnalyzer) runAnalysis() {
 
 	// 2. Fetch data (1-hour candles for last 30 days)
 	stockData := make(map[string][]float64)
+	skippedSymbols := 0
+
 	for _, symbol := range symbols {
 		candles, err := ca.repo.GetCandlesByTimeframe("1hour", symbol, 100) // approx 30 trading days
-		if err != nil || len(candles) < 20 {
+		if err != nil {
+			log.Printf("⚠️  Failed to get candles for %s: %v", symbol, err)
+			skippedSymbols++
+			continue
+		}
+
+		if len(candles) < 20 {
+			skippedSymbols++
 			continue
 		}
 
 		returns := make([]float64, len(candles)-1)
 		for i := 1; i < len(candles); i++ {
-			prev := candles[i-1]["close"].(float64)
-			curr := candles[i]["close"].(float64)
+			closeVal, ok := candles[i-1]["close"]
+			if !ok {
+				continue
+			}
+			prev, ok := closeVal.(float64)
+			if !ok {
+				continue
+			}
+
+			closeVal, ok = candles[i]["close"]
+			if !ok {
+				continue
+			}
+			curr, ok := closeVal.(float64)
+			if !ok {
+				continue
+			}
+
 			if prev > 0 {
 				returns[i-1] = (curr - prev) / prev
 			}
 		}
-		stockData[symbol] = returns
+
+		if len(returns) > 0 {
+			stockData[symbol] = returns
+		}
+	}
+
+	log.Printf("📈 Processed %d symbols with sufficient data (%d skipped)", len(stockData), skippedSymbols)
+
+	if len(stockData) < 2 {
+		log.Printf("ℹ️  Not enough symbols with valid data for correlation (found %d)", len(stockData))
+		return
 	}
 
 	// 3. Compute Pearson correlation for pairs
@@ -124,7 +162,11 @@ func (ca *CorrelationAnalyzer) runAnalysis() {
 		}
 	}
 
-	log.Printf("✅ Correlation analysis complete: %d pairs processed", count)
+	if count > 0 {
+		log.Printf("✅ Correlation analysis complete: %d pairs processed successfully", count)
+	} else {
+		log.Println("⚠️  No correlations saved - check if data is sufficient")
+	}
 }
 
 // computePearsonCorrelation calculates the Pearson correlation coefficient between two datasets

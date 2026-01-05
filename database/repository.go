@@ -3,6 +3,7 @@ package database
 import (
 	"errors"
 	"fmt"
+	"log"
 	"sort"
 	"time"
 
@@ -116,6 +117,14 @@ func (r *TradeRepository) InitSchema() error {
 		fmt.Printf("⚠️ Warning: Failed to create view strategy_performance_daily: %v\n", err)
 	} else {
 		fmt.Println("✅ strategy_performance_daily view created successfully")
+
+		// Initial refresh of the materialized view
+		fmt.Println("🔄 Performing initial refresh of strategy_performance_daily...")
+		if err := r.db.db.Exec(`REFRESH MATERIALIZED VIEW strategy_performance_daily`).Error; err != nil {
+			fmt.Printf("⚠️ Warning: Failed to refresh view: %v\n", err)
+		} else {
+			fmt.Println("✅ Initial refresh completed")
+		}
 	}
 
 	// Manual migrations for whale_alert_followup columns (GORM sometimes struggles with Hypertables)
@@ -1790,6 +1799,13 @@ func (r *TradeRepository) GetStockCorrelations(symbol string, limit int) ([]Stoc
 		Order("calculated_at DESC").
 		Limit(limit).
 		Find(&correlations).Error
+
+	if err != nil {
+		log.Printf("❌ Error fetching correlations for %s: %v", symbol, err)
+	} else {
+		log.Printf("📊 Found %d correlations for symbol %s", len(correlations), symbol)
+	}
+
 	return correlations, err
 }
 
@@ -1804,6 +1820,12 @@ func (r *TradeRepository) GetCorrelationsForPair(stockA, stockB string) ([]Stock
 
 // GetDailyStrategyPerformance retrieves daily aggregated performance data
 func (r *TradeRepository) GetDailyStrategyPerformance(strategy, symbol string, limit int) ([]map[string]interface{}, error) {
+	// Refresh materialized view to ensure latest data
+	if err := r.db.db.Exec(`REFRESH MATERIALIZED VIEW CONCURRENTLY strategy_performance_daily`).Error; err != nil {
+		// Log but don't fail - use existing data
+		log.Printf("⚠️ Failed to refresh performance view: %v", err)
+	}
+
 	var results []map[string]interface{}
 	query := r.db.db.Table("strategy_performance_daily").Order("day DESC")
 
@@ -1818,5 +1840,8 @@ func (r *TradeRepository) GetDailyStrategyPerformance(strategy, symbol string, l
 	}
 
 	err := query.Find(&results).Error
+	if err != nil {
+		log.Printf("❌ Error fetching daily performance: %v", err)
+	}
 	return results, err
 }

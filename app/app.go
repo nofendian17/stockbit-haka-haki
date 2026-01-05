@@ -41,6 +41,7 @@ type App struct {
 	regimeDetector  *RegimeDetector       // Phase 2: Market regime detection
 	patternDetector *PatternDetector      // Phase 2: Chart pattern detection
 	correlationAnal *CorrelationAnalyzer  // Phase 3: Stock correlations
+	perfRefresher   *PerformanceRefresher // Phase 3: Performance view refresher
 	lastMessageTime time.Time             // Track last message for health monitoring
 	lastMessageMu   sync.RWMutex
 }
@@ -232,6 +233,10 @@ func (a *App) Start() error {
 	a.correlationAnal = NewCorrelationAnalyzer(a.tradeRepo)
 	go a.correlationAnal.Start()
 
+	// Performance Refresher
+	a.perfRefresher = NewPerformanceRefresher(a.tradeRepo)
+	go a.perfRefresher.Start()
+
 	// Setup WaitGroup for goroutines
 	var wg sync.WaitGroup
 
@@ -356,6 +361,10 @@ func (a *App) gracefulShutdown(cancel context.CancelFunc) error {
 		if a.correlationAnal != nil {
 			fmt.Println("🔗 Stopping correlation analyzer...")
 			a.correlationAnal.Stop()
+		}
+		if a.perfRefresher != nil {
+			fmt.Println("🔄 Stopping performance refresher...")
+			a.perfRefresher.Stop()
 		}
 
 		// Close WebSocket connection

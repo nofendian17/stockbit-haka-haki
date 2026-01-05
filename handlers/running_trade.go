@@ -504,6 +504,11 @@ func (ofa *OrderFlowAggregator) flushAndReset() {
 
 // persistFlows saves aggregated flows to database
 func (ofa *OrderFlowAggregator) persistFlows(bucket time.Time, flows map[string]*OrderFlowData) {
+	if len(flows) == 0 {
+		log.Printf("📊 Order flow: No data to save for bucket %s", bucket.Format("15:04"))
+		return
+	}
+
 	saved := 0
 	for _, flow := range flows {
 		// Calculate imbalance ratios
@@ -541,6 +546,8 @@ func (ofa *OrderFlowAggregator) persistFlows(bucket time.Time, flows map[string]
 			log.Printf("⚠️  Failed to save order flow for %s: %v", flow.StockSymbol, err)
 		} else {
 			saved++
+			log.Printf("📊 Order flow %s: Buy=%.0f Sell=%.0f (Imbalance: %.2f%%)",
+				flow.StockSymbol, flow.BuyVolumeLots, flow.SellVolumeLots, volumeImbalance*100)
 		}
 	}
 

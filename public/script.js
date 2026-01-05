@@ -900,14 +900,17 @@ function updateBaselineUI(data) {
     const avgVolEl = document.getElementById('b-avg-vol');
     const stdDevEl = document.getElementById('b-std-dev');
     
-    if (!data) {
+    if (!data || !data.mean_volume_lots) {
         avgVolEl.textContent = '-';
         stdDevEl.textContent = '-';
         return;
     }
     
-    avgVolEl.textContent = formatNumber(data.mean_volume_lots) + ' Lot';
-    stdDevEl.textContent = formatNumber(data.std_dev_price ? data.std_dev_price.toFixed(2) : 0);
+    const meanVol = parseFloat(data.mean_volume_lots) || 0;
+    const stdDev = parseFloat(data.std_dev_price) || 0;
+    
+    avgVolEl.textContent = meanVol > 0 ? formatNumber(meanVol.toFixed(2)) + ' Lot' : '-';
+    stdDevEl.textContent = stdDev > 0 ? formatNumber(stdDev.toFixed(2)) : '-';
 }
 
 function updatePatternsUI(whaleAlerts) {
@@ -1080,7 +1083,15 @@ async function fetchGlobalPerformance() {
 // ===== ORDER FLOW =====
 async function fetchOrderFlow() {
     const symbol = currentFilters.search;
-    if (!symbol) return;
+    
+    // Reset to default state if no symbol selected
+    if (!symbol) {
+        document.getElementById('buy-pressure-fill').style.width = '50%';
+        document.getElementById('sell-pressure-fill').style.width = '50%';
+        document.getElementById('buy-pressure-pct').textContent = '50% BELI';
+        document.getElementById('sell-pressure-pct').textContent = '50% JUAL';
+        return;
+    }
 
     try {
         const res = await fetch(`${API_BASE}/orderflow?symbol=${symbol}&limit=50`);
@@ -1091,11 +1102,21 @@ async function fetchOrderFlow() {
             let totalSell = 0;
 
             data.flows.forEach(item => {
-                totalBuy += item.buy_volume_lots;
-                totalSell += item.sell_volume_lots;
+                totalBuy += (item.buy_volume_lots || 0);
+                totalSell += (item.sell_volume_lots || 0);
             });
 
             const total = totalBuy + totalSell;
+            
+            // Handle case where there's no volume data
+            if (total === 0) {
+                document.getElementById('buy-pressure-fill').style.width = '50%';
+                document.getElementById('sell-pressure-fill').style.width = '50%';
+                document.getElementById('buy-pressure-pct').textContent = '50% BELI';
+                document.getElementById('sell-pressure-pct').textContent = '50% JUAL';
+                return;
+            }
+
             const buyPct = (totalBuy / total) * 100;
             const sellPct = (totalSell / total) * 100;
 
@@ -1103,9 +1124,20 @@ async function fetchOrderFlow() {
             document.getElementById('sell-pressure-fill').style.width = `${sellPct}%`;
             document.getElementById('buy-pressure-pct').textContent = `${buyPct.toFixed(1)}% BELI`;
             document.getElementById('sell-pressure-pct').textContent = `${sellPct.toFixed(1)}% JUAL`;
+        } else {
+            // No data available - set to neutral state
+            document.getElementById('buy-pressure-fill').style.width = '50%';
+            document.getElementById('sell-pressure-fill').style.width = '50%';
+            document.getElementById('buy-pressure-pct').textContent = '50% BELI';
+            document.getElementById('sell-pressure-pct').textContent = '50% JUAL';
         }
     } catch (err) {
         console.error("Order flow fetch failed", err);
+        // On error, set to neutral state
+        document.getElementById('buy-pressure-fill').style.width = '50%';
+        document.getElementById('sell-pressure-fill').style.width = '50%';
+        document.getElementById('buy-pressure-pct').textContent = '50% BELI';
+        document.getElementById('sell-pressure-pct').textContent = '50% JUAL';
     }
 }
 
