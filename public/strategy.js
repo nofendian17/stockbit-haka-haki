@@ -230,10 +230,10 @@ function renderSignalRow(signal, isInitialLoad = false) {
     // Time formatting - human readable with validation
     let timeAgo = 'Baru saja';
     let fullTime = '-';
-    
+
     // Try multiple timestamp fields for compatibility
-    const timestampValue = signal.timestamp || signal.detected_at || signal.created_at;
-    
+    const timestampValue = signal.timestamp || signal.generated_at || signal.detected_at || signal.created_at;
+
     if (timestampValue) {
         try {
             const date = new Date(timestampValue);
@@ -383,11 +383,11 @@ async function fetchSignalHistory() {
     try {
         const url = `/api/signals/history?limit=50${symbol ? `&symbol=${symbol.toUpperCase()}` : ''}`;
         const res = await fetch(url);
-        
+
         if (!res.ok) {
             throw new Error(`HTTP error! status: ${res.status}`);
         }
-        
+
         const data = await res.json();
 
         if (loading) loading.style.display = 'none';
