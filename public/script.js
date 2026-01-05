@@ -854,10 +854,10 @@ async function fetchMarketIntelligence() {
         const baselineData = await baselineRes.json();
         updateBaselineUI(baselineData);
 
-        // 3. Fetch Patterns
-        const patternRes = await fetch(`${API_BASE}/patterns?symbol=${symbol}&since=${new Date(Date.now() - 24 * 3600 * 1000).toISOString()}`);
-        const patternData = await patternRes.json();
-        updatePatternsUI(patternData.patterns || []);
+        // 3. Fetch recent whale alerts as patterns (more real-time than pattern detector)
+        const whaleRes = await fetch(`${API_BASE}/whales?symbol=${symbol}&limit=5`);
+        const whaleData = await whaleRes.json();
+        updatePatternsUI(whaleData.data || []);
 
         // 4. Fetch Order Flow
         fetchOrderFlow();
@@ -910,21 +910,46 @@ function updateBaselineUI(data) {
     stdDevEl.textContent = formatNumber(data.std_dev_price ? data.std_dev_price.toFixed(2) : 0);
 }
 
-function updatePatternsUI(patterns) {
+function updatePatternsUI(whaleAlerts) {
     const list = document.getElementById('pattern-list');
+    const symbol = currentFilters.search;
     list.innerHTML = '';
 
-    if (patterns.length === 0) {
-        list.innerHTML = '<div class="placeholder-small">Pilih kode saham untuk melihat pola terkini</div>';
+    if (whaleAlerts.length === 0) {
+        if (symbol) {
+            // Symbol selected but no alerts found
+            list.innerHTML = '<div class="placeholder-small">Belum ada aktivitas bandar untuk ' + symbol + ' hari ini</div>';
+        } else {
+            // No symbol selected - show instruction
+            list.innerHTML = '<div class="placeholder-small">Pilih kode saham di pencarian untuk melihat aktivitas terkini</div>';
+        }
         return;
     }
 
-    patterns.forEach(p => {
+    // Display recent whale alerts as "patterns"
+    whaleAlerts.forEach(alert => {
         const div = document.createElement('div');
         div.className = 'pattern-item';
+        
+        // Determine pattern type based on alert data
+        let patternType = alert.action === 'BUY' ? '📈 AKUMULASI' : '📉 DISTRIBUSI';
+        if (alert.z_score >= 4.0) {
+            patternType = '🔴 ANOMALI EKSTREM';
+        } else if (alert.alert_type === 'ACCUMULATION') {
+            patternType = alert.action === 'BUY' ? '🟢 AKUMULASI KUAT' : '🔴 DISTRIBUSI KUAT';
+        }
+        
+        const timeAgo = formatTime(alert.detected_at);
+        const value = formatCurrency(alert.trigger_value);
+        
         div.innerHTML = `
-            <span class="pattern-type">${p.pattern_type.replace(/_/g, ' ')}</span>
-            <span class="pattern-conf">Yakin ${formatPercent(p.confidence * 100)}</span>
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <span class="pattern-type" style="font-size: 0.85em;">${patternType}</span>
+                <span class="pattern-conf" style="font-size: 0.75em;">${timeAgo}</span>
+            </div>
+            <div style="font-size: 0.7em; color: var(--text-secondary); margin-top: 4px;">
+                ${value} • ${formatNumber(alert.trigger_volume_lots)} Lot
+            </div>
         `;
         list.appendChild(div);
     });
@@ -1039,11 +1064,16 @@ async function fetchGlobalPerformance() {
     try {
         const res = await fetch(`${API_BASE}/signals/performance?strategy=ALL`);
         const data = await res.json();
-        if (data && data.win_rate !== undefined) {
-            document.getElementById('global-win-rate').textContent = (data.win_rate * 100).toFixed(1) + '%';
+        if (data && data.win_rate !== undefined && data.win_rate !== null) {
+            // Backend already returns win_rate as percentage (0-100), no need to multiply by 100
+            document.getElementById('global-win-rate').textContent = data.win_rate.toFixed(1) + '%';
+        } else {
+            // Show 0% if no data available
+            document.getElementById('global-win-rate').textContent = '0.0%';
         }
     } catch (err) {
         console.error("Global performance fetch failed", err);
+        document.getElementById('global-win-rate').textContent = '-';
     }
 }
 
@@ -1157,19 +1187,41 @@ async function openFollowupModal(alertId, symbol, alertPrice) {
             return;
         }
 
+        // Validate required data fields
+        if (!data || data.current_price === undefined || data.current_price === null) {
+            loading.textContent = "Data followup tidak lengkap. Silakan coba lagi.";
+            return;
+        }
+
         loading.style.display = 'none';
         content.style.display = 'block';
 
-        const currentPrice = data.current_price;
-        const changePct = ((currentPrice - alertPrice) / alertPrice) * 100;
+        // Parse and validate numbers
+        const currentPrice = parseFloat(data.current_price) || 0;
+        const validAlertPrice = parseFloat(alertPrice) || 0;
+        
+        // Calculate change percentage safely
+        let changePct = 0;
+        if (validAlertPrice > 0 && currentPrice > 0) {
+            changePct = ((currentPrice - validAlertPrice) / validAlertPrice) * 100;
+        }
+        
         const sign = changePct >= 0 ? '+' : '';
         const color = changePct >= 0 ? 'var(--accent-buy)' : 'var(--accent-sell)';
 
-        document.getElementById('f-alert-price').textContent = formatNumber(alertPrice);
+        // Update UI with validated data
+        document.getElementById('f-alert-price').textContent = formatNumber(validAlertPrice);
         document.getElementById('f-current-price').textContent = formatNumber(currentPrice);
         document.getElementById('f-price-change').textContent = `${sign}${changePct.toFixed(2)}%`;
         document.getElementById('f-price-change').style.color = color;
-        document.getElementById('f-time-elapsed').textContent = formatTime(data.detected_at);
+        
+        // Handle detected_at or alert_time field
+        const timeField = data.detected_at || data.alert_time;
+        if (timeField) {
+            document.getElementById('f-time-elapsed').textContent = formatTime(timeField);
+        } else {
+            document.getElementById('f-time-elapsed').textContent = '-';
+        }
 
         const analysis = document.getElementById('followup-analysis');
         if (changePct > 2) {
