@@ -175,21 +175,21 @@ function renderAlerts() {
     filtered.forEach(alert => {
         const row = document.createElement('tr');
         row.className = 'clickable-row';
-        row.onclick = () => openFollowupModal(alert.ID, alert.StockSymbol, alert.TriggerPrice || alert.Price || 0);
+        row.onclick = () => openFollowupModal(alert.id, alert.stock_symbol, alert.trigger_price || 0);
 
         let badgeClass = 'unknown';
-        if (alert.Action === 'BUY') badgeClass = 'buy';
-        if (alert.Action === 'SELL') badgeClass = 'sell';
+        if (alert.action === 'BUY') badgeClass = 'buy';
+        if (alert.action === 'SELL') badgeClass = 'sell';
 
-        const actionText = alert.Action === 'BUY' ? 'BELI' : alert.Action === 'SELL' ? 'JUAL' : alert.Action;
+        const actionText = alert.action === 'BUY' ? 'BELI' : alert.action === 'SELL' ? 'JUAL' : alert.action;
 
-        // Mapped fields from WebhookPayload - prioritize correct field names
-        const price = alert.TriggerPrice || alert.Price || 0;
-        const volume = alert.TriggerVolumeLots || alert.VolumeLots || 0;
-        const val = alert.TriggerValue || alert.TotalValue || 0;
+        // Use snake_case field names from JSON
+        const price = alert.trigger_price || 0;
+        const volume = alert.trigger_volume_lots || 0;
+        const val = alert.trigger_value || 0;
 
         // Price difference calculation
-        const avgPrice = alert.AvgPrice || 0;
+        const avgPrice = alert.avg_price || 0;
         let priceDiff = '';
         if (avgPrice > 0 && price > 0) {
             const pct = ((price - avgPrice) / avgPrice) * 100;
@@ -199,8 +199,8 @@ function renderAlerts() {
         }
 
         // Z-Score and anomaly detection
-        const zScore = alert.ZScore || (alert.Metadata && alert.Metadata.z_score) || 0;
-        const volumeVsAvg = alert.VolumeVsAvgPct || (alert.Metadata && alert.Metadata.volume_vs_avg_pct) || 0;
+        const zScore = alert.z_score || 0;
+        const volumeVsAvg = alert.volume_vs_avg_pct || 0;
 
         // Enhanced anomaly HTML with more details
         let anomalyHtml = '';
@@ -212,7 +212,7 @@ function renderAlerts() {
         }
 
         // Confidence score with visual indicator
-        const confidence = alert.ConfidenceScore || 100;
+        const confidence = alert.confidence_score || 100;
         let confidenceClass = 'confidence-low';
         let confidenceIcon = '⚪';
         if (confidence >= 85) {
@@ -228,11 +228,11 @@ function renderAlerts() {
         const confidenceLabel = `Yakin ${confidence.toFixed(0)}%`;
 
         // Enhanced message HTML
-        const messageHtml = alert.Message ?
-            `<div style="font-size: 0.7rem; color: #555; margin-top: 4px; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${alert.Message}">${alert.Message}</div>` : '';
+        const messageHtml = alert.message ?
+            `<div style="font-size: 0.7rem; color: #555; margin-top: 4px; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${alert.message}">${alert.message}</div>` : '';
 
         // Alert type badge
-        const alertType = alert.AlertType || 'SINGLE_TRADE';
+        const alertType = alert.alert_type || 'SINGLE_TRADE';
         const alertTypeBadge = alertType !== 'SINGLE_TRADE' ?
             `<span style="font-size:0.65em; padding:2px 4px; background:#333; color:#fff; border-radius:3px; margin-left:4px;">${alertType}</span>` : '';
 
@@ -240,7 +240,7 @@ function renderAlerts() {
         const symbolCellHtml = `
             <td data-label="Saham" class="col-symbol">
                 <div style="display: flex; align-items: center; gap: 4px;">
-                    <strong class="clickable-symbol" onclick="event.stopPropagation(); openCandleModal('${alert.StockSymbol}')">${alert.StockSymbol}</strong>
+                    <strong class="clickable-symbol" onclick="event.stopPropagation(); openCandleModal('${alert.stock_symbol}')">${alert.stock_symbol}</strong>
                     ${alertTypeBadge}
                 </div>
                 <span class="${confidenceClass}" style="font-size:0.7em;" title="Skor Keyakinan">${confidenceIcon} ${confidenceLabel}</span>
@@ -250,7 +250,7 @@ function renderAlerts() {
 
         // Row Content with enhanced data
         row.innerHTML = `
-            <td data-label="Waktu" class="col-time" title="${new Date(alert.DetectedAt).toLocaleString('id-ID')}">${formatTime(alert.DetectedAt)}</td>
+            <td data-label="Waktu" class="col-time" title="${new Date(alert.detected_at).toLocaleString('id-ID')}">${formatTime(alert.detected_at)}</td>
             ${symbolCellHtml}
             <td data-label="Aksi"><span class="badge ${badgeClass}">${actionText}</span></td>
             <td data-label="Harga" class="col-price">${formatNumber(price)} ${priceDiff}</td>
@@ -258,7 +258,7 @@ function renderAlerts() {
             <td data-label="Volume" class="text-right" title="${formatNumber(volume)} lot">${formatNumber(volume)} Lot</td>
             <td data-label="Details">
                 <div style="display: flex; flex-direction: column; gap: 2px;">
-                    <span style="font-size:0.85em; color:var(--text-secondary);">${alert.MarketBoard || 'RG'}</span>
+                    <span style="font-size:0.85em; color:var(--text-secondary);">${alert.market_board || 'RG'}</span>
                     ${anomalyHtml}
                     ${!anomalyHtml ? `<span style="font-size:0.75em; color:#aaa;">${alertType === 'ACCUMULATION' ? 'Akumulasi' : 'Transaksi Besar'}</span>` : ''}
                     ${zScore > 0 ? `<span style="font-size:0.7em; color:#888;" title="Statistical Anomaly Score">Z: ${zScore.toFixed(2)}</span>` : ''}

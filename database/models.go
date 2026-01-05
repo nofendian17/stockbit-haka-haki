@@ -58,23 +58,23 @@ func (Candle) TableName() string {
 
 // WhaleAlert represents a detected whale trade
 type WhaleAlert struct {
-	ID                 int64     `gorm:"primaryKey;autoIncrement"`
-	DetectedAt         time.Time `gorm:"index;not null"`
-	StockSymbol        string    `gorm:"size:10;index;not null"`
-	AlertType          string    `gorm:"size:20;not null"` // SINGLE_TRADE, ACCUMULATION, etc.
-	Action             string    `gorm:"size:10;not null"` // BUY, SELL
-	TriggerPrice       float64   `gorm:"type:decimal(15,2)"`
-	TriggerVolumeLots  float64   `gorm:"type:decimal(15,2)"`
-	TriggerValue       float64   `gorm:"type:decimal(20,2)"`
-	PatternDurationSec *int
-	PatternTradeCount  *int
-	TotalPatternVolume *float64 `gorm:"type:decimal(15,2)"`
-	TotalPatternValue  *float64 `gorm:"type:decimal(20,2)"`
-	ZScore             *float64 `gorm:"type:decimal(10,4)"`
-	VolumeVsAvgPct     *float64 `gorm:"type:decimal(10,2)"`
-	AvgPrice           *float64 `gorm:"type:decimal(15,2)"` // New field for average price context
-	ConfidenceScore    float64  `gorm:"type:decimal(5,2);not null"`
-	MarketBoard        string   `gorm:"size:5"`
+	ID                 int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	DetectedAt         time.Time `gorm:"index;not null" json:"detected_at"`
+	StockSymbol        string    `gorm:"size:10;index;not null" json:"stock_symbol"`
+	AlertType          string    `gorm:"size:20;not null" json:"alert_type"` // SINGLE_TRADE, ACCUMULATION, etc.
+	Action             string    `gorm:"size:10;not null" json:"action"`     // BUY, SELL
+	TriggerPrice       float64   `gorm:"type:decimal(15,2)" json:"trigger_price"`
+	TriggerVolumeLots  float64   `gorm:"type:decimal(15,2)" json:"trigger_volume_lots"`
+	TriggerValue       float64   `gorm:"type:decimal(20,2)" json:"trigger_value"`
+	PatternDurationSec *int      `json:"pattern_duration_sec,omitempty"`
+	PatternTradeCount  *int      `json:"pattern_trade_count,omitempty"`
+	TotalPatternVolume *float64  `gorm:"type:decimal(15,2)" json:"total_pattern_volume,omitempty"`
+	TotalPatternValue  *float64  `gorm:"type:decimal(20,2)" json:"total_pattern_value,omitempty"`
+	ZScore             *float64  `gorm:"type:decimal(10,4)" json:"z_score,omitempty"`
+	VolumeVsAvgPct     *float64  `gorm:"type:decimal(10,2)" json:"volume_vs_avg_pct,omitempty"`
+	AvgPrice           *float64  `gorm:"type:decimal(15,2)" json:"avg_price,omitempty"` // New field for average price context
+	ConfidenceScore    float64   `gorm:"type:decimal(5,2);not null" json:"confidence_score"`
+	MarketBoard        string    `gorm:"size:5" json:"market_board,omitempty"`
 }
 
 // TableName specifies the table name for WhaleAlert
