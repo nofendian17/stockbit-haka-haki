@@ -94,6 +94,30 @@ func (r *TradeRepository) InitSchema() error {
 		return fmt.Errorf("auto-migration failed: %w", err)
 	}
 
+	// Create strategy_performance_daily view immediately after AutoMigrate
+	// This ensures the view is created before any hypertable operations
+	fmt.Println("📊 Creating strategy_performance_daily materialized view...")
+	if err := r.db.db.Exec(`
+		CREATE MATERIALIZED VIEW IF NOT EXISTS strategy_performance_daily
+		WITH (timescaledb.continuous) AS
+		SELECT
+			time_bucket('1 day', entry_time) AS day,
+			strategy,
+			stock_symbol,
+			COUNT(*) AS total_signals,
+			SUM(CASE WHEN outcome_status = 'WIN' THEN 1 ELSE 0 END) AS wins,
+			SUM(CASE WHEN outcome_status = 'LOSS' THEN 1 ELSE 0 END) AS losses,
+			AVG(profit_loss_pct) AS avg_profit_pct,
+			SUM(profit_loss_pct) AS total_profit_pct,
+			AVG(risk_reward_ratio) AS avg_risk_reward
+		FROM signal_outcomes
+		GROUP BY day, strategy, stock_symbol
+	`).Error; err != nil {
+		fmt.Printf("⚠️ Warning: Failed to create view strategy_performance_daily: %v\n", err)
+	} else {
+		fmt.Println("✅ strategy_performance_daily view created successfully")
+	}
+
 	// Manual migrations for whale_alert_followup columns (GORM sometimes struggles with Hypertables)
 	r.db.db.Exec(`
 		ALTER TABLE whale_alert_followup 
@@ -485,48 +509,18 @@ func (r *TradeRepository) setupEnhancedTables() error {
 		SELECT add_retention_policy('stock_correlations', INTERVAL '6 months', if_not_exists => TRUE)
 	`)
 
-	// 2. Strategy Performance Daily (Continuous Aggregate)
-	fmt.Println("📊 Checking if signal_outcomes table exists before creating strategy_performance_daily view...")
-	var count int64
-	if err := r.db.db.Table("signal_outcomes").Count(&count).Error; err != nil {
-		fmt.Printf("⚠️ Warning: signal_outcomes table may not exist: %v\n", err)
-		fmt.Println("⚠️ Skipping strategy_performance_daily view creation")
+	// 2. Strategy Performance Daily Policy (view already created after AutoMigrate)
+	if err := r.db.db.Exec(`
+		SELECT add_continuous_aggregate_policy('strategy_performance_daily',
+			start_offset => INTERVAL '3 days',
+			end_offset => INTERVAL '1 minute',
+			schedule_interval => INTERVAL '15 minutes',
+			if_not_exists => TRUE
+		)
+	`).Error; err != nil {
+		fmt.Printf("⚠️ Warning: Failed to add policy for strategy_performance_daily: %v\n", err)
 	} else {
-		fmt.Printf("✅ signal_outcomes table exists with %d records\n", count)
-
-		if err := r.db.db.Exec(`
-			CREATE MATERIALIZED VIEW IF NOT EXISTS strategy_performance_daily
-			WITH (timescaledb.continuous) AS
-			SELECT
-				time_bucket('1 day', entry_time) AS day,
-				strategy,
-				stock_symbol,
-				COUNT(*) AS total_signals,
-				SUM(CASE WHEN outcome_status = 'WIN' THEN 1 ELSE 0 END) AS wins,
-				SUM(CASE WHEN outcome_status = 'LOSS' THEN 1 ELSE 0 END) AS losses,
-				AVG(profit_loss_pct) AS avg_profit_pct,
-				SUM(profit_loss_pct) AS total_profit_pct,
-				AVG(risk_reward_ratio) AS avg_risk_reward
-			FROM signal_outcomes
-			GROUP BY day, strategy, stock_symbol
-		`).Error; err != nil {
-			fmt.Printf("⚠️ Warning: Failed to create view strategy_performance_daily: %v\n", err)
-		} else {
-			fmt.Println("✅ strategy_performance_daily view created successfully")
-		}
-
-		if err := r.db.db.Exec(`
-			SELECT add_continuous_aggregate_policy('strategy_performance_daily',
-				start_offset => INTERVAL '3 days',
-				end_offset => INTERVAL '1 minute',
-				schedule_interval => INTERVAL '15 minutes',
-				if_not_exists => TRUE
-			)
-		`).Error; err != nil {
-			fmt.Printf("⚠️ Warning: Failed to add policy for strategy_performance_daily: %v\n", err)
-		} else {
-			fmt.Println("✅ strategy_performance_daily policy added successfully")
-		}
+		fmt.Println("✅ strategy_performance_daily policy added successfully")
 	}
 
 	fmt.Println("✅ Phase 3 enhancement tables configured successfully")
