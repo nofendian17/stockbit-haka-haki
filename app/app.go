@@ -192,17 +192,17 @@ func (a *App) Start() error {
 		log.Println("ℹ️  LLM Pattern Recognition DISABLED")
 	}
 
-	// 9. Start API Server
-	apiServer := api.NewServer(a.tradeRepo, a.webhookManager, a.broker, llmClient, a.config.LLM.Enabled)
-
-	// 10. Start Phase 1 Enhancement Trackers
+	// 9. Start Phase 1 Enhancement Trackers
 	log.Println("🚀 Starting Phase 1 enhancement trackers...")
 
 	// Signal Outcome Tracker
 	a.signalTracker = NewSignalTracker(a.tradeRepo)
 	go a.signalTracker.Start()
 
-	// Inject signal tracker into API server
+	// 10. Start API Server (AFTER signal tracker is initialized)
+	apiServer := api.NewServer(a.tradeRepo, a.webhookManager, a.broker, llmClient, a.config.LLM.Enabled)
+
+	// Inject signal tracker into API server BEFORE starting the server
 	apiServer.SetSignalTracker(a.signalTracker)
 
 	// Start API Server after dependencies are initialized
