@@ -242,18 +242,20 @@ function renderSignalRow(signal, isInitialLoad = false) {
     // Create row
     const row = document.createElement('tr');
     row.innerHTML = `
-        <td class="col-time" title="${fullTime}">${timeAgo}</td>
-        <td class="col-symbol"><strong>${signal.stock_symbol}</strong></td>
-        <td title="${signal.strategy.replace(/_/g, ' ')}">${formatStrategyName(signal.strategy)}</td>
-        <td><span class="${badgeClass}">${decisionIcon} ${signal.decision}</span></td>
-        <td class="col-price">Rp ${price}</td>
-        <td class="text-right">
+        <td data-label="Waktu" class="col-time" title="${fullTime}">${timeAgo}</td>
+        <td data-label="Saham" class="col-symbol">
+            <strong class="clickable-symbol" onclick="if(window.openCandleModal) window.openCandleModal('${signal.stock_symbol}')">${signal.stock_symbol}</strong>
+        </td>
+        <td data-label="Strategi" title="${signal.strategy.replace(/_/g, ' ')}">${formatStrategyName(signal.strategy)}</td>
+        <td data-label="Aksi"><span class="${badgeClass}">${decisionIcon} ${signal.decision}</span></td>
+        <td data-label="Harga" class="col-price">Rp ${price}</td>
+        <td data-label="Keyakinan" class="text-right">
             <span class="${confidenceClass}" title="${confidenceLabel} Confidence (${confidence}%)">${confidenceIcon} ${confidence}%</span>
         </td>
-        <td class="text-center">
+        <td data-label="Hasil" class="text-center">
             ${renderOutcome(signal)}
         </td>
-        <td class="reason-cell" title="${zScoreInfo}">
+        <td data-label="Alasan" class="reason-cell" title="${zScoreInfo}">
             ${enhancedReason}
             ${priceZScore > 0 || volumeZScore > 0 ? `<div style="font-size:0.7em; color:#888; margin-top:4px;">${zScoreInfo}</div>` : ''}
         </td>

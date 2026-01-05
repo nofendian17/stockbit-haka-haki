@@ -163,6 +163,18 @@ function renderAlerts() {
         row.className = 'clickable-row';
         row.onclick = () => openFollowupModal(alert.ID, alert.StockSymbol, alert.TriggerPrice || alert.Price || 0);
 
+        // Render cell with event stopPropagation to prevent row click from overriding symbol click
+        const symbolCellHtml = `
+            <td data-label="Saham" class="col-symbol">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                    <strong class="clickable-symbol" onclick="event.stopPropagation(); openCandleModal('${alert.StockSymbol}')">${alert.StockSymbol}</strong>
+                    ${alertTypeBadge}
+                </div>
+                <span class="${confidenceClass}" style="font-size:0.7em;" title="Skor Keyakinan">${confidenceIcon} ${confidenceLabel}</span>
+                ${messageHtml}
+            </td>
+        `;
+
         let badgeClass = 'unknown';
         if (alert.Action === 'BUY') badgeClass = 'buy';
         if (alert.Action === 'SELL') badgeClass = 'sell';
@@ -224,15 +236,8 @@ function renderAlerts() {
 
         // Row Content with enhanced data
         row.innerHTML = `
-            <td data-label="Time" class="col-time" title="${new Date(alert.DetectedAt).toLocaleString('id-ID')}">${formatTime(alert.DetectedAt)}</td>
-            <td data-label="Saham" class="col-symbol">
-                <div style="display: flex; align-items: center; gap: 4px;">
-                    <strong class="clickable-symbol" onclick="openCandleModal('${alert.StockSymbol}')">${alert.StockSymbol}</strong>
-                    ${alertTypeBadge}
-                </div>
-                <span class="${confidenceClass}" style="font-size:0.7em;" title="Skor Keyakinan">${confidenceIcon} ${confidenceLabel}</span>
-                ${messageHtml}
-            </td>
+            <td data-label="Waktu" class="col-time" title="${new Date(alert.DetectedAt).toLocaleString('id-ID')}">${formatTime(alert.DetectedAt)}</td>
+            ${symbolCellHtml}
             <td data-label="Aksi"><span class="badge ${badgeClass}">${actionText}</span></td>
             <td data-label="Harga" class="col-price">${formatNumber(price)} ${priceDiff}</td>
             <td data-label="Nilai" class="text-right value-highlight" title="Total Nilai: Rp ${formatNumber(val)}">${formatCurrency(val)}</td>
@@ -508,7 +513,7 @@ function renderTable(type, data) {
         const netValueSign = item.net_value >= 0 ? '+' : '';
 
         row.innerHTML = `
-            <td data-label="Symbol" class="col-symbol">${item.stock_symbol}</td>
+            <td data-label="Saham" class="col-symbol">${item.stock_symbol}</td>
             <td data-label="BUY %" class="text-right">
                 <span class="diff-positive" style="font-weight: 600;">${item.buy_percentage.toFixed(1)}%</span>
             </td>
