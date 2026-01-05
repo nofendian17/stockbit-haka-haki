@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"stockbit-haka-haki/database"
 	"stockbit-haka-haki/llm"
@@ -74,8 +75,15 @@ func (s *Server) handleSymbolAnalysisStream(w http.ResponseWriter, r *http.Reque
 
 	// Stream LLM response
 	err = s.llmClient.AnalyzeStream(r.Context(), prompt, func(chunk string) error {
-		// Write SSE format: "data: <chunk>\n\n"
-		fmt.Fprintf(w, "data: %s\n\n", chunk)
+		// Properly format multi-line chunks for SSE
+		lines := strings.Split(chunk, "\n")
+		for i, line := range lines {
+			if i < len(lines)-1 {
+				fmt.Fprintf(w, "data: %s\n", line)
+			} else {
+				fmt.Fprintf(w, "data: %s\n\n", line)
+			}
+		}
 		flusher.Flush()
 		return nil
 	})

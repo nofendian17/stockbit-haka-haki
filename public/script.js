@@ -15,7 +15,7 @@ const CONFIG = {
 
 // Configure marked.js for better analysis formatting
 if (typeof marked !== 'undefined') {
-    marked.setOptions({
+    marked.use({
         breaks: true,
         gfm: true,
         headerIds: false,
@@ -845,7 +845,7 @@ function updateRegimeUI(data) {
 
     const regime = data.regime.replace(/_/g, ' ');
     regimeEl.textContent = regime;
-    descEl.textContent = `Confidence: ${formatPercent(data.confidence * 100)} | Last updated: ${formatTime(data.detected_at)}`;
+    descEl.textContent = `Tingkat Keyakinan: ${formatPercent(data.confidence * 100)} | Update terakhir: ${formatTime(data.detected_at)}`;
 
     // Update Header Badge
     badge.textContent = regime;
@@ -862,7 +862,7 @@ function updateRegimeUI(data) {
 
 function updateBaselineUI(data) {
     if (!data) return;
-    document.getElementById('b-avg-vol').textContent = formatNumber(data.avg_volume_lot) + ' Lots';
+    document.getElementById('b-avg-vol').textContent = formatNumber(data.avg_volume_lot) + ' Lot';
     document.getElementById('b-std-dev').textContent = formatNumber(data.std_dev_price.toFixed(2));
 }
 
@@ -871,7 +871,7 @@ function updatePatternsUI(patterns) {
     list.innerHTML = '';
 
     if (patterns.length === 0) {
-        list.innerHTML = '<div class="placeholder-small">No patterns detected recently</div>';
+        list.innerHTML = '<div class="placeholder-small">Tidak ada pola yang terdeteksi baru-baru ini</div>';
         return;
     }
 
@@ -880,7 +880,7 @@ function updatePatternsUI(patterns) {
         div.className = 'pattern-item';
         div.innerHTML = `
             <span class="pattern-type">${p.pattern_type.replace(/_/g, ' ')}</span>
-            <span class="pattern-conf">${formatPercent(p.confidence * 100)} Conf.</span>
+            <span class="pattern-conf">Yakin ${formatPercent(p.confidence * 100)}</span>
         `;
         list.appendChild(div);
     });
@@ -1006,8 +1006,8 @@ async function fetchOrderFlow() {
 
             document.getElementById('buy-pressure-fill').style.width = `${buyPct}%`;
             document.getElementById('sell-pressure-fill').style.width = `${sellPct}%`;
-            document.getElementById('buy-pressure-pct').textContent = `${buyPct.toFixed(1)}% BUY`;
-            document.getElementById('sell-pressure-pct').textContent = `${sellPct.toFixed(1)}% SELL`;
+            document.getElementById('buy-pressure-pct').textContent = `${buyPct.toFixed(1)}% BELI`;
+            document.getElementById('sell-pressure-pct').textContent = `${sellPct.toFixed(1)}% JUAL`;
         }
     } catch (err) {
         console.error("Order flow fetch failed", err);
@@ -1051,15 +1051,15 @@ async function openFollowupModal(alertId, symbol, alertPrice) {
 
         const analysis = document.getElementById('followup-analysis');
         if (changePct > 2) {
-            analysis.innerHTML = `🌟 <strong>Strong Follow-through!</strong> Whale alert terbukti efektif. Harga telah naik signifikan sejak deteksi awal.`;
+            analysis.innerHTML = `🌟 <strong>Kenaikan Berlanjut!</strong> Deteksi bandar terbukti efektif. Harga telah naik signifikan sejak deteksi awal.`;
             analysis.style.borderColor = 'var(--accent-buy)';
             analysis.style.background = 'rgba(14, 203, 129, 0.1)';
         } else if (changePct < -2) {
-            analysis.innerHTML = `⚠️ <strong>Correction Detected.</strong> Harga turun dari level whale alert. Mungkin ini adalah distribusi atau profit taking.`;
+            analysis.innerHTML = `⚠️ <strong>Koreksi Terdeteksi.</strong> Harga turun dari level deteksi bandar. Kemungkinan terjadi aksi jual atau ambil untung.`;
             analysis.style.borderColor = 'var(--accent-sell)';
             analysis.style.background = 'rgba(246, 70, 93, 0.1)';
         } else {
-            analysis.innerHTML = `⚖️ <strong>Consolidating.</strong> Harga masih berada di sekitar level whale alert. Menunggu konfirmasi arah selanjutnya.`;
+            analysis.innerHTML = `⚖️ <strong>Konsolidasi.</strong> Harga masih berada di sekitar level deteksi bandar. Menunggu konfirmasi arah selanjutnya.`;
             analysis.style.borderColor = 'var(--accent-blue)';
             analysis.style.background = 'rgba(59, 130, 246, 0.1)';
         }
@@ -1114,7 +1114,7 @@ function openCandleModal(symbol) {
 
 async function fetchCandleData(symbol, timeframe) {
     const tbody = document.getElementById('candle-list-body');
-    if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center">Loading candle data...</td></tr>';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center">Memuat data histori harga...</td></tr>';
 
     try {
         const res = await fetch(`${API_BASE}/candles?symbol=${symbol}&timeframe=${timeframe}&limit=50`);
@@ -1122,7 +1122,7 @@ async function fetchCandleData(symbol, timeframe) {
         renderCandles(data.candles || []);
     } catch (err) {
         console.error("Candle fetch failed", err);
-        if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center">Error loading candles</td></tr>';
+        if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center">Gagal memuat data histori</td></tr>';
     }
 }
 
@@ -1132,7 +1132,7 @@ function renderCandles(candles) {
     tbody.innerHTML = '';
 
     if (candles.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center">No snapshot data found for this timeframe</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center">Tidak ada data untuk rentang waktu ini</td></tr>';
         return;
     }
 
