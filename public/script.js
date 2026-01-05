@@ -46,8 +46,8 @@ const formatTime = (isoString) => {
     const diffMs = now - date;
     const diffSec = Math.floor(diffMs / CONFIG.TIME_SECOND);
 
-    if (diffSec < CONFIG.TIME_MINUTE) return `${diffSec}s ago`;
-    if (diffSec < CONFIG.TIME_HOUR) return `${Math.floor(diffSec / CONFIG.TIME_MINUTE)}m ago`;
+    if (diffSec < CONFIG.TIME_MINUTE) return `${diffSec} detik lalu`;
+    if (diffSec < CONFIG.TIME_HOUR) return `${Math.floor(diffSec / CONFIG.TIME_MINUTE)} menit lalu`;
 
     return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 };
@@ -151,7 +151,7 @@ function renderAlerts() {
     const filtered = alerts;
 
     if (filtered.length === 0) {
-        if (loadingDiv) loadingDiv.innerText = 'No alerts found matching filters.';
+        if (loadingDiv) loadingDiv.innerText = 'Tidak ada alert yang sesuai filter.';
         if (loadingDiv) loadingDiv.style.display = 'block';
         return;
     } else {
@@ -166,6 +166,8 @@ function renderAlerts() {
         let badgeClass = 'unknown';
         if (alert.Action === 'BUY') badgeClass = 'buy';
         if (alert.Action === 'SELL') badgeClass = 'sell';
+
+        const actionText = alert.Action === 'BUY' ? 'BELI' : alert.Action === 'SELL' ? 'JUAL' : alert.Action;
 
         // Mapped fields from WebhookPayload - prioritize correct field names
         const price = alert.TriggerPrice || alert.Price || 0;
@@ -189,10 +191,10 @@ function renderAlerts() {
         // Enhanced anomaly HTML with more details
         let anomalyHtml = '';
         if (zScore >= 3.0) {
-            const anomalyLevel = zScore >= 5.0 ? '🔴 Extreme' : zScore >= 4.0 ? '🟠 High' : '🟡 Moderate';
-            anomalyHtml = `<span class="table-anomaly" title="Z-Score: ${zScore.toFixed(2)} | Volume: ${volumeVsAvg.toFixed(0)}% vs Avg">${anomalyLevel}</span>`;
+            const anomalyLevel = zScore >= 5.0 ? '🔴 Ekstrem' : zScore >= 4.0 ? '🟠 Tinggi' : '🟡 Sedang';
+            anomalyHtml = `<span class="table-anomaly" title="Skor Anomali: ${zScore.toFixed(2)} | Volume: ${volumeVsAvg.toFixed(0)}% vs Rata-rata">${anomalyLevel}</span>`;
         } else if (volumeVsAvg >= 500) {
-            anomalyHtml = `<span class="table-anomaly" title="Volume Spike: ${volumeVsAvg.toFixed(0)}% vs Avg">📊 Vol Spike</span>`;
+            anomalyHtml = `<span class="table-anomaly" title="Lonjakan Volume: ${volumeVsAvg.toFixed(0)}% vs Rata-rata">📊 Lonjakan Vol</span>`;
         }
 
         // Confidence score with visual indicator
@@ -209,6 +211,7 @@ function renderAlerts() {
             confidenceClass = 'confidence-medium';
             confidenceIcon = '🟡';
         }
+        const confidenceLabel = `Yakin ${confidence.toFixed(0)}%`;
 
         // Enhanced message HTML
         const messageHtml = alert.Message ?
@@ -222,18 +225,18 @@ function renderAlerts() {
         // Row Content with enhanced data
         row.innerHTML = `
             <td data-label="Time" class="col-time" title="${new Date(alert.DetectedAt).toLocaleString('id-ID')}">${formatTime(alert.DetectedAt)}</td>
-            <td data-label="Symbol" class="col-symbol">
+            <td data-label="Saham" class="col-symbol">
                 <div style="display: flex; align-items: center; gap: 4px;">
                     <strong class="clickable-symbol" onclick="openCandleModal('${alert.StockSymbol}')">${alert.StockSymbol}</strong>
                     ${alertTypeBadge}
                 </div>
-                <span class="${confidenceClass}" style="font-size:0.7em;" title="Confidence Score">${confidenceIcon} ${confidence.toFixed(0)}%</span>
+                <span class="${confidenceClass}" style="font-size:0.7em;" title="Skor Keyakinan">${confidenceIcon} ${confidenceLabel}</span>
                 ${messageHtml}
             </td>
-            <td data-label="Action"><span class="badge ${badgeClass}">${alert.Action}</span></td>
-            <td data-label="Price" class="col-price">${formatNumber(price)} ${priceDiff}</td>
-            <td data-label="Value" class="text-right value-highlight" title="Total Value: Rp ${formatNumber(val)}">${formatCurrency(val)}</td>
-            <td data-label="Volume" class="text-right" title="${formatNumber(volume)} lots">${formatNumber(volume)} Lots</td>
+            <td data-label="Aksi"><span class="badge ${badgeClass}">${actionText}</span></td>
+            <td data-label="Harga" class="col-price">${formatNumber(price)} ${priceDiff}</td>
+            <td data-label="Nilai" class="text-right value-highlight" title="Total Nilai: Rp ${formatNumber(val)}">${formatCurrency(val)}</td>
+            <td data-label="Volume" class="text-right" title="${formatNumber(volume)} lot">${formatNumber(volume)} Lot</td>
             <td data-label="Details">
                 <div style="display: flex; flex-direction: column; gap: 2px;">
                     <span style="font-size:0.85em; color:var(--text-secondary);">${alert.MarketBoard || 'RG'}</span>
@@ -249,7 +252,7 @@ function renderAlerts() {
 function updateStatsTicker() {
     if (stats.total_whale_trades) {
         document.getElementById('total-alerts').innerText = formatNumber(stats.total_whale_trades);
-        document.getElementById('total-volume').innerText = formatNumber(stats.buy_volume_lots + stats.sell_volume_lots) + " Lots";
+        document.getElementById('total-volume').innerText = formatNumber(stats.buy_volume_lots + stats.sell_volume_lots) + " Lot";
         document.getElementById('largest-value').innerText = formatCurrency(stats.largest_trade_value);
     }
 }
@@ -784,9 +787,9 @@ function updateActiveFilterCount() {
     const sectionTitle = document.querySelector('.section-title-small h3');
     if (sectionTitle) {
         if (activeCount > 0) {
-            sectionTitle.innerHTML = `Filters & Search <span style="background: var(--accent-buy); color: #000; padding: 2px 8px; border-radius: 12px; font-size: 0.7em; margin-left: 8px;">${activeCount}</span>`;
+            sectionTitle.innerHTML = `Pencarian & Filter <span style="background: var(--accent-buy); color: #000; padding: 2px 8px; border-radius: 12px; font-size: 0.7em; margin-left: 8px;">${activeCount}</span>`;
         } else {
-            sectionTitle.textContent = 'Filters & Search';
+            sectionTitle.textContent = 'Pencarian & Filter';
         }
     }
 }
