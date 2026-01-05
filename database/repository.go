@@ -1766,19 +1766,19 @@ func (r *TradeRepository) GetSignalPerformanceStats(strategy string, symbol stri
 		WHERE so.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN', 'OPEN')
 	`
 
+	var args []interface{}
 	if strategy != "" && strategy != "ALL" {
-		query += " AND ts.strategy = @strategy"
+		query += " AND ts.strategy = ?"
+		args = append(args, strategy)
 	}
 	if symbol != "" {
-		query += " AND ts.stock_symbol = @symbol"
+		query += " AND ts.stock_symbol = ?"
+		args = append(args, symbol)
 	}
 
 	query += " GROUP BY ts.strategy, ts.stock_symbol"
 
-	err := r.db.db.Raw(query, map[string]interface{}{
-		"strategy": strategy,
-		"symbol":   symbol,
-	}).Scan(&stats).Error
+	err := r.db.db.Raw(query, args...).Scan(&stats).Error
 
 	return &stats, err
 }
