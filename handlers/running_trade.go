@@ -298,7 +298,7 @@ func (h *RunningTradeHandler) ProcessTrade(t *pb.RunningTrade) {
 				MarketBoard:       boardType,
 				ZScore:            ptr(zScore),
 				VolumeVsAvgPct:    ptr(volVsAvgPct),
-				AvgPrice:          ptr(stats.MeanPrice),
+				AvgPrice:          getAvgPricePtr(stats),
 				// Populate pattern fields for context (Single Trade = Pattern of 1)
 				PatternTradeCount:  ptrInt(1),
 				TotalPatternVolume: ptr(volumeLot),
