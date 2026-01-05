@@ -202,12 +202,12 @@ function renderSignalRow(signal, isInitialLoad = false) {
         decisionIcon = '⏸️';
     }
 
-    // Format data
-    const price = new Intl.NumberFormat('id-ID').format(signal.price);
-    const change = signal.change.toFixed(2);
-    const changeSign = signal.change >= 0 ? '+' : '';
-    const changeClass = signal.change >= 0 ? 'diff-positive' : 'diff-negative';
-    const confidence = Math.round(signal.confidence * 100);
+    // Format data with defaults for missing fields
+    const price = new Intl.NumberFormat('id-ID').format(signal.price || 0);
+    const change = (signal.change !== undefined && signal.change !== null) ? signal.change.toFixed(2) : '0.00';
+    const changeSign = (signal.change || 0) >= 0 ? '+' : '';
+    const changeClass = (signal.change || 0) >= 0 ? 'diff-positive' : 'diff-negative';
+    const confidence = Math.round((signal.confidence || 0) * 100);
 
     // Confidence level with icon and color
     let confidenceClass = 'confidence-low';
@@ -249,6 +249,9 @@ function renderSignalRow(signal, isInitialLoad = false) {
         <td data-label="Strategi" title="${signal.strategy.replace(/_/g, ' ')}">${formatStrategyName(signal.strategy)}</td>
         <td data-label="Aksi"><span class="${badgeClass}">${decisionIcon} ${signal.decision}</span></td>
         <td data-label="Harga" class="col-price">Rp ${price}</td>
+        <td data-label="Perubahan" class="text-right">
+            <span class="${changeClass}">${changeSign}${change}%</span>
+        </td>
         <td data-label="Keyakinan" class="text-right">
             <span class="${confidenceClass}" title="${confidenceLabel} Confidence (${confidence}%)">${confidenceIcon} ${confidence}%</span>
         </td>
@@ -346,11 +349,17 @@ async function fetchSignalHistory() {
     try {
         const url = `/api/signals/history?limit=50${symbol ? `&symbol=${symbol.toUpperCase()}` : ''}`;
         const res = await fetch(url);
+        
+        if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        
         const data = await res.json();
 
         if (loading) loading.style.display = 'none';
 
-        if (!data.signals || data.signals.length === 0) {
+        // Validate that signals exists and is an array
+        if (!data.signals || !Array.isArray(data.signals) || data.signals.length === 0) {
             if (placeholder) placeholder.style.display = 'flex';
             return;
         }
@@ -362,6 +371,7 @@ async function fetchSignalHistory() {
     } catch (err) {
         console.error("Failed to fetch history:", err);
         if (loading) loading.style.display = 'none';
+        if (placeholder) placeholder.style.display = 'flex';
     }
 }
 
