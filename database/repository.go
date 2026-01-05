@@ -212,12 +212,16 @@ func (r *TradeRepository) setupTimescaleDB() error {
 // setupEnhancedTables creates hypertables and policies for Phase 1 enhancement tables
 func (r *TradeRepository) setupEnhancedTables() error {
 	// Create hypertable for trading_signals
-	r.db.db.Exec(`
+	// Create hypertable for trading_signals
+	if err := r.db.db.Exec(`
 		SELECT create_hypertable('trading_signals', 'generated_at',
 			chunk_time_interval => INTERVAL '7 days',
 			if_not_exists => TRUE
 		)
-	`)
+	`).Error; err != nil {
+		// Log warning but continue
+		fmt.Printf("⚠️ Warning: Failed to create hypertable for trading_signals: %v\n", err)
+	}
 
 	// Add retention policy: 2 years
 	r.db.db.Exec(`
@@ -235,12 +239,22 @@ func (r *TradeRepository) setupEnhancedTables() error {
 	`)
 
 	// Create hypertable for signal_outcomes
+	// Note: We need to ensure Primary Key includes time column for Hypertables
 	r.db.db.Exec(`
+		ALTER TABLE signal_outcomes DROP CONSTRAINT IF EXISTS signal_outcomes_pkey;
+	`)
+	r.db.db.Exec(`
+		ALTER TABLE signal_outcomes ADD PRIMARY KEY (id, entry_time);
+	`)
+
+	if err := r.db.db.Exec(`
 		SELECT create_hypertable('signal_outcomes', 'entry_time',
 			chunk_time_interval => INTERVAL '7 days',
 			if_not_exists => TRUE
 		)
-	`)
+	`).Error; err != nil {
+		fmt.Printf("⚠️ Warning: Failed to create hypertable for signal_outcomes: %v\n", err)
+	}
 
 	// Add retention policy: 2 years
 	r.db.db.Exec(`
@@ -458,7 +472,8 @@ func (r *TradeRepository) setupEnhancedTables() error {
 	`)
 
 	// 2. Strategy Performance Daily (Continuous Aggregate)
-	r.db.db.Exec(`
+	// 2. Strategy Performance Daily (Continuous Aggregate)
+	if err := r.db.db.Exec(`
 		CREATE MATERIALIZED VIEW IF NOT EXISTS strategy_performance_daily
 		WITH (timescaledb.continuous) AS
 		SELECT
@@ -473,15 +488,20 @@ func (r *TradeRepository) setupEnhancedTables() error {
 			AVG(risk_reward_ratio) AS avg_risk_reward
 		FROM signal_outcomes
 		GROUP BY day, strategy, stock_symbol
-	`)
-	r.db.db.Exec(`
+	`).Error; err != nil {
+		fmt.Printf("⚠️ Warning: Failed to create view strategy_performance_daily: %v\n", err)
+	}
+
+	if err := r.db.db.Exec(`
 		SELECT add_continuous_aggregate_policy('strategy_performance_daily',
 			start_offset => INTERVAL '3 days',
 			end_offset => INTERVAL '1 minute',
 			schedule_interval => INTERVAL '15 minutes',
 			if_not_exists => TRUE
 		)
-	`)
+	`).Error; err != nil {
+		fmt.Printf("⚠️ Warning: Failed to add policy for strategy_performance_daily: %v\n", err)
+	}
 
 	fmt.Println("✅ Phase 3 enhancement tables configured successfully")
 	return nil

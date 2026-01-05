@@ -184,10 +184,10 @@ func (TradingSignalDB) TableName() string {
 
 // SignalOutcome tracks the performance of a trading signal
 type SignalOutcome struct {
-	ID                    int64      `gorm:"primaryKey;autoIncrement"`
-	SignalID              int64      `gorm:"uniqueIndex;not null"`
-	StockSymbol           string     `gorm:"size:10;index;not null"`
-	EntryTime             time.Time  `gorm:"index;not null"`
+	ID                    int64      `gorm:"primaryKey;autoIncrement" json:"id"`
+	SignalID              int64      `gorm:"uniqueIndex;not null" json:"signal_id"`
+	StockSymbol           string     `gorm:"type:varchar(10);index;not null" json:"stock_symbol"`
+	EntryTime             time.Time  `gorm:"primaryKey;index;not null" json:"entry_time"`
 	EntryPrice            float64    `gorm:"type:decimal(15,2);not null"`
 	EntryDecision         string     `gorm:"size:10;not null"` // BUY or SELL
 	ExitTime              *time.Time `gorm:"index"`
