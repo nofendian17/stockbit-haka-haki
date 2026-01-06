@@ -1541,38 +1541,67 @@ footer {
 @media (max-width: 768px) {
   header {
     flex-direction: column;
-    align-items: center;
+    align-items: stretch;
     text-align: center;
-    gap: 1.5rem;
-    padding: 1.5rem 1rem;
+    gap: 1rem;
+    padding: 1rem;
     position: relative;
   }
 
   .logo {
-    flex-direction: column;
-    gap: 0.5rem;
+    flex-direction: row;
+    gap: 0.8rem;
+    justify-content: center;
+    align-items: center;
   }
 
   .logo .icon {
-    font-size: 2rem;
+    font-size: 1.8rem;
+  }
+
+  .logo h1 {
+    font-size: 1.1rem;
+  }
+
+  .subtitle {
+    font-size: 0.7rem;
   }
 
   .stats-ticker {
     width: 100%;
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 1rem;
-    background: rgba(0, 0, 0, 0.2);
-    padding: 15px;
-    border-radius: 12px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.8rem;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 1rem;
+    border-radius: 10px;
+    order: 3;
   }
 
   .stat-item {
     display: flex;
     flex-direction: column;
     align-items: center;
-    min-width: 100px;
+    justify-content: center;
+    padding: 0.5rem;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+    min-height: 60px;
+  }
+
+  .stat-item .label {
+    font-size: 0.65rem;
+  }
+
+  .stat-item .value {
+    font-size: 0.95rem;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: center;
+    gap: 0.8rem;
+    order: 2;
   }
 
   .controls {
@@ -1604,12 +1633,27 @@ footer {
     gap: 1.5rem;
   }
 
+  .controls-section {
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  .whale-alerts-section,
+  .strategy-signals-section,
+  .running-positions-section,
+  .history-section,
+  .summary-section,
+  .pattern-analysis-section {
+    padding: 1rem;
+    margin-left: 0;
+    margin-right: 0;
+  }
+
   .table-container {
-    border-radius: 0;
-    margin: 0 -1rem;
-    border-left: none;
-    border-right: none;
-    max-height: none;
+    border-radius: 8px;
+    margin: 0;
+    max-height: 60vh;
+    overflow-x: auto;
   }
 
   table,
@@ -1629,37 +1673,40 @@ footer {
 
   tr {
     margin-bottom: 1rem;
-    background: rgba(30, 34, 41, 0.9);
-    border: 1px solid rgba(42, 46, 55, 0.6);
-    border-radius: 12px;
-    padding: 0.5rem;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    background: rgba(30, 34, 41, 0.95);
+    border: 1px solid rgba(42, 46, 55, 0.7);
+    border-radius: 10px;
+    padding: 0.8rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   }
 
   td {
     border: none;
     position: relative;
-    padding-left: 50% !important;
+    padding: 0.6rem 0.8rem !important;
+    padding-left: 45% !important;
     text-align: right !important;
-    min-height: 40px;
+    min-height: 36px;
     display: flex;
     align-items: center;
     justify-content: flex-end;
+    word-break: break-word;
   }
 
   td:before {
     position: absolute;
-    left: 15px;
-    width: 45%;
-    padding-right: 10px;
-    white-space: nowrap;
+    left: 0.8rem;
+    width: 40%;
+    padding-right: 0.5rem;
+    white-space: normal;
     text-align: left;
     font-weight: 700;
     color: var(--text-secondary);
-    font-size: 0.72rem;
+    font-size: 0.7rem;
     text-transform: uppercase;
     content: attr(data-label);
-    letter-spacing: 0.5px;
+    letter-spacing: 0.3px;
+    line-height: 1.3;
   }
 
   .pattern-controls {
@@ -1683,21 +1730,18 @@ footer {
     max-width: 100%;
   }
 
-  .controls-section {
-    padding: 1rem;
+  main {
+    padding: 0 0.5rem;
+    margin: 1rem auto;
   }
 
   .section-title-small {
     flex-wrap: wrap;
+    font-size: 0.9rem;
   }
 
-  .control-group {
-    min-width: 100%;
-  }
-
-  .btn-refresh {
-    width: 100%;
-    justify-content: center;
+  .section-title-small h3 {
+    font-size: 0.95rem;
   }
 
   .header-content h2 {
@@ -1770,20 +1814,103 @@ footer {
 }
 
 @media (max-width: 480px) {
+  header {
+    padding: 0.8rem;
+  }
+
   .logo h1 {
-    font-size: 1.15rem;
+    font-size: 1rem;
+  }
+
+  .subtitle {
+    font-size: 0.65rem;
   }
 
   .stats-ticker {
-    flex-direction: column;
-    gap: 8px;
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+    padding: 0.8rem;
   }
 
   .stat-item {
-    width: 100%;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    min-height: 50px;
+  }
+
+  .stat-item .label {
+    font-size: 0.6rem;
+  }
+
+  .stat-item .value {
+    font-size: 0.9rem;
+  }
+
+  .help-button {
+    width: 32px;
+    height: 32px;
+  }
+
+  .help-icon {
+    font-size: 1rem;
+  }
+
+  .status-indicator {
+    font-size: 0.75rem;
+    padding: 4px 12px;
+  }
+
+  main {
+    padding: 0 0.5rem;
+  }
+
+  .controls-section,
+  .whale-alerts-section,
+  .strategy-signals-section,
+  .running-positions-section,
+  .history-section,
+  .summary-section,
+  .pattern-analysis-section {
+    padding: 0.8rem;
+    border-radius: 10px;
+  }
+
+  .pattern-tabs,
+  .strategy-tabs {
+    gap: 0.4rem;
+  }
+
+  .tab-btn,
+  .strategy-tab {
+    padding: 0.7rem 0.8rem;
+    font-size: 0.8rem;
+    min-width: 110px;
+  }
+
+  .btn-primary,
+  .btn-secondary {
+    padding: 0.8rem 1.2rem;
+    font-size: 0.85rem;
+  }
+
+  .modal-content {
+    max-width: 95vw;
+    max-height: 92vh;
+  }
+
+  .modal-header h2 {
+    font-size: 1.05rem;
+  }
+
+  .modal-body {
+    padding: 1rem;
+  }
+
+  .help-section h3 {
+    font-size: 0.95rem;
+  }
+
+  .help-section p,
+  .help-section li {
+    font-size: 0.85rem;
   }
 }
 
@@ -1973,6 +2100,18 @@ footer {
 
 /* Mobile responsive for signals table */
 @media (max-width: 768px) {
+  .strategy-tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 0.5rem;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+
+  .strategy-tab {
+    flex-shrink: 0;
+  }
+
   #signals-table thead {
     display: none;
   }
@@ -1985,35 +2124,40 @@ footer {
 
   #signals-table tr {
     margin-bottom: 1rem;
-    background: rgba(30, 34, 41, 0.9);
-    border: 1px solid rgba(42, 46, 55, 0.6);
-    border-radius: 12px;
-    padding: 0.5rem;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    background: rgba(30, 34, 41, 0.95);
+    border: 1px solid rgba(42, 46, 55, 0.7);
+    border-radius: 10px;
+    padding: 0.8rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   }
 
   #signals-table td {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.5rem 1rem !important;
+    padding: 0.6rem 0.8rem !important;
     text-align: right !important;
     border: none;
+    min-height: 36px;
   }
 
   #signals-table td:before {
     content: attr(data-label);
     font-weight: 700;
     color: var(--text-secondary);
-    font-size: 0.72rem;
+    font-size: 0.7rem;
     text-transform: uppercase;
     text-align: left;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.3px;
+    flex-shrink: 0;
+    width: 40%;
   }
 
   .reason-cell {
     max-width: 100%;
     white-space: normal;
+    font-size: 0.8rem;
+    line-height: 1.4;
   }
 }
 
@@ -2393,11 +2537,68 @@ footer {
 @media (max-width: 1000px) {
   .analytics-row {
     flex-direction: column;
+    gap: 1.5rem;
   }
 
   .intel-section,
   .performance-section {
     min-width: 100%;
+  }
+
+  .intel-grid {
+    grid-template-columns: 1fr;
+    gap: 0.8rem;
+  }
+
+  .intel-card {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .analytics-row {
+    gap: 1rem;
+  }
+
+  .intel-section,
+  .performance-section {
+    padding: 1rem;
+  }
+
+  .intel-card {
+    padding: 0.8rem;
+  }
+
+  .card-label {
+    font-size: 0.6rem;
+  }
+
+  .regime-display {
+    font-size: 1rem;
+  }
+
+  .stats-tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .s-tab {
+    flex-shrink: 0;
+    min-width: 80px;
+  }
+
+  .mini-table-container {
+    max-height: 200px;
+  }
+
+  #daily-performance-table {
+    font-size: 0.75rem;
+  }
+
+  #daily-performance-table th,
+  #daily-performance-table td {
+    padding: 0.5rem 0.6rem;
   }
 }
 
