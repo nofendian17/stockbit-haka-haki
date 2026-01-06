@@ -113,11 +113,18 @@ func (st *SignalTracker) Start() {
 	ticker := time.NewTicker(2 * time.Minute) // Run every 2 minutes for faster updates
 	defer ticker.Stop()
 
+	// Ticker for signal generation (runs more frequently)
+	signalTicker := time.NewTicker(30 * time.Second)
+	defer signalTicker.Stop()
+
 	// Run immediately on start
+	go st.generateSignals()
 	st.trackSignalOutcomes()
 
 	for {
 		select {
+		case <-signalTicker.C:
+			st.generateSignals()
 		case <-ticker.C:
 			st.trackSignalOutcomes()
 		case <-st.done:
