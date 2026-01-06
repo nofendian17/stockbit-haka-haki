@@ -349,13 +349,8 @@ func (st *SignalTracker) updateSignalOutcome(signal *database.TradingSignalDB, o
 		exitReason = "STOP_LOSS"
 	}
 
-	// Maximum holding period: 3 hours (180 minutes)
-	if !shouldExit && holdingMinutes >= MaxTradingHoldingMinutes {
-		shouldExit = true
-		exitReason = "MAX_HOLDING_TIME"
-		log.Printf("⏰ Max holding time reached for signal %d (%s): %d minutes",
-			signal.ID, signal.StockSymbol, holdingMinutes)
-	}
+	// Maximum holding period removed to let profits run until market close
+	// Stop loss and other exit conditions still apply
 
 	// Force exit at market close
 	if !shouldExit && currentSession == "AFTER_HOURS" {

@@ -233,7 +233,7 @@ function createPositionRow(pos) {
     const maeText = mae !== 0 ? `${mae.toFixed(2)}%` : '-';
     const mfeText = mfe !== 0 ? `${mfe.toFixed(2)}%` : '-';
 
-    const strategyText = 'TRACKING';
+    const strategyText = formatStrategyName(pos.strategy || 'TRACKING');
 
     row.innerHTML = `
         <td><strong>${pos.stock_symbol}</strong></td>
