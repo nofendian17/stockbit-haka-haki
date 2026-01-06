@@ -3,7 +3,7 @@
  * Handles all UI rendering logic
  */
 
-import { formatCurrency, formatNumber, formatTime, getTimeAgo, formatStrategyName, parseTimestamp } from './utils.js';
+import { formatCurrency, formatNumber, formatTime, getTimeAgo, formatStrategyName, parseTimestamp, formatPercent } from './utils.js';
 
 /**
  * Render whale alerts table
@@ -323,14 +323,31 @@ export function updateStatsTicker(stats) {
     const sellVol = stats.sell_volume_lots || 0;
     const largestVal = stats.largest_trade_value || 0;
     const winRate = stats.win_rate || 0;
+    const avgProfit = stats.avg_profit_pct || 0;
 
     const totalAlertsEl = document.getElementById('total-alerts');
     const totalVolumeEl = document.getElementById('total-volume');
     const largestValueEl = document.getElementById('largest-value');
     const winRateEl = document.getElementById('global-win-rate');
+    const avgProfitEl = document.getElementById('global-avg-profit');
 
     if (totalAlertsEl) totalAlertsEl.innerText = formatNumber(totalTrades);
     if (totalVolumeEl) totalVolumeEl.innerText = formatNumber(buyVol + sellVol) + " Lot";
     if (largestValueEl) largestValueEl.innerText = formatCurrency(largestVal);
-    if (winRateEl) winRateEl.innerText = formatNumber(winRate) + '%';
+
+    if (winRateEl) {
+        winRateEl.innerText = formatPercent(winRate);
+        // Color coding for Win Rate
+        if (winRate >= 50) winRateEl.style.color = 'var(--diff-positive)';
+        else if (winRate > 0) winRateEl.style.color = 'var(--accent-gold)';
+        else winRateEl.style.color = ''; // Default styling
+    }
+
+    if (avgProfitEl) {
+        avgProfitEl.innerText = (avgProfit > 0 ? '+' : '') + formatPercent(avgProfit);
+        // Color coding for Avg Profit
+        if (avgProfit > 0) avgProfitEl.className = 'value diff-positive';
+        else if (avgProfit < 0) avgProfitEl.className = 'value diff-negative';
+        else avgProfitEl.className = 'value';
+    }
 }

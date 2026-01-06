@@ -104,8 +104,30 @@ func (s *Server) handleGetWhaleStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Fetch global performance stats (system win rate)
+	globalStats, err := s.repo.GetGlobalPerformanceStats()
+	var winRate float64
+	var avgProfit float64
+
+	if err == nil && globalStats != nil {
+		winRate = globalStats.WinRate
+		avgProfit = globalStats.AvgProfitPct
+	}
+
+	// Create merged response
+	response := map[string]interface{}{
+		"stock_symbol":        stats.StockSymbol,
+		"total_whale_trades":  stats.TotalWhaleTrades,
+		"total_whale_value":   stats.TotalWhaleValue,
+		"buy_volume_lots":     stats.BuyVolumeLots,
+		"sell_volume_lots":    stats.SellVolumeLots,
+		"largest_trade_value": stats.LargestTradeValue,
+		"win_rate":            winRate,   // Added field for frontend
+		"avg_profit_pct":      avgProfit, // Added field for frontend
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(stats)
+	json.NewEncoder(w).Encode(response)
 }
 
 // handleGetCandles returns candles for a specific timeframe

@@ -764,6 +764,10 @@ func (r *TradeRepository) GetSignalPerformanceStats(strategy string, symbol stri
 	return r.signals.GetSignalPerformanceStats(strategy, symbol)
 }
 
+func (r *TradeRepository) GetGlobalPerformanceStats() (*types.PerformanceStats, error) {
+	return r.signals.GetGlobalPerformanceStats()
+}
+
 func (r *TradeRepository) GetDailyStrategyPerformance(strategy, symbol string, limit int) ([]map[string]interface{}, error) {
 	return r.signals.GetDailyStrategyPerformance(strategy, symbol, limit)
 }

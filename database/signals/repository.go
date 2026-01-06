@@ -209,6 +209,43 @@ func (r *Repository) GetSignalPerformanceStats(strategy string, symbol string) (
 	return &stats, nil
 }
 
+// GetGlobalPerformanceStats calculates global performance statistics across all strategies and symbols
+func (r *Repository) GetGlobalPerformanceStats() (*types.PerformanceStats, error) {
+	var stats types.PerformanceStats
+
+	query := `
+		SELECT
+			'GLOBAL' AS strategy,
+			'ALL' AS stock_symbol,
+			COUNT(*) AS total_signals,
+			SUM(CASE WHEN so.outcome_status = 'WIN' THEN 1 ELSE 0 END) AS wins,
+			SUM(CASE WHEN so.outcome_status = 'LOSS' THEN 1 ELSE 0 END) AS losses,
+			SUM(CASE WHEN so.outcome_status = 'OPEN' THEN 1 ELSE 0 END) AS open_positions,
+			ROUND(
+				(SUM(CASE WHEN so.outcome_status = 'WIN' THEN 1 ELSE 0 END)::DECIMAL /
+					NULLIF(SUM(CASE WHEN so.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN') THEN 1 ELSE 0 END), 0)) * 100,
+				2
+			) AS win_rate,
+			COALESCE(AVG(so.profit_loss_pct), 0) AS avg_profit_pct,
+			COALESCE(SUM(so.profit_loss_pct), 0) AS total_profit_pct,
+			COALESCE(MAX(so.profit_loss_pct), 0) AS max_win_pct,
+			COALESCE(MIN(so.profit_loss_pct), 0) AS max_loss_pct,
+			COALESCE(AVG(so.risk_reward_ratio), 0) AS avg_risk_reward,
+			(COALESCE(AVG(so.profit_loss_pct), 0) *
+			 (SUM(CASE WHEN so.outcome_status = 'WIN' THEN 1 ELSE 0 END)::DECIMAL / NULLIF(SUM(CASE WHEN so.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN') THEN 1 ELSE 0 END), 0))
+			) AS expectancy
+		FROM trading_signals ts
+		JOIN signal_outcomes so ON ts.id = so.signal_id AND date_trunc('day', ts.generated_at) = date_trunc('day', so.entry_time)
+		WHERE so.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN', 'OPEN')
+	`
+
+	if err := r.db.Raw(query).Scan(&stats).Error; err != nil {
+		return nil, fmt.Errorf("GetGlobalPerformanceStats: %w", err)
+	}
+
+	return &stats, nil
+}
+
 // GetDailyStrategyPerformance retrieves daily aggregated performance data
 func (r *Repository) GetDailyStrategyPerformance(strategy, symbol string, limit int) ([]map[string]interface{}, error) {
 	// Refresh materialized view to ensure latest data

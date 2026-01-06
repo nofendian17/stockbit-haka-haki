@@ -86,15 +86,46 @@ func (r *Repository) GetLatestCandle(stockSymbol string) (*models.Candle, error)
 		Order("bucket DESC").
 		First(&candle).Error
 
-	if err == gorm.ErrRecordNotFound {
-		return nil, nil
+	if err == nil {
+		return &candle, nil
 	}
 
-	if err != nil {
+	if err != gorm.ErrRecordNotFound {
 		return nil, fmt.Errorf("GetLatestCandle: %w", err)
 	}
 
-	return &candle, nil
+	// FALLBACK: If no candle found in materialized view (e.g., view not refreshed yet),
+	// try to construct a pseudo-candle from the very latest running trade.
+	// This ensures real-time price availability for critical functions like SignalTracker.
+	var latestTrade models.Trade
+	errTrade := r.db.Table("running_trades").
+		Where("stock_symbol = ?", stockSymbol).
+		Order("timestamp DESC").
+		First(&latestTrade).Error
+
+	if errTrade == gorm.ErrRecordNotFound {
+		return nil, nil // No trades either, truly no data
+	}
+
+	if errTrade != nil {
+		return nil, fmt.Errorf("GetLatestCandle (fallback): %w", errTrade)
+	}
+
+	// Construct pseudo-candle from latest trade
+	pseudoCandle := &models.Candle{
+		StockSymbol: latestTrade.StockSymbol,
+		Bucket:      latestTrade.Timestamp, // precise time
+		Open:        latestTrade.Price,
+		High:        latestTrade.Price,
+		Low:         latestTrade.Price,
+		Close:       latestTrade.Price,
+		VolumeLots:  latestTrade.VolumeLot,
+		TotalValue:  latestTrade.TotalAmount,
+		TradeCount:  1,
+		MarketBoard: latestTrade.MarketBoard,
+	}
+
+	return pseudoCandle, nil
 }
 
 // GetCandlesByTimeframe returns candles for a specific timeframe and symbol

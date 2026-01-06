@@ -59,6 +59,7 @@ services:
       LLM_ENDPOINT: ${LLM_ENDPOINT:-https://api.openai.com/v1}
       LLM_API_KEY: ${LLM_API_KEY}
       LLM_MODEL: ${LLM_MODEL:-gpt4o}
+      
     volumes:
       - token_cache:/app/cache
     # Expose port to host for web access
