@@ -90,6 +90,7 @@ func (s *Server) Start(port int) error {
 	mux.HandleFunc("GET /api/analytics/correlations", s.handleGetStockCorrelations)
 	mux.HandleFunc("GET /api/analytics/performance/daily", s.handleGetDailyPerformance)
 	mux.HandleFunc("GET /api/positions/open", s.handleGetOpenPositions)
+	mux.HandleFunc("GET /api/positions/history", s.handleGetProfitLossHistory)
 
 	// Accumulation/Distribution Summary Route
 	mux.HandleFunc("GET /api/accumulation-summary", s.handleAccumulationSummary)

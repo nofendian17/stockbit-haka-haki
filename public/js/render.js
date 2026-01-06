@@ -421,3 +421,131 @@ export function renderStockCorrelations(correlations, container) {
         container.appendChild(card);
     });
 }
+
+/**
+ * Render profit/loss history table
+ * @param {Array} history - Array of history records
+ * @param {HTMLElement} tbody - Table body element
+ * @param {HTMLElement} placeholder - Placeholder element
+ */
+export function renderProfitLossHistory(history, tbody, placeholder) {
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+
+    if (history.length === 0) {
+        if (placeholder) placeholder.style.display = 'block';
+        return;
+    }
+
+    if (placeholder) placeholder.style.display = 'none';
+
+    history.forEach(record => {
+        const row = createHistoryRow(record);
+        tbody.appendChild(row);
+    });
+}
+
+/**
+ * Create a single history table row
+ * @param {Object} record - History record data
+ * @returns {HTMLTableRowElement} Table row element
+ */
+function createHistoryRow(record) {
+    const row = document.createElement('tr');
+
+    // P&L calculation
+    const profitLoss = record.profit_loss_pct || 0;
+    const profitClass = profitLoss > 0 ? 'diff-positive' : profitLoss < 0 ? 'diff-negative' : '';
+    const profitSign = profitLoss > 0 ? '+' : '';
+
+    // Entry time
+    const entryTime = record.entry_time ? new Date(record.entry_time).toLocaleString('id-ID', {
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit'
+    }) : '-';
+
+    // Exit time
+    const exitTime = record.exit_time ? new Date(record.exit_time).toLocaleString('id-ID', {
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit'
+    }) : '-';
+
+    // Exit price
+    const exitPrice = record.exit_price ? formatNumber(record.exit_price) : '-';
+
+    // MAE/MFE
+    const mae = record.max_adverse_excursion;
+    const mfe = record.max_favorable_excursion;
+    const maeText = (mae !== null && mae !== undefined) ? `${mae.toFixed(2)}%` : '-';
+    const mfeText = (mfe !== null && mfe !== undefined) ? `${mfe.toFixed(2)}%` : '-';
+
+    // Status badge
+    let statusBadge = '';
+    const status = record.outcome_status || 'UNKNOWN';
+    if (status === 'WIN') {
+        statusBadge = '<span class="badge" style="background: var(--diff-positive); color: white;">WIN</span>';
+    } else if (status === 'LOSS') {
+        statusBadge = '<span class="badge" style="background: var(--diff-negative); color: white;">LOSS</span>';
+    } else if (status === 'BREAKEVEN') {
+        statusBadge = '<span class="badge" style="background: var(--text-secondary); color: white;">BREAKEVEN</span>';
+    } else if (status === 'OPEN') {
+        statusBadge = '<span class="badge" style="background: var(--accent-blue); color: white;">OPEN</span>';
+    }
+
+    // Exit reason
+    const exitReason = record.exit_reason || '-';
+    let exitReasonText = exitReason;
+    if (exitReason === 'TAKE_PROFIT') exitReasonText = '🎯 Take Profit';
+    else if (exitReason === 'STOP_LOSS') exitReasonText = '🛑 Stop Loss';
+    else if (exitReason === 'TIME_BASED') exitReasonText = '⏰ Time Exit';
+    else if (exitReason === 'REVERSE_SIGNAL') exitReasonText = '🔄 Reverse Signal';
+    else if (exitReason === 'MARKET_CLOSE') exitReasonText = '🔚 Market Close';
+
+    // Strategy
+    const strategyText = formatStrategyName(record.strategy || 'N/A');
+
+    // Holding duration
+    const holdingDuration = record.holding_duration_display || '-';
+
+    row.innerHTML = `
+        <td><strong>${record.stock_symbol}</strong></td>
+        <td style="font-size: 0.85em;">${strategyText}</td>
+        <td style="font-size: 0.85em;">${entryTime}</td>
+        <td class="text-right">${formatNumber(record.entry_price)}</td>
+        <td style="font-size: 0.85em;">${exitTime}</td>
+        <td class="text-right">${exitPrice}</td>
+        <td class="text-right">
+            <span class="${profitClass}" style="font-weight: 600; font-size: 1.1em;">
+                ${profitSign}${profitLoss.toFixed(2)}%
+            </span>
+        </td>
+        <td class="text-right" style="font-size: 0.9em;">${holdingDuration}</td>
+        <td class="text-right" style="font-size: 0.85em;">
+            <span class="diff-negative">${maeText}</span> /
+            <span class="diff-positive">${mfeText}</span>
+        </td>
+        <td>${statusBadge}</td>
+        <td style="font-size: 0.85em;">${exitReasonText}</td>
+    `;
+
+    // Hover effect based on P&L
+    row.addEventListener('mouseenter', () => {
+        if (profitLoss > 0) {
+            row.style.backgroundColor = 'rgba(14, 203, 129, 0.05)';
+        } else if (profitLoss < 0) {
+            row.style.backgroundColor = 'rgba(246, 70, 93, 0.05)';
+        } else {
+            row.style.backgroundColor = 'rgba(59, 130, 246, 0.05)';
+        }
+    });
+    row.addEventListener('mouseleave', () => {
+        row.style.backgroundColor = '';
+    });
+
+    return row;
+}

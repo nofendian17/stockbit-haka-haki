@@ -324,3 +324,113 @@ func (s *Server) handleGetOpenPositions(w http.ResponseWriter, r *http.Request) 
 		"count":     len(enrichedPositions),
 	})
 }
+
+// handleGetProfitLossHistory returns profit/loss history with status
+func (s *Server) handleGetProfitLossHistory(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+
+	symbol := query.Get("symbol")
+	strategy := query.Get("strategy")
+	status := query.Get("status") // WIN, LOSS, BREAKEVEN, OPEN
+
+	limit := 100
+	if l := query.Get("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
+			limit = parsed
+			if limit > 500 {
+				limit = 500
+			}
+		}
+	}
+
+	var startTime, endTime time.Time
+	if start := query.Get("start"); start != "" {
+		startTime, _ = time.Parse(time.RFC3339, start)
+	}
+	if end := query.Get("end"); end != "" {
+		endTime, _ = time.Parse(time.RFC3339, end)
+	}
+
+	log.Printf("📊 Fetching P&L history (symbol: %s, strategy: %s, status: %s, limit: %d)",
+		symbol, strategy, status, limit)
+
+	outcomes, err := s.repo.GetSignalOutcomes(symbol, status, startTime, endTime, limit)
+	if err != nil {
+		log.Printf("❌ Failed to fetch P&L history: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Enrich with signal details
+	enrichedOutcomes := make([]map[string]interface{}, 0, len(outcomes))
+	for _, outcome := range outcomes {
+		// Get signal details
+		signal, err := s.repo.GetSignalByID(outcome.SignalID)
+		if err != nil {
+			log.Printf("⚠️ Failed to get signal %d: %v", outcome.SignalID, err)
+			continue
+		}
+
+		// Filter by strategy if specified
+		if strategy != "" && strategy != "ALL" && signal.Strategy != strategy {
+			continue
+		}
+
+		// Calculate duration display
+		durationStr := "N/A"
+		if outcome.HoldingPeriodMinutes != nil {
+			mins := *outcome.HoldingPeriodMinutes
+			if mins < 60 {
+				durationStr = fmt.Sprintf("%d menit", mins)
+			} else if mins < 1440 {
+				hours := mins / 60
+				remainMins := mins % 60
+				if remainMins > 0 {
+					durationStr = fmt.Sprintf("%d jam %d menit", hours, remainMins)
+				} else {
+					durationStr = fmt.Sprintf("%d jam", hours)
+				}
+			} else {
+				days := mins / 1440
+				remainHours := (mins % 1440) / 60
+				if remainHours > 0 {
+					durationStr = fmt.Sprintf("%d hari %d jam", days, remainHours)
+				} else {
+					durationStr = fmt.Sprintf("%d hari", days)
+				}
+			}
+		}
+
+		enriched := map[string]interface{}{
+			"id":                       outcome.ID,
+			"signal_id":                outcome.SignalID,
+			"stock_symbol":             outcome.StockSymbol,
+			"strategy":                 signal.Strategy,
+			"entry_time":               outcome.EntryTime,
+			"entry_price":              outcome.EntryPrice,
+			"entry_decision":           outcome.EntryDecision,
+			"exit_time":                outcome.ExitTime,
+			"exit_price":               outcome.ExitPrice,
+			"exit_reason":              outcome.ExitReason,
+			"holding_period_minutes":   outcome.HoldingPeriodMinutes,
+			"holding_duration_display": durationStr,
+			"price_change_pct":         outcome.PriceChangePct,
+			"profit_loss_pct":          outcome.ProfitLossPct,
+			"max_favorable_excursion":  outcome.MaxFavorableExcursion,
+			"max_adverse_excursion":    outcome.MaxAdverseExcursion,
+			"risk_reward_ratio":        outcome.RiskRewardRatio,
+			"outcome_status":           outcome.OutcomeStatus,
+			"confidence":               signal.Confidence,
+		}
+
+		enrichedOutcomes = append(enrichedOutcomes, enriched)
+	}
+
+	log.Printf("✅ Returning %d P&L history records", len(enrichedOutcomes))
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"history": enrichedOutcomes,
+		"count":   len(enrichedOutcomes),
+	})
+}

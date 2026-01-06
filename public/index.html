@@ -272,6 +272,97 @@
         </div>
       </div>
 
+      <!-- Profit/Loss History Section -->
+      <div class="history-section" id="pnl-history">
+        <div class="section-header">
+          <div class="header-content">
+            <h2>
+              <span class="section-icon">📈</span>
+              Riwayat Profit & Loss
+            </h2>
+            <p class="section-subtitle">History trading dengan status outcome</p>
+          </div>
+        </div>
+
+        <!-- Filter Controls -->
+        <div class="history-filters" style="display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
+          <div class="control-group" style="flex: 1; min-width: 200px;">
+            <label for="history-strategy" class="control-label">
+              <span class="label-icon">🎯</span>
+              Strategi
+            </label>
+            <select id="history-strategy">
+              <option value="ALL">Semua Strategi</option>
+              <option value="VOLUME_BREAKOUT">Volume Breakout</option>
+              <option value="MEAN_REVERSION">Mean Reversion</option>
+              <option value="FAKEOUT_FILTER">Fakeout Filter</option>
+            </select>
+          </div>
+          <div class="control-group" style="flex: 1; min-width: 200px;">
+            <label for="history-status" class="control-label">
+              <span class="label-icon">🎲</span>
+              Status
+            </label>
+            <select id="history-status">
+              <option value="">Semua Status</option>
+              <option value="WIN">WIN (Profit)</option>
+              <option value="LOSS">LOSS (Rugi)</option>
+              <option value="BREAKEVEN">BREAKEVEN</option>
+              <option value="OPEN">OPEN (Aktif)</option>
+            </select>
+          </div>
+          <div class="control-group" style="flex: 1; min-width: 200px;">
+            <label for="history-limit" class="control-label">
+              <span class="label-icon">📊</span>
+              Jumlah Data
+            </label>
+            <select id="history-limit">
+              <option value="50">50 Terakhir</option>
+              <option value="100" selected>100 Terakhir</option>
+              <option value="200">200 Terakhir</option>
+              <option value="500">500 Terakhir</option>
+            </select>
+          </div>
+          <div class="control-group" style="align-self: flex-end;">
+            <button id="history-refresh-btn" class="btn-refresh">
+              <span class="btn-icon">🔄</span>
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table id="history-table">
+            <thead>
+              <tr>
+                <th><span class="th-icon">📊</span> Saham</th>
+                <th><span class="th-icon">🎯</span> Strategi</th>
+                <th><span class="th-icon">⏰</span> Entry</th>
+                <th class="text-right"><span class="th-icon">💵</span> Entry Price</th>
+                <th><span class="th-icon">⏰</span> Exit</th>
+                <th class="text-right"><span class="th-icon">💵</span> Exit Price</th>
+                <th class="text-right"><span class="th-icon">📈</span> P&L %</th>
+                <th class="text-right"><span class="th-icon">⏱️</span> Durasi</th>
+                <th><span class="th-icon">📉</span> MAE/MFE</th>
+                <th><span class="th-icon">🎲</span> Status</th>
+                <th><span class="th-icon">💡</span> Exit Reason</th>
+              </tr>
+            </thead>
+            <tbody id="history-table-body">
+              <!-- Rows will be injected here -->
+            </tbody>
+          </table>
+          <div id="history-loading" class="loading" style="display: none;">
+            <div class="loading-spinner"></div>
+            <p>Memuat riwayat P&L...</p>
+          </div>
+          <div id="history-placeholder" class="placeholder">
+            <span class="placeholder-icon">📈</span>
+            <p>Pilih filter dan klik Refresh untuk melihat riwayat P&L</p>
+          </div>
+        </div>
+      </div>
+
       <!-- Accumulation/Distribution Summary Section -->
       <div class="summary-section" id="accumulation-summary-section">
         <div class="section-header">

@@ -254,3 +254,28 @@ export async function fetchDetectedPatterns() {
     return apiFetch(`${CONFIG.API_BASE}/patterns`);
 }
 
+/**
+ * Fetch profit/loss history
+ * @param {Object} filters - Filter parameters (strategy, status, limit, symbol)
+ * @returns {Promise<Object>} P&L history data
+ */
+export async function fetchProfitLossHistory(filters = {}) {
+    const params = new URLSearchParams();
+    
+    if (filters.strategy && filters.strategy !== 'ALL') {
+        params.append('strategy', filters.strategy);
+    }
+    if (filters.status) {
+        params.append('status', filters.status);
+    }
+    if (filters.limit) {
+        params.append('limit', filters.limit);
+    }
+    if (filters.symbol) {
+        params.append('symbol', filters.symbol.toUpperCase());
+    }
+
+    const url = `${CONFIG.API_BASE}/positions/history?${params.toString()}`;
+    return apiFetch(url);
+}
+

@@ -6,7 +6,7 @@
 import { CONFIG } from './config.js';
 import { debounce, safeGetElement } from './utils.js';
 import * as API from './api.js';
-import { renderWhaleAlerts, renderRunningPositions, renderSummaryTable, updateStatsTicker, renderStockCorrelations } from './render.js';
+import { renderWhaleAlerts, renderRunningPositions, renderSummaryTable, updateStatsTicker, renderStockCorrelations, renderProfitLossHistory } from './render.js';
 import { createWhaleAlertSSE, createPatternAnalysisSSE } from './sse-handler.js';
 import { initStrategySystem } from './strategy-manager.js';
 
@@ -63,6 +63,7 @@ async function init() {
     setupAnalyticsTabs();
     setupPatternAnalysis();
     setupInfiniteScroll();
+    setupProfitLossHistory();
 
     // Initialize strategy system
     initStrategySystem();
@@ -825,6 +826,75 @@ async function loadCorrelations() {
                 </div>
             `;
         }
+    }
+}
+
+/**
+ * Setup profit/loss history section
+ */
+function setupProfitLossHistory() {
+    const refreshBtn = safeGetElement('history-refresh-btn');
+    const strategySelect = safeGetElement('history-strategy');
+    const statusSelect = safeGetElement('history-status');
+    const limitSelect = safeGetElement('history-limit');
+
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', () => {
+            loadProfitLossHistory();
+            refreshBtn.style.transform = 'rotate(360deg)';
+            setTimeout(() => refreshBtn.style.transform = '', 300);
+        });
+    }
+
+    // Auto-load on filter change
+    if (strategySelect) {
+        strategySelect.addEventListener('change', () => loadProfitLossHistory());
+    }
+    if (statusSelect) {
+        statusSelect.addEventListener('change', () => loadProfitLossHistory());
+    }
+    if (limitSelect) {
+        limitSelect.addEventListener('change', () => loadProfitLossHistory());
+    }
+}
+
+/**
+ * Load profit/loss history
+ */
+async function loadProfitLossHistory() {
+    const tbody = safeGetElement('history-table-body');
+    const placeholder = safeGetElement('history-placeholder');
+    const loading = safeGetElement('history-loading');
+
+    if (!tbody) return;
+
+    // Show loading
+    if (loading) loading.style.display = 'block';
+    if (placeholder) placeholder.style.display = 'none';
+
+    try {
+        const filters = {
+            strategy: document.getElementById('history-strategy')?.value || 'ALL',
+            status: document.getElementById('history-status')?.value || '',
+            limit: parseInt(document.getElementById('history-limit')?.value || '100'),
+            symbol: state.currentFilters.search || '' // Use symbol from main search if any
+        };
+
+        console.log('📊 Loading P&L history with filters:', filters);
+
+        const data = await API.fetchProfitLossHistory(filters);
+        const history = data.history || [];
+
+        console.log(`✅ Loaded ${history.length} P&L records`);
+
+        renderProfitLossHistory(history, tbody, placeholder);
+    } catch (error) {
+        console.error('Failed to load P&L history:', error);
+        if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; padding: 2rem; color: var(--accent-sell);">Gagal memuat riwayat P&L</td></tr>';
+        }
+    } finally {
+        if (loading) loading.style.display = 'none';
     }
 }
 
