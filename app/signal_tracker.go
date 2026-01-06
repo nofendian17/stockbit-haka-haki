@@ -171,9 +171,10 @@ func (st *SignalTracker) trackSignalOutcomes() {
 
 		if existing == nil {
 			// Create new outcome record
-			if err := st.createSignalOutcome(&signal); err != nil {
+			createdOutcome, err := st.createSignalOutcome(&signal)
+			if err != nil {
 				log.Printf("❌ Error creating outcome for signal %d: %v", signal.ID, err)
-			} else {
+			} else if createdOutcome {
 				created++
 				log.Printf("✅ Created outcome for signal %d (%s %s)", signal.ID, signal.StockSymbol, signal.Decision)
 			}
@@ -264,37 +265,41 @@ func (st *SignalTracker) shouldCreateOutcome(signal *database.TradingSignalDB) (
 }
 
 // createSignalOutcome creates a new outcome record for a signal
-func (st *SignalTracker) createSignalOutcome(signal *database.TradingSignalDB) error {
+// Returns: (createdOpenPosition bool, err error)
+func (st *SignalTracker) createSignalOutcome(signal *database.TradingSignalDB) (bool, error) {
 	// Indonesian market: Only track BUY signals (no short selling)
 	if signal.Decision != "BUY" {
-		return nil
+		reason := "Only BUY signals are supported"
+		st.createSkippedOutcome(signal, reason)
+		return false, nil
 	}
 
-	// Exclude NG (Negotiated Trading) signals - these are special transactions
-	// that don't reflect normal market dynamics
+	// Exclude NG (Negotiated Trading) signals
 	if signal.WhaleAlertID != nil {
-		// Get the whale alert to check market_board
 		alert, err := st.repo.GetWhaleAlertByID(*signal.WhaleAlertID)
 		if err == nil && alert != nil && alert.MarketBoard == "NG" {
-			log.Printf("⏭️ Skipping signal %d (%s): NG (Negotiated Trading) excluded from tracking",
-				signal.ID, signal.StockSymbol)
-			return nil
+			reason := "NG (Negotiated Trading) excluded"
+			log.Printf("⏭️ Skipping signal %d (%s): %s", signal.ID, signal.StockSymbol, reason)
+			st.createSkippedOutcome(signal, reason)
+			return false, nil
 		}
 	}
 
 	// Validate trading time
 	if !isTradingTime(signal.GeneratedAt) {
 		session := getTradingSession(signal.GeneratedAt)
-		log.Printf("⏰ Skipping signal %d (%s): Generated outside trading hours (session: %s)",
-			signal.ID, signal.StockSymbol, session)
-		return nil
+		reason := fmt.Sprintf("Generated outside trading hours (session: %s)", session)
+		log.Printf("⏰ Skipping signal %d (%s): %s", signal.ID, signal.StockSymbol, reason)
+		st.createSkippedOutcome(signal, reason)
+		return false, nil
 	}
 
 	// Check duplicate prevention and position limits
 	shouldCreate, reason := st.shouldCreateOutcome(signal)
 	if !shouldCreate {
 		log.Printf("⏭️ Skipping signal %d (%s): %s", signal.ID, signal.StockSymbol, reason)
-		return nil
+		st.createSkippedOutcome(signal, reason)
+		return false, nil
 	}
 
 	session := getTradingSession(signal.GeneratedAt)
@@ -310,7 +315,28 @@ func (st *SignalTracker) createSignalOutcome(signal *database.TradingSignalDB) e
 		OutcomeStatus: "OPEN",
 	}
 
-	return st.repo.SaveSignalOutcome(outcome)
+	if err := st.repo.SaveSignalOutcome(outcome); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// createSkippedOutcome creates a closed/skipped outcome to prevent reprocessing
+func (st *SignalTracker) createSkippedOutcome(signal *database.TradingSignalDB, reason string) {
+	now := time.Now()
+	outcome := &database.SignalOutcome{
+		SignalID:      signal.ID,
+		StockSymbol:   signal.StockSymbol,
+		EntryTime:     signal.GeneratedAt,
+		EntryPrice:    signal.TriggerPrice,
+		EntryDecision: signal.Decision,
+		OutcomeStatus: "SKIPPED",
+		ExitReason:    &reason,
+		ExitTime:      &now,
+	}
+	if err := st.repo.SaveSignalOutcome(outcome); err != nil {
+		log.Printf("❌ Error saving SKIPPED outcome for signal %d: %v", signal.ID, err)
+	}
 }
 
 // updateSignalOutcome updates an existing outcome with current price data

@@ -139,7 +139,7 @@ export async function fetchSignalHistory(symbol = '', limit = 50) {
     params.append('limit', limit);
 
     if (symbol) {
-        params.append('symbol', symbol.toUpperCase());
+        params.append('symbol', symbol.trim().toUpperCase());
     }
 
     const url = `${API_ENDPOINTS.SIGNALS_HISTORY}?${params.toString()}`;
