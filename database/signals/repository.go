@@ -238,7 +238,7 @@ func (r *Repository) GetDailyStrategyPerformance(strategy, symbol string, limit 
 
 // EvaluateVolumeBreakoutStrategy implements Volume Breakout Validation strategy
 // Logic: Price increase (>2%) + explosive volume (z-score > 3) = BUY signal
-func (r *Repository) EvaluateVolumeBreakoutStrategy(alert *models.WhaleAlert, zscores *types.ZScoreData) *models.TradingSignal {
+func (r *Repository) EvaluateVolumeBreakoutStrategy(alert *models.WhaleAlert, zscores *types.ZScoreData, regime *models.MarketRegime) *models.TradingSignal {
 	signal := &models.TradingSignal{
 		StockSymbol:  alert.StockSymbol,
 		Timestamp:    alert.DetectedAt,
@@ -251,20 +251,19 @@ func (r *Repository) EvaluateVolumeBreakoutStrategy(alert *models.WhaleAlert, zs
 	}
 
 	// Check conditions: change > 2% AND volume_z_score > 3
+	// Check conditions: change > 2% AND volume_z_score > 3
 	if zscores.PriceChange > 2.0 && zscores.VolumeZScore > 3.0 {
 		signal.Decision = "BUY"
 		signal.Confidence = calculateConfidence(zscores.VolumeZScore, 3.0, 6.0)
-		signal.Reason = fmt.Sprintf("Kenaikan harga %.2f%% didukung volume meledak (Z=%.2f). Entry valid ✓",
-			zscores.PriceChange, zscores.VolumeZScore)
+		signal.Reason = r.generateAIReasoning(signal, "Strong buying volume detected", regime)
 	} else if zscores.PriceChange > 2.0 && zscores.VolumeZScore <= 3.0 {
 		signal.Decision = "WAIT"
 		signal.Confidence = 0.3
-		signal.Reason = fmt.Sprintf("Harga naik %.2f%% tapi volume biasa saja (Z=%.2f). Tunggu konfirmasi.",
-			zscores.PriceChange, zscores.VolumeZScore)
+		signal.Reason = r.generateAIReasoning(signal, "Volume not confirming price action yet", regime)
 	} else {
 		signal.Decision = "NO_TRADE"
 		signal.Confidence = 0.1
-		signal.Reason = "Tidak ada breakout signifikan"
+		signal.Reason = "No significant breakout detected"
 	}
 
 	return signal
@@ -272,7 +271,7 @@ func (r *Repository) EvaluateVolumeBreakoutStrategy(alert *models.WhaleAlert, zs
 
 // EvaluateMeanReversionStrategy implements Mean Reversion (Contrarian) strategy
 // Logic: Extreme price (z-score > 4) + declining volume = SELL signal (overbought)
-func (r *Repository) EvaluateMeanReversionStrategy(alert *models.WhaleAlert, zscores *types.ZScoreData, prevVolumeZScore float64) *models.TradingSignal {
+func (r *Repository) EvaluateMeanReversionStrategy(alert *models.WhaleAlert, zscores *types.ZScoreData, prevVolumeZScore float64, regime *models.MarketRegime) *models.TradingSignal {
 	signal := &models.TradingSignal{
 		StockSymbol:  alert.StockSymbol,
 		Timestamp:    alert.DetectedAt,
@@ -291,22 +290,19 @@ func (r *Repository) EvaluateMeanReversionStrategy(alert *models.WhaleAlert, zsc
 	if zscores.PriceZScore > 4.0 && volumeDeclining {
 		signal.Decision = "SELL"
 		signal.Confidence = calculateConfidence(zscores.PriceZScore, 4.0, 7.0)
-		signal.Reason = fmt.Sprintf("Harga overextended (Z=%.2f), volume menurun. Mean reversion imminent ⚠️",
-			zscores.PriceZScore)
+		signal.Reason = r.generateAIReasoning(signal, "Price overextended with fading volume", regime)
 	} else if zscores.PriceZScore > 4.0 {
 		signal.Decision = "WAIT"
 		signal.Confidence = 0.5
-		signal.Reason = fmt.Sprintf("Harga overbought (Z=%.2f) tapi volume masih kuat. Monitor divergence.",
-			zscores.PriceZScore)
+		signal.Reason = r.generateAIReasoning(signal, "Overbought but volume remains high", regime)
 	} else if zscores.PriceZScore < -4.0 {
 		signal.Decision = "BUY"
 		signal.Confidence = calculateConfidence(-zscores.PriceZScore, 4.0, 7.0)
-		signal.Reason = fmt.Sprintf("Harga oversold (Z=%.2f). Potential bounce 📈",
-			zscores.PriceZScore)
+		signal.Reason = r.generateAIReasoning(signal, "Price oversold/undervalued", regime)
 	} else {
 		signal.Decision = "NO_TRADE"
 		signal.Confidence = 0.1
-		signal.Reason = "Harga dalam range normal"
+		signal.Reason = "Price within normal range"
 	}
 
 	return signal
@@ -314,7 +310,7 @@ func (r *Repository) EvaluateMeanReversionStrategy(alert *models.WhaleAlert, zsc
 
 // EvaluateFakeoutFilterStrategy implements Fakeout Filter (Defense) strategy
 // Logic: Price breakout + low volume (z-score < 1) = NO_TRADE (likely bull trap)
-func (r *Repository) EvaluateFakeoutFilterStrategy(alert *models.WhaleAlert, zscores *types.ZScoreData) *models.TradingSignal {
+func (r *Repository) EvaluateFakeoutFilterStrategy(alert *models.WhaleAlert, zscores *types.ZScoreData, regime *models.MarketRegime) *models.TradingSignal {
 	signal := &models.TradingSignal{
 		StockSymbol:  alert.StockSymbol,
 		Timestamp:    alert.DetectedAt,
@@ -333,25 +329,50 @@ func (r *Repository) EvaluateFakeoutFilterStrategy(alert *models.WhaleAlert, zsc
 	if isBreakout && zscores.VolumeZScore < 1.0 {
 		signal.Decision = "NO_TRADE"
 		signal.Confidence = 0.8 // High confidence to AVOID
-		signal.Reason = fmt.Sprintf("⚠️ FAKEOUT DETECTED! Breakout tanpa volume (Z=%.2f). Bull trap!",
-			zscores.VolumeZScore)
+		signal.Reason = r.generateAIReasoning(signal, "FAKEOUT DETECTED: Price jump without volume support", regime)
 	} else if isBreakout && zscores.VolumeZScore >= 2.0 {
 		signal.Decision = "BUY"
 		signal.Confidence = calculateConfidence(zscores.VolumeZScore, 2.0, 5.0)
-		signal.Reason = fmt.Sprintf("✓ Breakout valid dengan volume kuat (Z=%.2f). Safe entry.",
-			zscores.VolumeZScore)
+		signal.Reason = r.generateAIReasoning(signal, "Valid breakout with confirmed volume", regime)
 	} else if isBreakout {
 		signal.Decision = "WAIT"
 		signal.Confidence = 0.4
-		signal.Reason = fmt.Sprintf("Breakout dengan volume moderate (Z=%.2f). Tunggu konfirmasi.",
-			zscores.VolumeZScore)
+		signal.Reason = r.generateAIReasoning(signal, "Breakout volume is moderate, awaiting confirmation", regime)
 	} else {
 		signal.Decision = "NO_TRADE"
 		signal.Confidence = 0.1
-		signal.Reason = "Tidak ada breakout terdeteksi"
+		signal.Reason = "No breakout pattern detected"
 	}
 
 	return signal
+}
+
+// generateAIReasoning constructs a sophisticated, natural-language explanation mimicking LLM output
+func (r *Repository) generateAIReasoning(signal *models.TradingSignal, coreReason string, regime *models.MarketRegime) string {
+	reason := fmt.Sprintf("🤖 **AI Analysis:** %s.", coreReason)
+
+	// Add statistical context
+	if signal.Decision == "BUY" {
+		reason += fmt.Sprintf(" Bullish anomaly detected (Z-Score: %.2f).", signal.VolumeZScore)
+	} else if signal.Decision == "SELL" {
+		reason += fmt.Sprintf(" Bearish divergence identified (Price Z: %.2f).", signal.PriceZScore)
+	}
+
+	// Add Regime Context if available
+	if regime != nil {
+		if regime.Regime == "TRENDING_UP" && signal.Decision == "BUY" {
+			reason += " Confluence with market uptrend ✅."
+		} else if regime.Regime == "RANGING" && signal.Strategy == "VOLUME_BREAKOUT" {
+			reason += " Caution: Market is ranging ⚠️."
+		}
+	}
+
+	// Add confidence context
+	if signal.Confidence > 0.8 {
+		reason += " **High Conviction Setups.**"
+	}
+
+	return reason
 }
 
 // GetStrategySignals evaluates recent whale alerts and generates trading signals
@@ -407,22 +428,20 @@ func (r *Repository) GetStrategySignals(lookbackMinutes int, minConfidence float
 
 			switch strategy {
 			case "VOLUME_BREAKOUT":
-				signal = r.EvaluateVolumeBreakoutStrategy(&alert, zscores)
+				signal = r.EvaluateVolumeBreakoutStrategy(&alert, zscores, regime)
 				// Filter breakouts in RANGING markets
 				if signal != nil && regime != nil && regime.Regime == "RANGING" && regime.Confidence > 0.6 {
 					signal.Confidence *= 0.5 // Deprioritize
-					signal.Reason += " (Filtered: Ranging Market)"
 				}
 			case "MEAN_REVERSION":
 				prevZScore := prevVolumeZScores[alert.StockSymbol]
-				signal = r.EvaluateMeanReversionStrategy(&alert, zscores, prevZScore)
+				signal = r.EvaluateMeanReversionStrategy(&alert, zscores, prevZScore, regime)
 				// Boost Mean Reversion in RANGING/VOLATILE markets
 				if signal != nil && regime != nil && (regime.Regime == "RANGING" || regime.Regime == "VOLATILE") {
 					signal.Confidence *= 1.2
-					signal.Reason += " (Regime Boost)"
 				}
 			case "FAKEOUT_FILTER":
-				signal = r.EvaluateFakeoutFilterStrategy(&alert, zscores)
+				signal = r.EvaluateFakeoutFilterStrategy(&alert, zscores, regime)
 			}
 
 			// Pattern Confirmation
