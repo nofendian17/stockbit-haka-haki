@@ -2527,3 +2527,18 @@ footer {
   background: linear-gradient(180deg, var(--text-secondary), var(--border-color));
   background-clip: padding-box;
 }
+/* Reason Cell - Truncation */
+.reason-cell {
+  max-width: 250px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: help;
+  position: relative;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.reason-cell:hover {
+  color: var(--text-primary);
+}
