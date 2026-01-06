@@ -495,16 +495,44 @@ function createHistoryRow(record) {
         statusBadge = '<span class="badge" style="background: var(--text-secondary); color: white;">BREAKEVEN</span>';
     } else if (status === 'OPEN') {
         statusBadge = '<span class="badge" style="background: var(--accent-blue); color: white;">OPEN</span>';
+    } else if (status === 'SKIPPED') {
+        statusBadge = '<span class="badge" style="background: var(--accent-gold); color: white;">SKIPPED</span>';
+    } else {
+        statusBadge = `<span class="badge" style="background: #666; color: white;">${status}</span>`;
     }
 
-    // Exit reason
+    // Exit reason with enhanced formatting
     const exitReason = record.exit_reason || '-';
     let exitReasonText = exitReason;
-    if (exitReason === 'TAKE_PROFIT') exitReasonText = '🎯 Take Profit';
-    else if (exitReason === 'STOP_LOSS') exitReasonText = '🛑 Stop Loss';
-    else if (exitReason === 'TIME_BASED') exitReasonText = '⏰ Time Exit';
-    else if (exitReason === 'REVERSE_SIGNAL') exitReasonText = '🔄 Reverse Signal';
-    else if (exitReason === 'MARKET_CLOSE') exitReasonText = '🔚 Market Close';
+    
+    // Map standard exit reasons
+    if (exitReason === 'TAKE_PROFIT' || exitReason.includes('TAKE_PROFIT')) {
+        exitReasonText = '🎯 Take Profit';
+    } else if (exitReason === 'STOP_LOSS') {
+        exitReasonText = '🛑 Stop Loss';
+    } else if (exitReason === 'TIME_BASED') {
+        exitReasonText = '⏰ Time Exit';
+    } else if (exitReason === 'REVERSE_SIGNAL') {
+        exitReasonText = '🔄 Reverse Signal';
+    } else if (exitReason === 'MARKET_CLOSE') {
+        exitReasonText = '🔚 Market Close';
+    }
+    // Handle skipped reasons with better formatting
+    else if (exitReason.includes('cooldown')) {
+        exitReasonText = '⏸️ Cooldown';
+    } else if (exitReason.includes('too soon')) {
+        exitReasonText = '⏱️ Too Soon';
+    } else if (exitReason.includes('already has')) {
+        exitReasonText = '🔒 Position Exists';
+    } else if (exitReason.includes('Only BUY')) {
+        exitReasonText = '❌ SELL Not Supported';
+    } else if (exitReason.includes('Signal too soon')) {
+        exitReasonText = '⏱️ Signal Too Soon';
+    }
+    // For any other text, truncate if too long
+    else if (exitReasonText.length > 30) {
+        exitReasonText = `<span title="${exitReason}">${exitReason.substring(0, 27)}...</span>`;
+    }
 
     // Strategy
     const strategyText = formatStrategyName(record.strategy || 'N/A');

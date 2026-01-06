@@ -275,7 +275,7 @@ export async function fetchProfitLossHistory(filters = {}) {
         params.append('symbol', filters.symbol.toUpperCase());
     }
 
-    const url = `${CONFIG.API_BASE}/positions/history?${params.toString()}`;
+    const url = `${API_ENDPOINTS.POSITIONS_HISTORY}?${params.toString()}`;
     return apiFetch(url);
 }
 

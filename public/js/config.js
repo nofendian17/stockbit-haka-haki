@@ -40,6 +40,7 @@ export const API_ENDPOINTS = {
 
     // Positions
     POSITIONS_OPEN: '/api/positions/open',
+    POSITIONS_HISTORY: '/api/positions/history',
 
     // Analytics
     ACCUMULATION_SUMMARY: '/api/accumulation-summary',
