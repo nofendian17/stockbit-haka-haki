@@ -1,7 +1,10 @@
 package app
 
 import (
+	"context"
+	"fmt"
 	"log"
+	"time"
 
 	"stockbit-haka-haki/database"
 )
@@ -43,6 +46,30 @@ func (st *SignalTracker) generateSignals() {
 				log.Printf("❌ Error saving generated signal: %v", err)
 			} else {
 				savedCount++
+
+				// Redis Broadcasing & Optimization
+				if st.redis != nil {
+					ctx := context.Background()
+
+					// 1. Publish signal event
+					if err := st.redis.Publish(ctx, "signals:new", dbSignal); err != nil {
+						log.Printf("⚠️ Failed to publish signal to Redis: %v", err)
+					} else {
+						log.Printf("📡 Published new signal to Redis: %s %s", signal.StockSymbol, signal.Strategy)
+					}
+
+					// 2. Set Cooldown (15 min)
+					cooldownKey := fmt.Sprintf("signal:cooldown:%s:%s", signal.StockSymbol, signal.Strategy)
+					if err := st.redis.Set(ctx, cooldownKey, dbSignal.ID, 15*time.Minute); err != nil {
+						log.Printf("⚠️ Failed to set cooldown in Redis: %v", err)
+					}
+
+					// 3. Set Recent (5 min) - General symbol activity
+					recentKey := fmt.Sprintf("signal:recent:%s", signal.StockSymbol)
+					if err := st.redis.Set(ctx, recentKey, dbSignal.ID, 5*time.Minute); err != nil {
+						log.Printf("⚠️ Failed to set recent activity in Redis: %v", err)
+					}
+				}
 			}
 		}
 	}

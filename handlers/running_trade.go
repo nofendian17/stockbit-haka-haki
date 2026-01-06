@@ -472,11 +472,12 @@ func (ofa *OrderFlowAggregator) AddTrade(stock, action string, volumeLots, value
 	}
 
 	// Aggregate based on action
-	if action == "BUY" {
+	switch action {
+	case "BUY":
 		flow.BuyVolumeLots += volumeLots
 		flow.BuyValue += value
 		flow.BuyTradeCount++
-	} else if action == "SELL" {
+	case "SELL":
 		flow.SellVolumeLots += volumeLots
 		flow.SellValue += value
 		flow.SellTradeCount++

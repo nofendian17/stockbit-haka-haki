@@ -1,10 +1,12 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
 
+	"stockbit-haka-haki/cache"
 	"stockbit-haka-haki/database"
 )
 
@@ -17,11 +19,10 @@ const (
 
 // Position Management Constants
 const (
-	MinSignalIntervalMinutes = 15  // Minimum 15 minutes between signals for same symbol
-	MaxOpenPositions         = 10  // Maximum concurrent open positions
-	MaxPositionsPerSymbol    = 1   // Maximum positions per symbol (prevent averaging down)
-	SignalTimeWindowMinutes  = 5   // Time window for duplicate detection
-	MaxTradingHoldingMinutes = 180 // Maximum holding period: 3 hours
+	MinSignalIntervalMinutes = 15 // Minimum 15 minutes between signals for same symbol
+	MaxOpenPositions         = 10 // Maximum concurrent open positions
+	MaxPositionsPerSymbol    = 1  // Maximum positions per symbol (prevent averaging down)
+	SignalTimeWindowMinutes  = 5  // Time window for duplicate detection
 )
 
 // isTradingTime checks if the given time is within Indonesian market trading hours
@@ -94,15 +95,17 @@ func getTradingSession(t time.Time) string {
 
 // SignalTracker monitors trading signals and tracks their outcomes
 type SignalTracker struct {
-	repo *database.TradeRepository
-	done chan bool
+	repo  *database.TradeRepository
+	redis *cache.RedisClient
+	done  chan bool
 }
 
 // NewSignalTracker creates a new signal outcome tracker
-func NewSignalTracker(repo *database.TradeRepository) *SignalTracker {
+func NewSignalTracker(repo *database.TradeRepository, redis *cache.RedisClient) *SignalTracker {
 	return &SignalTracker{
-		repo: repo,
-		done: make(chan bool),
+		repo:  repo,
+		redis: redis,
+		done:  make(chan bool),
 	}
 }
 
@@ -199,6 +202,31 @@ func (st *SignalTracker) trackSignalOutcomes() {
 // shouldCreateOutcome checks if we should create an outcome for this signal
 // Returns: (shouldCreate bool, reason string)
 func (st *SignalTracker) shouldCreateOutcome(signal *database.TradingSignalDB) (bool, string) {
+	ctx := context.Background()
+
+	// 0. Redis Optimizations: Check cooldowns first (fastest)
+	if st.redis != nil {
+		// Check cooldown key: signal:cooldown:{symbol}:{strategy}
+		cooldownKey := fmt.Sprintf("signal:cooldown:%s:%s", signal.StockSymbol, signal.Strategy)
+		var cooldownSignalID int64
+		// Verify if key exists AND is not the current signal
+		if err := st.redis.Get(ctx, cooldownKey, &cooldownSignalID); err == nil && cooldownSignalID != 0 && cooldownSignalID != signal.ID {
+			return false, fmt.Sprintf("In cooldown period for %s (Signal %d)", signal.Strategy, cooldownSignalID)
+		}
+
+		// Check recent duplicate key: signal:recent:{symbol}
+		// Logic: If we recently processed a signal for this symbol (any strategy), we might want to be careful
+		// relying on DB is safer for cross-strategy checks, but we can optimistically check DB load
+		recentKey := fmt.Sprintf("signal:recent:%s", signal.StockSymbol)
+		var recentSignalID int64
+		// If recent signal exists AND it's not this one, we should treat it as a potential duplicate/noise
+		if err := st.redis.Get(ctx, recentKey, &recentSignalID); err == nil && recentSignalID != 0 && recentSignalID != signal.ID {
+			// Optimization: If a DIFFERENT recent signal exists within 5 mins, we can fail fast
+			// treating it as a duplicate or "too soon" without hitting DB
+			return false, fmt.Sprintf("Recent signal %d exists for %s (too soon)", recentSignalID, signal.StockSymbol)
+		}
+	}
+
 	// 1. Check if too many open positions globally
 	openOutcomes, err := st.repo.GetSignalOutcomes("", "OPEN", time.Time{}, time.Time{}, 0)
 	if err == nil && len(openOutcomes) >= MaxOpenPositions {
@@ -211,7 +239,7 @@ func (st *SignalTracker) shouldCreateOutcome(signal *database.TradingSignalDB) (
 		return false, fmt.Sprintf("Symbol %s already has %d open position(s)", signal.StockSymbol, len(symbolOutcomes))
 	}
 
-	// 3. Check for recent signals within time window (duplicate prevention)
+	// 3. Check for recent signals within time window (duplicate prevention) > DB Check fallback
 	recentSignalTime := signal.GeneratedAt.Add(-time.Duration(SignalTimeWindowMinutes) * time.Minute)
 	recentSignals, err := st.repo.GetTradingSignals(signal.StockSymbol, signal.Strategy, "BUY", recentSignalTime, signal.GeneratedAt, 10)
 	if err == nil && len(recentSignals) > 1 {

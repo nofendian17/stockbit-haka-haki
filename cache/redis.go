@@ -80,3 +80,25 @@ func (r *RedisClient) Close() error {
 	}
 	return nil
 }
+
+// Publish sends a message to a channel
+func (r *RedisClient) Publish(ctx context.Context, channel string, message interface{}) error {
+	if r.client == nil {
+		return fmt.Errorf("redis client not initialized")
+	}
+
+	jsonBytes, err := json.Marshal(message)
+	if err != nil {
+		return err
+	}
+
+	return r.client.Publish(ctx, channel, jsonBytes).Err()
+}
+
+// Subscribe subscribes to a channel
+func (r *RedisClient) Subscribe(ctx context.Context, channel string) *redis.PubSub {
+	if r.client == nil {
+		return nil
+	}
+	return r.client.Subscribe(ctx, channel)
+}
