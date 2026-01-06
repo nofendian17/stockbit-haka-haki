@@ -369,44 +369,60 @@ func (r *TradeRepository) createIndexes() error {
 // createPerformanceView creates the strategy performance materialized view
 func (r *TradeRepository) createPerformanceView() error {
 	fmt.Println("📊 Creating strategy_performance_daily materialized view...")
+
+	// Drop existing view if it exists to recreate with proper schema
+	r.db.db.Exec(`DROP MATERIALIZED VIEW IF EXISTS strategy_performance_daily`)
+
 	if err := r.db.db.Exec(`
-		CREATE MATERIALIZED VIEW IF NOT EXISTS strategy_performance_daily AS
+		CREATE MATERIALIZED VIEW strategy_performance_daily AS
 		SELECT
-			date_trunc('day', so.entry_time) AS day,
+			DATE(so.entry_time) AS day,
+			so.stock_symbol,
 			ts.strategy,
-			ts.stock_symbol,
 			COUNT(*) AS total_signals,
 			SUM(CASE WHEN so.outcome_status = 'WIN' THEN 1 ELSE 0 END) AS wins,
 			SUM(CASE WHEN so.outcome_status = 'LOSS' THEN 1 ELSE 0 END) AS losses,
-			SUM(CASE WHEN so.outcome_status = 'BREAKEVEN' THEN 1 ELSE 0 END) AS breakevens,
+			SUM(CASE WHEN so.outcome_status = 'BREAKEVEN' THEN 1 ELSE 0 END) AS breakeven,
 			SUM(CASE WHEN so.outcome_status = 'OPEN' THEN 1 ELSE 0 END) AS open_positions,
+			ROUND(
+				(SUM(CASE WHEN so.outcome_status = 'WIN' THEN 1 ELSE 0 END)::DECIMAL /
+				 NULLIF(SUM(CASE WHEN so.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN') THEN 1 ELSE 0 END), 0)) * 100,
+				2
+			) AS win_rate,
 			COALESCE(AVG(CASE WHEN so.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN') THEN so.profit_loss_pct END), 0) AS avg_profit_pct,
 			COALESCE(SUM(CASE WHEN so.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN') THEN so.profit_loss_pct END), 0) AS total_profit_pct,
+			COALESCE(MAX(so.profit_loss_pct), 0) AS best_trade_pct,
+			COALESCE(MIN(so.profit_loss_pct), 0) AS worst_trade_pct,
+			COALESCE(AVG(CASE WHEN so.outcome_status = 'WIN' THEN so.profit_loss_pct END), 0) AS avg_win_pct,
+			COALESCE(AVG(CASE WHEN so.outcome_status = 'LOSS' THEN so.profit_loss_pct END), 0) AS avg_loss_pct,
 			COALESCE(AVG(CASE WHEN so.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN') THEN so.risk_reward_ratio END), 0) AS avg_risk_reward,
 			COALESCE(AVG(so.entry_price), 0) AS avg_entry_price,
 			COALESCE(AVG(CASE WHEN so.exit_price IS NOT NULL THEN so.exit_price END), 0) AS avg_exit_price,
-			COALESCE(MIN(so.entry_price), 0) AS min_entry_price,
-			COALESCE(MAX(so.entry_price), 0) AS max_entry_price,
-			COALESCE(AVG(CASE WHEN so.outcome_status = 'WIN' THEN so.profit_loss_pct END), 0) AS avg_win_pct,
-			COALESCE(AVG(CASE WHEN so.outcome_status = 'LOSS' THEN so.profit_loss_pct END), 0) AS avg_loss_pct,
-			COALESCE(MAX(so.profit_loss_pct), 0) AS best_trade_pct,
-			COALESCE(MIN(so.profit_loss_pct), 0) AS worst_trade_pct,
 			COALESCE(AVG(CASE WHEN so.holding_period_minutes IS NOT NULL THEN so.holding_period_minutes END), 0) AS avg_holding_minutes
 		FROM signal_outcomes so
 		JOIN trading_signals ts ON so.signal_id = ts.id
 		WHERE so.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN', 'OPEN')
-		GROUP BY day, ts.strategy, ts.stock_symbol
+		GROUP BY DATE(so.entry_time), so.stock_symbol, ts.strategy
+		ORDER BY day DESC, so.stock_symbol, ts.strategy
 	`).Error; err != nil {
 		fmt.Printf("⚠️ Warning: Failed to create view strategy_performance_daily: %v\n", err)
-	} else {
-		fmt.Println("✅ strategy_performance_daily view created successfully")
+		return err
+	}
 
-		fmt.Println("🔄 Performing initial refresh of strategy_performance_daily...")
-		if err := r.db.db.Exec(`REFRESH MATERIALIZED VIEW strategy_performance_daily`).Error; err != nil {
-			fmt.Printf("⚠️ Warning: Failed to refresh view: %v\n", err)
-		} else {
-			fmt.Println("✅ Initial refresh completed")
-		}
+	fmt.Println("✅ strategy_performance_daily view created successfully")
+
+	// Create indexes for faster queries
+	fmt.Println("📑 Creating indexes for strategy_performance_daily...")
+	r.db.db.Exec(`CREATE INDEX IF NOT EXISTS idx_strategy_performance_daily_day ON strategy_performance_daily(day DESC)`)
+	r.db.db.Exec(`CREATE INDEX IF NOT EXISTS idx_strategy_performance_daily_symbol ON strategy_performance_daily(stock_symbol)`)
+	r.db.db.Exec(`CREATE INDEX IF NOT EXISTS idx_strategy_performance_daily_strategy ON strategy_performance_daily(strategy)`)
+	r.db.db.Exec(`CREATE INDEX IF NOT EXISTS idx_strategy_performance_daily_lookup ON strategy_performance_daily(day, strategy, stock_symbol)`)
+
+	fmt.Println("🔄 Performing initial refresh of strategy_performance_daily...")
+	if err := r.db.db.Exec(`REFRESH MATERIALIZED VIEW strategy_performance_daily`).Error; err != nil {
+		fmt.Printf("⚠️ Warning: Failed to refresh view: %v (This is normal if there's no data yet)\n", err)
+	} else {
+		fmt.Println("✅ Initial refresh completed")
 	}
 
 	return nil
