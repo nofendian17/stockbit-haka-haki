@@ -363,13 +363,24 @@ func (st *SignalTracker) updateSignalOutcome(signal *database.TradingSignalDB, o
 		// Will force exit below
 	}
 
-	// Get current price from latest candle
+	// Get current price from latest candle with fallback to latest trade
+	var currentPrice float64
 	candle, err := st.repo.GetLatestCandle(signal.StockSymbol)
 	if err != nil || candle == nil {
-		return fmt.Errorf("failed to get latest candle: %w", err)
+		// Fallback: Get price from latest trade if candle is unavailable
+		trades, err := st.repo.GetRecentTrades(signal.StockSymbol, 1, "")
+		if err != nil || len(trades) == 0 {
+			// No data available at all - log warning but don't fail completely
+			log.Printf("⚠️ No price data available for %s (signal %d) - keeping OPEN status",
+				signal.StockSymbol, signal.ID)
+			return nil // Return without error to prevent blocking other updates
+		}
+		currentPrice = trades[0].Price
+		log.Printf("📊 Using latest trade price for %s: %.0f (no candle data)",
+			signal.StockSymbol, currentPrice)
+	} else {
+		currentPrice = candle.Close
 	}
-
-	currentPrice := candle.Close
 	entryPrice := outcome.EntryPrice
 
 	// Calculate price change (only BUY positions)
@@ -379,14 +390,22 @@ func (st *SignalTracker) updateSignalOutcome(signal *database.TradingSignalDB, o
 	// Calculate holding period
 	holdingMinutes := int(time.Since(outcome.EntryTime).Minutes())
 
-	// Update MAE and MFE (simplified - track current extremes)
+	// Update MAE and MFE (track current extremes)
 	mae := outcome.MaxAdverseExcursion
 	mfe := outcome.MaxFavorableExcursion
 
-	if mae == nil || profitLossPct < *mae {
+	// Initialize MAE/MFE on first update if nil
+	if mae == nil {
+		mae = &profitLossPct
+	} else if profitLossPct < *mae {
+		// Update if current P&L is more adverse (more negative)
 		mae = &profitLossPct
 	}
-	if mfe == nil || profitLossPct > *mfe {
+
+	if mfe == nil {
+		mfe = &profitLossPct
+	} else if profitLossPct > *mfe {
+		// Update if current P&L is more favorable (more positive)
 		mfe = &profitLossPct
 	}
 
