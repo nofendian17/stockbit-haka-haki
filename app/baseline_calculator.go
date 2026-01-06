@@ -54,42 +54,71 @@ func (bc *BaselineCalculator) Stop() {
 func (bc *BaselineCalculator) calculateBaselines() {
 	log.Println("📊 Calculating statistical baselines...")
 
-	// 1. Get list of symbols that had trades in the last 24 hours
-	lookback := 24 * time.Hour
-	since := time.Now().Add(-lookback)
-
-	symbols, err := bc.repo.GetActiveSymbols(since)
-	if err != nil {
-		log.Printf("⚠️  Failed to get active symbols: %v", err)
-		return
+	// Try multiple lookback periods to handle fresh deployments
+	lookbackPeriods := []struct {
+		duration  time.Duration
+		hours     int
+		minTrades int
+	}{
+		{24 * time.Hour, 24, 10}, // Primary: 24 hours with 10 trades minimum
+		{2 * time.Hour, 2, 5},    // Fallback 1: 2 hours with 5 trades
+		{30 * time.Minute, 0, 3}, // Fallback 2: 30 minutes with 3 trades
 	}
 
 	calculated := 0
-	for _, symbol := range symbols {
-		// 2. Fetch trades for the last 24 hours
-		trades, err := bc.repo.GetTradesByTimeRange(symbol, since, time.Now())
+	skipped := 0
+	processedSymbols := make(map[string]bool)
+
+	for _, period := range lookbackPeriods {
+		since := time.Now().Add(-period.duration)
+
+		symbols, err := bc.repo.GetActiveSymbols(since)
 		if err != nil {
-			log.Printf("⚠️  Failed to get trades for %s: %v", symbol, err)
+			log.Printf("⚠️  Failed to get active symbols for %v lookback: %v", period.duration, err)
 			continue
 		}
 
-		if len(trades) < 10 {
-			// Skip symbols with too few trades for reliable statistics
-			continue
+		log.Printf("📊 Found %d active symbols in the last %v", len(symbols), period.duration)
+
+		for _, symbol := range symbols {
+			// Skip if already processed with longer lookback
+			if processedSymbols[symbol] {
+				continue
+			}
+
+			// Fetch trades for this lookback period
+			trades, err := bc.repo.GetTradesByTimeRange(symbol, since, time.Now())
+			if err != nil {
+				log.Printf("⚠️  Failed to get trades for %s: %v", symbol, err)
+				continue
+			}
+
+			if len(trades) < period.minTrades {
+				// Skip symbols with too few trades for reliable statistics
+				continue
+			}
+
+			// Calculate statistics
+			baseline := bc.computeStats(symbol, trades, period.hours)
+
+			// Save to database
+			if err := bc.repo.SaveStatisticalBaseline(baseline); err != nil {
+				log.Printf("⚠️  Failed to save baseline for %s: %v", symbol, err)
+			} else {
+				calculated++
+				processedSymbols[symbol] = true
+				log.Printf("✅ Saved baseline for %s: %d trades (lookback: %v), mean price %.2f, std dev %.2f",
+					symbol, baseline.SampleSize, period.duration, baseline.MeanPrice, baseline.StdDevPrice)
+			}
 		}
 
-		// 3. Calculate statistics
-		baseline := bc.computeStats(symbol, trades, 24)
-
-		// 4. Save to database
-		if err := bc.repo.SaveStatisticalBaseline(baseline); err != nil {
-			log.Printf("⚠️  Failed to save baseline for %s: %v", symbol, err)
-		} else {
-			calculated++
+		// If we got enough data with this lookback, no need to try shorter periods
+		if calculated >= 5 {
+			break
 		}
 	}
 
-	log.Printf("✅ Baseline calculation complete: %d symbols updated", calculated)
+	log.Printf("✅ Baseline calculation complete: %d symbols updated, %d checked", calculated, len(processedSymbols)+skipped)
 }
 
 // computeStats calculates statistical metrics from a slice of trades
