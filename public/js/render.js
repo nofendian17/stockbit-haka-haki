@@ -227,11 +227,11 @@ function createPositionRow(pos) {
         minute: '2-digit'
     }) : '-';
 
-    // MAE/MFE
-    const mae = pos.max_adverse_excursion || 0;
-    const mfe = pos.max_favorable_excursion || 0;
-    const maeText = mae !== 0 ? `${mae.toFixed(2)}%` : '-';
-    const mfeText = mfe !== 0 ? `${mfe.toFixed(2)}%` : '-';
+    // MAE/MFE - Show 0.00% when values exist but are zero, show '-' only when null/undefined
+    const mae = pos.max_adverse_excursion;
+    const mfe = pos.max_favorable_excursion;
+    const maeText = (mae !== null && mae !== undefined) ? `${mae.toFixed(2)}%` : '-';
+    const mfeText = (mfe !== null && mfe !== undefined) ? `${mfe.toFixed(2)}%` : '-';
 
     const strategyText = formatStrategyName(pos.strategy || 'TRACKING');
 

@@ -144,33 +144,17 @@ func (st *SignalTracker) Stop() {
 
 // trackSignalOutcomes processes open signals and creates/updates outcomes
 func (st *SignalTracker) trackSignalOutcomes() {
-	// Get signals without outcomes (limit to 100 per run)
-	signals, err := st.repo.GetOpenSignals(100)
-	if err != nil {
-		log.Printf("❌ Error getting open signals: %v", err)
-		return
-	}
-
-	if len(signals) == 0 {
-		log.Println("📊 No open signals to track")
-		return
-	}
-
-	log.Printf("📊 Tracking %d open signals...", len(signals))
 	created := 0
 	updated := 0
 	closed := 0
 
-	for _, signal := range signals {
-		// Check if outcome already exists
-		existing, err := st.repo.GetSignalOutcomeBySignalID(signal.ID)
-		if err != nil {
-			log.Printf("❌ Error checking outcome for signal %d: %v", signal.ID, err)
-			continue
-		}
-
-		if existing == nil {
-			// Create new outcome record
+	// PART 1: Create outcomes for new signals (signals without outcomes)
+	newSignals, err := st.repo.GetOpenSignals(100)
+	if err != nil {
+		log.Printf("❌ Error getting new signals: %v", err)
+	} else if len(newSignals) > 0 {
+		log.Printf("📊 Processing %d new signals...", len(newSignals))
+		for _, signal := range newSignals {
 			createdOutcome, err := st.createSignalOutcome(&signal)
 			if err != nil {
 				log.Printf("❌ Error creating outcome for signal %d: %v", signal.ID, err)
@@ -178,19 +162,47 @@ func (st *SignalTracker) trackSignalOutcomes() {
 				created++
 				log.Printf("✅ Created outcome for signal %d (%s %s)", signal.ID, signal.StockSymbol, signal.Decision)
 			}
+		}
+	}
+
+	// PART 2: Update existing OPEN outcomes (the critical part!)
+	openOutcomes, err := st.repo.GetSignalOutcomes("", "OPEN", time.Time{}, time.Time{}, 100)
+	if err != nil {
+		log.Printf("❌ Error getting open outcomes: %v", err)
+		return
+	}
+
+	if len(openOutcomes) == 0 {
+		if created == 0 {
+			log.Println("📊 No open positions to track")
+		}
+		return
+	}
+
+	log.Printf("📊 Updating %d open positions...", len(openOutcomes))
+	for _, outcome := range openOutcomes {
+		// Get the signal for this outcome
+		signal, err := st.repo.GetSignalByID(outcome.SignalID)
+		if err != nil {
+			log.Printf("❌ Error getting signal %d for outcome: %v", outcome.SignalID, err)
+			continue
+		}
+		if signal == nil {
+			log.Printf("⚠️ Signal %d not found for outcome %d", outcome.SignalID, outcome.ID)
+			continue
+		}
+
+		// Update the outcome
+		wasClosed := outcome.OutcomeStatus != "OPEN"
+		if err := st.updateSignalOutcome(signal, &outcome); err != nil {
+			log.Printf("❌ Error updating outcome for signal %d: %v", signal.ID, err)
 		} else {
-			// Update existing outcome
-			wasClosed := existing.OutcomeStatus != "OPEN"
-			if err := st.updateSignalOutcome(&signal, existing); err != nil {
-				log.Printf("❌ Error updating outcome for signal %d: %v", signal.ID, err)
-			} else {
-				updated++
-				// Check if outcome was closed in this update
-				if !wasClosed && existing.OutcomeStatus != "OPEN" {
-					closed++
-					log.Printf("✅ Closed outcome for signal %d (%s): %s with %.2f%%",
-						signal.ID, signal.StockSymbol, existing.OutcomeStatus, *existing.ProfitLossPct)
-				}
+			updated++
+			// Check if outcome was closed in this update
+			if !wasClosed && outcome.OutcomeStatus != "OPEN" {
+				closed++
+				log.Printf("✅ Closed outcome for signal %d (%s): %s with %.2f%%",
+					signal.ID, signal.StockSymbol, outcome.OutcomeStatus, *outcome.ProfitLossPct)
 			}
 		}
 	}
