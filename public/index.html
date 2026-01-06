@@ -533,17 +533,22 @@
         <section class="help-section">
           <h3>🎯 Trading Strategies & AI Analysis</h3>
           <p>Sinyal trading berbasis AI dengan 3 strategi utama:</p>
-          <ul>
-            <li><strong>Volume Breakout</strong>: Deteksi lonjakan volume yang signifikan</li>
-            <li><strong>Mean Reversion</strong>: Identifikasi saham yang oversold/overbought</li>
-            <li><strong>Fakeout Filter</strong>: Menghindari sinyal palsu dengan validasi tambahan</li>
-          </ul>
-          <p>Fitur baru <strong>AI Reasoning</strong> memberikan analisis naratif cerdas:</p>
-          <ul>
-            <li><strong>Context Aware</strong>: Membaca kondisi pasar (Trending/Sideways)</li>
-            <li><strong>Statistical Insight</strong>: Penjelasan berbasis data Z-Score</li>
-            <li><strong>Natural Language</strong>: Alasan masuk akal layaknya analis manusia</li>
-          </ul>
+          <div class="strategy-guide" style="font-size: 0.9em;">
+            <div style="margin-bottom: 8px;">
+              <strong>🚀 Volume Breakout (Trend Following)</strong><br>
+              <span style="color: var(--text-secondary);">Kapan: Market Trending UP / Bullish.</span><br>
+              Deteksi lonjakan harga (>2%) dengan volume masif (Z > 3.0).
+            </div>
+            <div style="margin-bottom: 8px;">
+              <strong>↩️ Mean Reversion (Contrarian)</strong><br>
+              <span style="color: var(--text-secondary);">Kapan: Market Ranging / Overbought / Oversold.</span><br>
+              Identifikasi harga ekstrem (Z < -4.0) yang berpotensi memantul. </div>
+                <div>
+                  <strong>🛡️ Fakeout Filter (Defense)</strong><br>
+                  <span style="color: var(--text-secondary);">Kapan: Selalu aktif.</span><br>
+                  Mendeteksi "jebakan" harga naik tapi volume lemah (Hati-hati!).
+                </div>
+            </div>
         </section>
 
         <section class="help-section">
@@ -577,6 +582,53 @@
             <li><strong>Timing</strong>: Analisis waktu trading optimal</li>
             <li><strong>Symbol</strong>: Analisis mendalam untuk saham tertentu</li>
           </ul>
+        </section>
+
+        <section class="help-section">
+          <h3>🧮 Rumus & Perhitungan</h3>
+          <p>Transparansi logika deteksi sistem:</p>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+            <div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;">
+              <h4 style="margin: 0 0 5px 0; font-size: 0.9em; color: var(--accent-blue);">Z-Score (Anomali)</h4>
+              <code
+                style="display: block; margin-bottom: 5px; font-size: 0.8em; color: var(--text-primary); background: transparent;">Z = (Vol - Avg) / StdDev</code>
+              <ul style="font-size: 0.8em; margin: 0; padding-left: 15px; color: var(--text-secondary);">
+                <li><strong>3.0+</strong>: Signifikan (99.7%)</li>
+                <li><strong>4.0+</strong>: Sangat Langka</li>
+                <li><strong>5.0+</strong>: Extreme / Black Swan</li>
+              </ul>
+            </div>
+            <div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;">
+              <h4 style="margin: 0 0 5px 0; font-size: 0.9em; color: var(--accent-gold);">Confidence Level</h4>
+              <code
+                style="display: block; margin-bottom: 5px; font-size: 0.8em; color: var(--text-primary); background: transparent;">70% + Basis Z + Vol Bonus</code>
+              <ul style="font-size: 0.8em; margin: 0; padding-left: 15px; color: var(--text-secondary);">
+                <li><strong>>85%</strong>: High Conviction</li>
+                <li><strong>70-85%</strong>: Valid Signal</li>
+                <li><strong>
+                    <70%< /strong>: Butuh Konfirmasi</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="help-section">
+          <h3>📚 Glosarium Bandar</h3>
+          <dl style="font-size: 0.9em; display: grid; grid-template-columns: auto 1fr; gap: 8px 15px;">
+            <dt style="color: var(--accent-green); font-weight: 600;">HAKA</dt>
+            <dd style="margin: 0;"><em>Hajar Kanan</em>. Pembelian agresif langsung di harga Offer (Ask).</dd>
+
+            <dt style="color: var(--accent-red); font-weight: 600;">HAKI</dt>
+            <dd style="margin: 0;"><em>Hajar Kiri</em>. Penjualan agresif langsung di harga Bid.</dd>
+
+            <dt style="color: var(--accent-purple); font-weight: 600;">MTC</dt>
+            <dd style="margin: 0;"><em>Marking The Close</em>. Aksi menaikkan harga di menit akhir (Pre-Closing).</dd>
+
+            <dt style="color: var(--text-primary); font-weight: 600;">Regime</dt>
+            <dd style="margin: 0;">Status pasar. <strong>Trending</strong> (Satu arah), <strong>Ranging</strong>
+              (Sideways), <strong>Volatile</strong> (Liar).</dd>
+          </dl>
         </section>
 
         <section class="help-section">
