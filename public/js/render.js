@@ -351,3 +351,73 @@ export function updateStatsTicker(stats) {
         else avgProfitEl.className = 'value';
     }
 }
+
+/**
+ * Render stock correlations
+ * @param {Array} correlations - Array of correlation objects
+ * @param {HTMLElement} container - Container element
+ */
+export function renderStockCorrelations(correlations, container) {
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    if (!correlations || correlations.length === 0) {
+        container.innerHTML = `
+            <div class="placeholder">
+                <span class="placeholder-icon">🔗</span>
+                <p>Tidak ada data korelasi ditemukan</p>
+            </div>`;
+        return;
+    }
+
+    correlations.forEach(corr => {
+        const card = document.createElement('div');
+        card.className = 'correlation-card';
+
+        const coefficient = corr.correlation_coefficient || 0;
+        let colorClass = 'neutral';
+        let strengthText = 'Netral';
+
+        if (coefficient > 0.7) {
+            colorClass = 'positive-strong';
+            strengthText = 'Sangat Kuat (Positif)';
+        } else if (coefficient > 0.4) {
+            colorClass = 'positive';
+            strengthText = 'Kuat (Positif)';
+        } else if (coefficient < -0.7) {
+            colorClass = 'negative-strong';
+            strengthText = 'Sangat Kuat (Negatif)';
+        } else if (coefficient < -0.4) {
+            colorClass = 'negative';
+            strengthText = 'Kuat (Negatif)';
+        }
+
+        // Format Period
+        const period = corr.period === '1hour' ? '1 Jam' : corr.period;
+
+        card.innerHTML = `
+            <div class="corr-header">
+                <div class="pair">
+                    <span class="symbol">${corr.stock_a}</span>
+                    <span class="separator">↔</span>
+                    <span class="symbol">${corr.stock_b}</span>
+                </div>
+                <div class="corr-value ${colorClass}">
+                    ${coefficient.toFixed(2)}
+                </div>
+            </div>
+            <div class="corr-body">
+                <div class="strength-bar">
+                    <div class="bar-fill ${colorClass}" style="width: ${Math.abs(coefficient) * 100}%"></div>
+                </div>
+                <div class="corr-meta">
+                    <span class="strength-label">${strengthText}</span>
+                    <span class="period-label">Period: ${period}</span>
+                </div>
+            </div>
+        `;
+
+        container.appendChild(card);
+    });
+}

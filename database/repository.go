@@ -393,7 +393,7 @@ func (r *TradeRepository) createPerformanceView() error {
 			COALESCE(MIN(so.profit_loss_pct), 0) AS worst_trade_pct,
 			COALESCE(AVG(CASE WHEN so.holding_period_minutes IS NOT NULL THEN so.holding_period_minutes END), 0) AS avg_holding_minutes
 		FROM signal_outcomes so
-		JOIN trading_signals ts ON so.signal_id = ts.id AND date_trunc('day', so.entry_time) = date_trunc('day', ts.generated_at)
+		JOIN trading_signals ts ON so.signal_id = ts.id
 		WHERE so.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN', 'OPEN')
 		GROUP BY day, ts.strategy, ts.stock_symbol
 	`).Error; err != nil {

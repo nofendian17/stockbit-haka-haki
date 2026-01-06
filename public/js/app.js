@@ -6,7 +6,7 @@
 import { CONFIG } from './config.js';
 import { debounce, safeGetElement } from './utils.js';
 import * as API from './api.js';
-import { renderWhaleAlerts, renderRunningPositions, renderSummaryTable, updateStatsTicker } from './render.js';
+import { renderWhaleAlerts, renderRunningPositions, renderSummaryTable, updateStatsTicker, renderStockCorrelations } from './render.js';
 import { createWhaleAlertSSE, createPatternAnalysisSSE } from './sse-handler.js';
 import { initStrategySystem } from './strategy-manager.js';
 
@@ -138,6 +138,11 @@ async function refreshAllData() {
     // Optional analytics - don't block on errors
     API.fetchAnalyticsHub().catch(err => console.warn('Analytics hub unavailable'));
     API.fetchOrderFlow().catch(err => console.warn('Order flow unavailable'));
+
+    // Reload correlations if tab is active
+    if (document.getElementById('correlations-view')?.classList.contains('active')) {
+        loadCorrelations();
+    }
 }
 
 /**
@@ -635,6 +640,11 @@ function setupAnalyticsTabs() {
             });
             const targetPanel = document.getElementById(target);
             if (targetPanel) targetPanel.classList.add('active');
+
+            // Load data if needed
+            if (target === 'correlations-view') {
+                loadCorrelations();
+            }
         });
     });
 }
@@ -777,6 +787,45 @@ function startAnalyticsPolling() {
 
     // Stats polling
     setInterval(fetchStats, CONFIG.STATS_POLL_INTERVAL);
+}
+
+
+/**
+ * Load and render correlations
+ */
+async function loadCorrelations() {
+    const container = safeGetElement('correlation-container');
+    const searchSymbol = state.currentFilters.search.toUpperCase();
+
+    if (!searchSymbol) {
+        if (container) {
+            container.innerHTML = `
+                <div class="placeholder-small">
+                    <span class="placeholder-icon">🔍</span>
+                    <p>Cari kode saham (misal: BBCA) untuk melihat korelasi</p>
+                </div>
+            `;
+        }
+        return;
+    }
+
+    if (container) {
+        container.innerHTML = '<div class="stream-loading">Memuat data korelasi...</div>';
+    }
+
+    try {
+        const data = await API.fetchCorrelations(searchSymbol);
+        renderStockCorrelations(data.correlations, container);
+    } catch (error) {
+        console.error('Failed to load correlations:', error);
+        if (container) {
+            container.innerHTML = `
+                <div class="placeholder-small">
+                    <p style="color: var(--accent-sell);">Gagal memuat data korelasi</p>
+                </div>
+            `;
+        }
+    }
 }
 
 // Initialize when DOM is ready
