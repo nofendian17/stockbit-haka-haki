@@ -211,10 +211,13 @@ function renderSignalRow(signal, isInitialLoad = false) {
     }
 
     // Format data
-    const price = new Intl.NumberFormat('id-ID').format(signal.price || 0);
-    const change = (signal.change !== undefined && signal.change !== null) ? signal.change.toFixed(2) : '0.00';
-    const changeSign = (signal.change || 0) >= 0 ? '+' : '';
-    const changeClass = (signal.change || 0) >= 0 ? 'diff-positive' : 'diff-negative';
+    const priceValue = signal.price ?? signal.trigger_price ?? 0;
+    const price = new Intl.NumberFormat('id-ID').format(priceValue);
+
+    const changeValue = signal.change ?? signal.price_change_pct ?? 0;
+    const change = changeValue.toFixed(2);
+    const changeSign = changeValue >= 0 ? '+' : '';
+    const changeClass = changeValue >= 0 ? 'diff-positive' : 'diff-negative';
     const confidence = Math.round((signal.confidence || 0) * 100);
 
     // Confidence display

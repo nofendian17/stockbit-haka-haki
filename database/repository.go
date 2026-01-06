@@ -835,18 +835,7 @@ func (r *TradeRepository) GetStrategySignals(lookbackMinutes int, minConfidence 
 		return nil, err
 	}
 
-	// Get baseline, regime, and patterns for first alert (if any)
-	var baseline *models.StatisticalBaseline
-	var regime *models.MarketRegime
-	var patterns []models.DetectedPattern
-
-	if len(alerts) > 0 {
-		baseline, _ = r.analytics.GetLatestBaseline(alerts[0].StockSymbol)
-		regime, _ = r.analytics.GetLatestRegime(alerts[0].StockSymbol)
-		patterns, _ = r.analytics.GetRecentPatterns(alerts[0].StockSymbol, time.Now().Add(-2*time.Hour))
-	}
-
-	return r.signals.GetStrategySignals(lookbackMinutes, minConfidence, strategyFilter, alerts, baseline, regime, patterns)
+	return r.signals.GetStrategySignals(lookbackMinutes, minConfidence, strategyFilter, alerts)
 }
 
 // Analytics methods

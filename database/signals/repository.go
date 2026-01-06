@@ -355,22 +355,20 @@ func (r *Repository) EvaluateFakeoutFilterStrategy(alert *models.WhaleAlert, zsc
 }
 
 // GetStrategySignals evaluates recent whale alerts and generates trading signals
-func (r *Repository) GetStrategySignals(lookbackMinutes int, minConfidence float64, strategyFilter string, alerts []models.WhaleAlert, baseline *models.StatisticalBaseline, regime *models.MarketRegime, patterns []models.DetectedPattern) ([]models.TradingSignal, error) {
+func (r *Repository) GetStrategySignals(lookbackMinutes int, minConfidence float64, strategyFilter string, alerts []models.WhaleAlert) ([]models.TradingSignal, error) {
 	var signals []models.TradingSignal
 
 	// Track previous volume z-scores for divergence detection
 	prevVolumeZScores := make(map[string]float64)
 
-	// Create regime map for quick lookup
-	regimeMap := make(map[string]*models.MarketRegime)
-	if regime != nil {
-		regimeMap[regime.StockSymbol] = regime
-	}
+	// Fetch recent patterns for potential confirmation (global fetch or per symbol)
+	// For efficiency we could pre-fetch, but for now strict per-symbol checking is safer
 
 	for _, alert := range alerts {
-		// Use the provided baseline
-		if baseline == nil {
-			log.Printf("⚠️ No baseline provided for %s", alert.StockSymbol)
+		// Fetch baseline for this specific symbol
+		baseline, err := r.analytics.GetLatestBaseline(alert.StockSymbol)
+		if err != nil || baseline == nil {
+			log.Printf("⚠️ No baseline found for %s, skipping signal generation", alert.StockSymbol)
 			continue
 		}
 
@@ -393,7 +391,10 @@ func (r *Repository) GetStrategySignals(lookbackMinutes int, minConfidence float
 		}
 
 		// Get regime for this stock symbol
-		regimeForSymbol := regimeMap[alert.StockSymbol]
+		regime, _ := r.analytics.GetLatestRegime(alert.StockSymbol)
+
+		// Get detected patterns for this symbol
+		patterns, _ := r.analytics.GetRecentPatterns(alert.StockSymbol, time.Now().Add(-2*time.Hour))
 
 		// Evaluate each strategy
 		strategies := []string{"VOLUME_BREAKOUT", "MEAN_REVERSION", "FAKEOUT_FILTER"}
@@ -408,7 +409,7 @@ func (r *Repository) GetStrategySignals(lookbackMinutes int, minConfidence float
 			case "VOLUME_BREAKOUT":
 				signal = r.EvaluateVolumeBreakoutStrategy(&alert, zscores)
 				// Filter breakouts in RANGING markets
-				if signal != nil && regimeForSymbol != nil && regimeForSymbol.Regime == "RANGING" && regimeForSymbol.Confidence > 0.6 {
+				if signal != nil && regime != nil && regime.Regime == "RANGING" && regime.Confidence > 0.6 {
 					signal.Confidence *= 0.5 // Deprioritize
 					signal.Reason += " (Filtered: Ranging Market)"
 				}
@@ -416,7 +417,7 @@ func (r *Repository) GetStrategySignals(lookbackMinutes int, minConfidence float
 				prevZScore := prevVolumeZScores[alert.StockSymbol]
 				signal = r.EvaluateMeanReversionStrategy(&alert, zscores, prevZScore)
 				// Boost Mean Reversion in RANGING/VOLATILE markets
-				if signal != nil && regimeForSymbol != nil && (regimeForSymbol.Regime == "RANGING" || regimeForSymbol.Regime == "VOLATILE") {
+				if signal != nil && regime != nil && (regime.Regime == "RANGING" || regime.Regime == "VOLATILE") {
 					signal.Confidence *= 1.2
 					signal.Reason += " (Regime Boost)"
 				}
