@@ -20,9 +20,26 @@ const (
 // Position Management Constants
 const (
 	MinSignalIntervalMinutes = 15 // Minimum 15 minutes between signals for same symbol
-	MaxOpenPositions         = 10 // Maximum concurrent open positions
+	MaxOpenPositions         = 10 // Maximum concurrent open positions (adaptive based on regime)
 	MaxPositionsPerSymbol    = 1  // Maximum positions per symbol (prevent averaging down)
 	SignalTimeWindowMinutes  = 5  // Time window for duplicate detection
+
+	// Optimization: Order Flow Imbalance thresholds
+	OrderFlowBuyThreshold  = 0.3  // 30% buy imbalance required for BUY signals
+	AggressiveBuyThreshold = 55.0 // 55% aggressive buyers required
+
+	// Optimization: Baseline quality requirements
+	MinBaselineSampleSize       = 30 // Minimum trades for reliable baseline
+	MinBaselineSampleSizeStrict = 50 // Minimum for full confidence
+
+	// Optimization: Time-of-day adjustments
+	MorningBoostHour     = 10 // Before 10:00 WIB = morning momentum
+	AfternoonCautionHour = 14 // After 14:00 WIB = increased caution
+
+	// Optimization: Strategy performance tracking
+	MinStrategySignals   = 20 // Minimum signals before performance evaluation
+	LowWinRateThreshold  = 30 // Below 30% = disable strategy temporarily
+	HighWinRateThreshold = 65 // Above 65% = boost confidence
 )
 
 // isTradingTime checks if the given time is within Indonesian market trading hours
@@ -217,6 +234,24 @@ func (st *SignalTracker) trackSignalOutcomes() {
 func (st *SignalTracker) shouldCreateOutcome(signal *database.TradingSignalDB) (bool, string) {
 	ctx := context.Background()
 
+	// OPTIMIZATION #10: Strategy Performance Check (disable underperforming strategies)
+	strategyMult, shouldSkip, reason := st.getStrategyPerformanceMultiplier(signal.Strategy)
+	if shouldSkip {
+		return false, reason
+	}
+
+	// OPTIMIZATION #8: Baseline Quality Check
+	baselinePassed, _, baselineReason := st.checkBaselineQuality(signal.StockSymbol)
+	if !baselinePassed {
+		return false, baselineReason
+	}
+
+	// OPTIMIZATION #2: Order Flow Imbalance Check
+	flowPassed, _, flowReason := st.checkOrderFlowImbalance(signal.StockSymbol, signal.Decision)
+	if !flowPassed {
+		return false, flowReason
+	}
+
 	// 0. Redis Optimizations: Check cooldowns first (fastest)
 	if st.redis != nil {
 		// Check cooldown key: signal:cooldown:{symbol}:{strategy}
@@ -228,22 +263,20 @@ func (st *SignalTracker) shouldCreateOutcome(signal *database.TradingSignalDB) (
 		}
 
 		// Check recent duplicate key: signal:recent:{symbol}
-		// Logic: If we recently processed a signal for this symbol (any strategy), we might want to be careful
-		// relying on DB is safer for cross-strategy checks, but we can optimistically check DB load
 		recentKey := fmt.Sprintf("signal:recent:%s", signal.StockSymbol)
 		var recentSignalID int64
-		// If recent signal exists AND it's not this one, we should treat it as a potential duplicate/noise
 		if err := st.redis.Get(ctx, recentKey, &recentSignalID); err == nil && recentSignalID != 0 && recentSignalID != signal.ID {
-			// Optimization: If a DIFFERENT recent signal exists within 5 mins, we can fail fast
-			// treating it as a duplicate or "too soon" without hitting DB
 			return false, fmt.Sprintf("Recent signal %d exists for %s (too soon)", recentSignalID, signal.StockSymbol)
 		}
 	}
 
-	// 1. Check if too many open positions globally
+	// OPTIMIZATION #5: Regime-Adaptive Position Limit
+	adaptiveLimit := st.getRegimeAdaptiveLimit(signal.StockSymbol)
+
+	// 1. Check if too many open positions globally (with adaptive limit)
 	openOutcomes, err := st.repo.GetSignalOutcomes("", "OPEN", time.Time{}, time.Time{}, 0)
-	if err == nil && len(openOutcomes) >= MaxOpenPositions {
-		return false, fmt.Sprintf("Max open positions reached (%d/%d)", len(openOutcomes), MaxOpenPositions)
+	if err == nil && len(openOutcomes) >= adaptiveLimit {
+		return false, fmt.Sprintf("Max open positions reached (%d/%d adaptive)", len(openOutcomes), adaptiveLimit)
 	}
 
 	// 2. Check if symbol already has open position
@@ -252,11 +285,10 @@ func (st *SignalTracker) shouldCreateOutcome(signal *database.TradingSignalDB) (
 		return false, fmt.Sprintf("Symbol %s already has %d open position(s)", signal.StockSymbol, len(symbolOutcomes))
 	}
 
-	// 3. Check for recent signals within time window (duplicate prevention) > DB Check fallback
+	// 3. Check for recent signals within time window (duplicate prevention)
 	recentSignalTime := signal.GeneratedAt.Add(-time.Duration(SignalTimeWindowMinutes) * time.Minute)
 	recentSignals, err := st.repo.GetTradingSignals(signal.StockSymbol, signal.Strategy, "BUY", recentSignalTime, signal.GeneratedAt, 10)
 	if err == nil && len(recentSignals) > 1 {
-		// More than 1 means there's a duplicate within the time window
 		return false, fmt.Sprintf("Duplicate signal within %d minute window", SignalTimeWindowMinutes)
 	}
 
@@ -264,13 +296,17 @@ func (st *SignalTracker) shouldCreateOutcome(signal *database.TradingSignalDB) (
 	lastSignalTime := signal.GeneratedAt.Add(-time.Duration(MinSignalIntervalMinutes) * time.Minute)
 	lastSignals, err := st.repo.GetTradingSignals(signal.StockSymbol, "", "BUY", lastSignalTime, time.Time{}, 1)
 	if err == nil && len(lastSignals) > 0 {
-		// Found a recent signal
 		if lastSignals[0].ID != signal.ID {
 			timeSince := signal.GeneratedAt.Sub(lastSignals[0].GeneratedAt).Minutes()
 			if timeSince < MinSignalIntervalMinutes {
 				return false, fmt.Sprintf("Signal too soon (%.1f min < %d min required)", timeSince, MinSignalIntervalMinutes)
 			}
 		}
+	}
+
+	// Log optimization results
+	if strategyMult != 1.0 {
+		log.Printf("📊 Strategy multiplier for %s: %.2fx (%s)", signal.Strategy, strategyMult, reason)
 	}
 
 	return true, ""
@@ -306,7 +342,15 @@ func (st *SignalTracker) createSignalOutcome(signal *database.TradingSignalDB) (
 		return false, nil
 	}
 
-	// Check duplicate prevention and position limits
+	// OPTIMIZATION #6: Time-of-Day Filtering
+	timeMultiplier, timeReason := st.getTimeOfDayMultiplier(signal.GeneratedAt)
+	if timeMultiplier == 0.0 {
+		log.Printf("⏰ Skipping signal %d (%s): %s", signal.ID, signal.StockSymbol, timeReason)
+		st.createSkippedOutcome(signal, timeReason)
+		return false, nil
+	}
+
+	// Check duplicate prevention and position limits (with ALL optimizations)
 	shouldCreate, reason := st.shouldCreateOutcome(signal)
 	if !shouldCreate {
 		log.Printf("⏭️ Skipping signal %d (%s): %s", signal.ID, signal.StockSymbol, reason)
@@ -315,8 +359,12 @@ func (st *SignalTracker) createSignalOutcome(signal *database.TradingSignalDB) (
 	}
 
 	session := getTradingSession(signal.GeneratedAt)
-	log.Printf("✅ Creating outcome for signal %d (%s) - Session: %s",
-		signal.ID, signal.StockSymbol, session)
+	log.Printf("✅ Creating outcome for signal %d (%s) - Session: %s (Time Mult: %.2fx)",
+		signal.ID, signal.StockSymbol, session, timeMultiplier)
+
+	if timeReason != "" {
+		log.Printf("   └─ %s", timeReason)
+	}
 
 	outcome := &database.SignalOutcome{
 		SignalID:      signal.ID,
@@ -506,6 +554,178 @@ func (st *SignalTracker) updateSignalOutcome(signal *database.TradingSignalDB, o
 	}
 
 	return st.repo.UpdateSignalOutcome(outcome)
+}
+
+// OPTIMIZATION HELPER FUNCTIONS
+
+// checkOrderFlowImbalance validates order flow for BUY signals
+// Returns: (passed bool, confidenceMultiplier float64, reason string)
+func (st *SignalTracker) checkOrderFlowImbalance(symbol string, decision string) (bool, float64, string) {
+	if decision != "BUY" {
+		return true, 1.0, "" // Only check for BUY signals
+	}
+
+	orderFlow, err := st.repo.GetLatestOrderFlow(symbol)
+	if err != nil || orderFlow == nil {
+		// No order flow data - allow but don't boost
+		return true, 1.0, ""
+	}
+
+	totalVolume := orderFlow.BuyVolumeLots + orderFlow.SellVolumeLots
+	if totalVolume == 0 {
+		return true, 1.0, ""
+	}
+
+	// Calculate buy pressure
+	buyPressure := (orderFlow.BuyVolumeLots / totalVolume)
+
+	// Check aggressive buyers if available
+	if orderFlow.AggressiveBuyPct != nil && *orderFlow.AggressiveBuyPct < AggressiveBuyThreshold {
+		return false, 0.7, fmt.Sprintf("Low aggressive buy pressure (%.1f%% < %.0f%%)", *orderFlow.AggressiveBuyPct, AggressiveBuyThreshold)
+	}
+
+	// Check buy imbalance
+	if buyPressure < OrderFlowBuyThreshold {
+		return false, 0.7, fmt.Sprintf("Insufficient buy pressure (%.1f%% < %.0f%%)", buyPressure*100, OrderFlowBuyThreshold*100)
+	}
+
+	// Strong buy pressure - boost confidence
+	if buyPressure > 0.6 {
+		return true, 1.3, "Strong buy pressure detected"
+	}
+
+	return true, 1.0, ""
+}
+
+// checkBaselineQuality validates statistical baseline quality
+// Returns: (passed bool, confidenceMultiplier float64, reason string)
+func (st *SignalTracker) checkBaselineQuality(symbol string) (bool, float64, string) {
+	baseline, err := st.repo.GetLatestBaseline(symbol)
+	if err != nil || baseline == nil {
+		return false, 0.0, "No statistical baseline available"
+	}
+
+	// Strict quality check
+	if baseline.SampleSize < MinBaselineSampleSize {
+		return false, 0.0, fmt.Sprintf("Insufficient baseline data (%d < %d trades)", baseline.SampleSize, MinBaselineSampleSize)
+	}
+
+	// Penalize weak baselines
+	if baseline.SampleSize < MinBaselineSampleSizeStrict {
+		return true, 0.6, fmt.Sprintf("Limited baseline data (%d trades)", baseline.SampleSize)
+	}
+
+	// Good baseline quality
+	return true, 1.0, ""
+}
+
+// getTimeOfDayMultiplier returns confidence multiplier based on trading session
+func (st *SignalTracker) getTimeOfDayMultiplier(t time.Time) (float64, string) {
+	loc, _ := time.LoadLocation(MarketTimeZone)
+	if loc == nil {
+		loc = time.FixedZone("WIB", 7*60*60)
+	}
+
+	localTime := t.In(loc)
+	hour := localTime.Hour()
+	session := getTradingSession(t)
+
+	// Skip low-liquidity sessions
+	if session == "PRE_OPENING" || session == "LUNCH_BREAK" || session == "POST_MARKET" {
+		return 0.0, fmt.Sprintf("Low liquidity session: %s", session)
+	}
+
+	// Morning momentum boost (before 10:00)
+	if session == "SESSION_1" && hour < MorningBoostHour {
+		return 1.2, "Morning momentum period"
+	}
+
+	// Afternoon caution (after 14:00)
+	if session == "SESSION_2" && hour >= AfternoonCautionHour {
+		return 0.8, "Afternoon caution period"
+	}
+
+	return 1.0, ""
+}
+
+// getStrategyPerformanceMultiplier calculates confidence adjustment based on strategy win rate
+// Returns: (multiplier float64, shouldSkip bool, reason string)
+func (st *SignalTracker) getStrategyPerformanceMultiplier(strategy string) (float64, bool, string) {
+	// Get recent outcomes for this strategy (last 7 days)
+	since := time.Now().Add(-7 * 24 * time.Hour)
+	outcomes, err := st.repo.GetSignalOutcomes("", "", since, time.Time{}, 0)
+	if err != nil {
+		return 1.0, false, ""
+	}
+
+	// Filter by strategy and count wins/losses
+	var totalSignals, wins, losses int
+	for _, outcome := range outcomes {
+		signal, err := st.repo.GetSignalByID(outcome.SignalID)
+		if err != nil || signal == nil || signal.Strategy != strategy {
+			continue
+		}
+
+		if outcome.OutcomeStatus == "WIN" || outcome.OutcomeStatus == "LOSS" || outcome.OutcomeStatus == "BREAKEVEN" {
+			totalSignals++
+			if outcome.OutcomeStatus == "WIN" {
+				wins++
+			} else if outcome.OutcomeStatus == "LOSS" {
+				losses++
+			}
+		}
+	}
+
+	// Need minimum signals for evaluation
+	if totalSignals < MinStrategySignals {
+		return 1.0, false, ""
+	}
+
+	winRate := float64(wins) / float64(totalSignals) * 100
+
+	// Disable underperforming strategies
+	if winRate < float64(LowWinRateThreshold) {
+		return 0.0, true, fmt.Sprintf("Strategy %s underperforming (WR: %.1f%% < %d%%)", strategy, winRate, LowWinRateThreshold)
+	}
+
+	// Boost high-performing strategies
+	if winRate > float64(HighWinRateThreshold) {
+		return 1.2, false, fmt.Sprintf("Strategy %s performing well (WR: %.1f%%)", strategy, winRate)
+	}
+
+	// Moderate performance
+	if winRate < 45 {
+		return 0.9, false, fmt.Sprintf("Strategy %s moderate performance (WR: %.1f%%)", strategy, winRate)
+	}
+
+	return 1.0, false, ""
+}
+
+// getRegimeAdaptiveLimit returns max positions based on market regime
+func (st *SignalTracker) getRegimeAdaptiveLimit(symbol string) int {
+	regime, err := st.repo.GetLatestRegime(symbol)
+	if err != nil || regime == nil {
+		return MaxOpenPositions // Default
+	}
+
+	// Aggressive in trending markets
+	if regime.Regime == "TRENDING_UP" && regime.Confidence > 0.7 {
+		return 15
+	}
+
+	// Conservative in volatile markets
+	if regime.Regime == "VOLATILE" {
+		if regime.ATR != nil && regime.Volatility != nil && *regime.Volatility > 3.0 {
+			return 5
+		}
+	}
+
+	// Moderate in ranging markets
+	if regime.Regime == "RANGING" {
+		return 8
+	}
+
+	return MaxOpenPositions
 }
 
 // GetOpenPositions returns currently open trading positions with optional filters
