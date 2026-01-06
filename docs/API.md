@@ -45,7 +45,7 @@ Retrieve a list of detected whale alerts with optional filtering.
 - `type` (optional): Filter by alert type (`SINGLE_TRADE`, `ACCUMULATION`, `DISTRIBUTION`).
 - `action` (optional): Filter by action (`BUY`, `SELL`).
 - `board` (optional): Filter by market board (`RG`, `TN`, `NG`).
-- `min_amount` (optional): Filter by minimum transaction value.
+- `min_value` (optional): Filter by minimum transaction value.
 - `start` (optional): Start time (RFC3339 format, e.g., `2024-01-01T00:00:00Z`).
 - `end` (optional): End time (RFC3339 format).
 - `limit` (optional): Max results (default 50, max 200).

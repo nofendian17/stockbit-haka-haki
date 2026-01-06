@@ -35,10 +35,10 @@ func (s *Server) handleGetWhales(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Parse min_amount filter
+	// Parse min_value filter (frontend sends min_value, not min_amount)
 	minAmount := 0.0
-	if minAmountStr := query.Get("min_amount"); minAmountStr != "" {
-		if val, err := strconv.ParseFloat(minAmountStr, 64); err == nil && val >= 0 {
+	if minValueStr := query.Get("min_value"); minValueStr != "" {
+		if val, err := strconv.ParseFloat(minValueStr, 64); err == nil && val >= 0 {
 			minAmount = val
 		}
 	}
