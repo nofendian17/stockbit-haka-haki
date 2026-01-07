@@ -289,6 +289,7 @@ func (s *Server) handleGetWhaleFollowup(w http.ResponseWriter, r *http.Request) 
 		"sustained_impact":      followup.SustainedImpact,
 		"reversal_detected":     followup.ReversalDetected,
 		"reversal_time_minutes": followup.ReversalTimeMinutes,
+		"analysis":              followup.Analysis,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

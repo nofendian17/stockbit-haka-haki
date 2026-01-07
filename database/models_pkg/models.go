@@ -283,6 +283,7 @@ type WhaleAlertFollowup struct {
 	SustainedImpact     *string   `gorm:"type:text" json:"sustained_impact,omitempty"` // POSITIVE, NEGATIVE, NEUTRAL (1hr)
 	ReversalDetected    *bool     `json:"reversal_detected,omitempty"`
 	ReversalTimeMinutes *int      `json:"reversal_time_minutes,omitempty"`
+	Analysis            *string   `gorm:"type:text" json:"analysis,omitempty"`
 }
 
 // TableName specifies the table name for WhaleAlertFollowup

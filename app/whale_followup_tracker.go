@@ -213,6 +213,12 @@ func (wt *WhaleFollowupTracker) updateFollowup(followup *database.WhaleAlertFoll
 		updates["change_1day_pct"] = priceChange
 	}
 
+	// Generate analysis text if significant time has passed or significant movement
+	if elapsed >= 1*time.Hour || (priceChange > 2.0 || priceChange < -2.0) {
+		analysis := wt.generateAnalysis(followup.StockSymbol, followup.AlertAction, followup.AlertPrice, currentPrice, priceChange, elapsed)
+		updates["analysis"] = analysis
+	}
+
 	// Apply updates if any
 	if len(updates) > 0 {
 		log.Printf("🔄 Updating followup for %s (Alert %d): %d fields after %.0f minutes",
@@ -257,4 +263,47 @@ func (wt *WhaleFollowupTracker) detectReversal(change5min, change60min float64) 
 	}
 
 	return false
+}
+
+// generateAnalysis creates a descriptive analysis string
+func (wt *WhaleFollowupTracker) generateAnalysis(symbol, action string, entryPrice, currentPrice, changePct float64, elapsed time.Duration) string {
+	impact := "NEUTRAL"
+	if action == "BUY" {
+		if changePct > 0.5 {
+			impact = "POSITIVE"
+		} else if changePct < -0.5 {
+			impact = "NEGATIVE"
+		}
+	} else { // SELL
+		if changePct < -0.5 {
+			impact = "POSITIVE" // Price fell as expected
+		} else if changePct > 0.5 {
+			impact = "NEGATIVE" // Price rose against sell
+		}
+	}
+
+	trendText := ""
+	if changePct > 0 {
+		trendText = fmt.Sprintf("naik %.2f%%", changePct)
+	} else {
+		trendText = fmt.Sprintf("turun %.2f%%", -changePct)
+	}
+
+	timeText := ""
+	if elapsed < 1*time.Hour {
+		timeText = fmt.Sprintf("%.0f menit", elapsed.Minutes())
+	} else {
+		timeText = fmt.Sprintf("%.1f jam", elapsed.Hours())
+	}
+
+	var analysis string
+	if impact == "POSITIVE" {
+		analysis = fmt.Sprintf("Harga %s setelah aktivitas whale %s. Konfirmasi sinyal valid dalam %s.", trendText, action, timeText)
+	} else if impact == "NEGATIVE" {
+		analysis = fmt.Sprintf("Harga %s berlawanan dengan aktivitas whale %s (False Signal/Reversal) dalam %s.", trendText, action, timeText)
+	} else {
+		analysis = fmt.Sprintf("Harga %s cenderung stabil (%s) dalam %s paska alert.", symbol, trendText, timeText)
+	}
+
+	return analysis
 }

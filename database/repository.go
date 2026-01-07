@@ -129,7 +129,8 @@ func (r *TradeRepository) InitSchema() error {
 		ADD COLUMN IF NOT EXISTS change_1day_pct DECIMAL(10,4),
 		ADD COLUMN IF NOT EXISTS volume_1min_later DECIMAL(15,2),
 		ADD COLUMN IF NOT EXISTS volume_5min_later DECIMAL(15,2),
-		ADD COLUMN IF NOT EXISTS volume_15min_later DECIMAL(15,2)
+		ADD COLUMN IF NOT EXISTS volume_15min_later DECIMAL(15,2),
+		ADD COLUMN IF NOT EXISTS analysis TEXT
 	`)
 
 	// Setup TimescaleDB extension and hypertables
