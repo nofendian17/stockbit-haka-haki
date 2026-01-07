@@ -122,8 +122,8 @@ function renderWebhooks(webhooks, tbody, placeholder) {
     webhooks.forEach(webhook => {
         const row = document.createElement('tr');
 
-        const statusClass = webhook.enabled ? 'diff-positive' : 'text-secondary';
-        const statusText = webhook.enabled ? '✓ Active' : '✗ Disabled';
+        const statusClass = webhook.is_active ? 'diff-positive' : 'text-secondary';
+        const statusText = webhook.is_active ? '✓ Active' : '✗ Disabled';
 
         row.innerHTML = `
             <td style="font-weight: 500;">${escapeHtml(webhook.name || 'Unnamed')}</td>
@@ -157,7 +157,7 @@ async function saveWebhook() {
     const webhookData = {
         name: nameInput.value.trim(),
         url: urlInput.value.trim(),
-        enabled: enabledInput.checked,
+        is_active: enabledInput.checked,
     };
 
     // Validation
@@ -214,7 +214,7 @@ window.editWebhook = function (id) {
 
     if (nameInput) nameInput.value = webhook.name || '';
     if (urlInput) urlInput.value = webhook.url || '';
-    if (enabledInput) enabledInput.checked = webhook.enabled || false;
+    if (enabledInput) enabledInput.checked = webhook.is_active || false;
     if (formSection) formSection.style.display = 'block';
     if (formTitle) formTitle.textContent = 'Edit Webhook';
 };
