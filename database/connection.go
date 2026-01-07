@@ -37,10 +37,11 @@ func NewConnection(cfg Config) (*DB, error) {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	// Configure connection pool
-	conn.SetMaxOpenConns(25)
-	conn.SetMaxIdleConns(5)
+	// Configure connection pool - Optimized for high-throughput trading workload
+	conn.SetMaxOpenConns(50) // Increased from 25 for better concurrency
+	conn.SetMaxIdleConns(25) // Keep half warm to reduce connection overhead
 	conn.SetConnMaxLifetime(5 * time.Minute)
+	conn.SetConnMaxIdleTime(2 * time.Minute) // Close idle connections after 2 minutes
 
 	// Verify connection
 	if err := conn.Ping(); err != nil {

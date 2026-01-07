@@ -81,6 +81,26 @@ func (r *Repository) GetSignalByID(id int64) (*models.TradingSignalDB, error) {
 	return &signal, nil
 }
 
+// OPTIMIZATION: GetSignalsByIDs retrieves multiple signals by IDs in a single query
+// Eliminates N+1 query problem when fetching signals for multiple outcomes
+func (r *Repository) GetSignalsByIDs(ids []int64) (map[int64]*models.TradingSignalDB, error) {
+	if len(ids) == 0 {
+		return make(map[int64]*models.TradingSignalDB), nil
+	}
+
+	var signals []models.TradingSignalDB
+	err := r.db.Where("id IN ?", ids).Find(&signals).Error
+	if err != nil {
+		return nil, fmt.Errorf("GetSignalsByIDs: %w", err)
+	}
+
+	result := make(map[int64]*models.TradingSignalDB, len(signals))
+	for i := range signals {
+		result[signals[i].ID] = &signals[i]
+	}
+	return result, nil
+}
+
 // SaveSignalOutcome creates a new signal outcome record
 func (r *Repository) SaveSignalOutcome(outcome *models.SignalOutcome) error {
 	if err := r.db.Create(outcome).Error; err != nil {

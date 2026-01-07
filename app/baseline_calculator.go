@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"stockbit-haka-haki/database"
+	models "stockbit-haka-haki/database/models_pkg"
 )
 
 // BaselineCalculator periodically calculates statistical baselines for stocks
@@ -67,8 +68,11 @@ func (bc *BaselineCalculator) calculateBaselines() {
 	// Track verified symbols to avoid overwriting good data with fallback data
 	processedSymbols := make(map[string]bool)
 
+	// OPTIMIZATION: Collect all baselines for batch save
+	batchToSave := make([]models.StatisticalBaseline, 0, 100)
+
 	for _, period := range lookbackPeriods {
-		log.Printf("📊 Aggregating baselines for loopback %v...", period.duration)
+		log.Printf("📊 Aggregating baselines for lookback %v...", period.duration)
 
 		// Calculate baselines directly in database
 		baselines, err := bc.repo.CalculateBaselinesDB(period.hours, period.minTrades)
@@ -77,7 +81,6 @@ func (bc *BaselineCalculator) calculateBaselines() {
 			continue
 		}
 
-		batchCount := 0
 		for _, baseline := range baselines {
 			// Skip if better quality data already processed
 			if processedSymbols[baseline.StockSymbol] {
@@ -89,17 +92,22 @@ func (bc *BaselineCalculator) calculateBaselines() {
 				continue
 			}
 
-			// Save to database (individual saves for now, could be batched further if needed)
-			if err := bc.repo.SaveStatisticalBaseline(&baseline); err != nil {
-				log.Printf("⚠️  Failed to save baseline for %s: %v", baseline.StockSymbol, err)
-			} else {
-				calculated++
-				batchCount++
-				processedSymbols[baseline.StockSymbol] = true
-			}
+			// Add to batch for saving
+			batchToSave = append(batchToSave, baseline)
+			calculated++
+			processedSymbols[baseline.StockSymbol] = true
 		}
 
-		log.Printf("✅ Saved %d baselines for lookback %v", batchCount, period.duration)
+		log.Printf("✅ Collected %d baselines for lookback %v", len(baselines), period.duration)
+	}
+
+	// OPTIMIZATION: Single batch save instead of individual saves
+	if len(batchToSave) > 0 {
+		if err := bc.repo.BatchSaveStatisticalBaselines(batchToSave); err != nil {
+			log.Printf("⚠️  Failed to batch save baselines: %v", err)
+		} else {
+			log.Printf("✅ Batch saved %d baselines", len(batchToSave))
+		}
 	}
 
 	log.Printf("✅ Baseline calculation complete: %d symbols updated", calculated)

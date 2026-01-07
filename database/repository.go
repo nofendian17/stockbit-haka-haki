@@ -373,6 +373,12 @@ func (r *TradeRepository) createIndexes() error {
 		"CREATE INDEX IF NOT EXISTS idx_patterns_symbol_time ON detected_patterns(stock_symbol, detected_at, pattern_type)",
 		"CREATE INDEX IF NOT EXISTS idx_patterns_outcome ON detected_patterns(outcome)",
 		"CREATE INDEX IF NOT EXISTS idx_correlations_pair ON stock_correlations(stock_a, stock_b, calculated_at)",
+
+		// OPTIMIZATION: Additional indexes for frequently queried patterns
+		"CREATE INDEX IF NOT EXISTS idx_signal_outcomes_status_time ON signal_outcomes(outcome_status, entry_time DESC) WHERE outcome_status = 'OPEN'",
+		"CREATE INDEX IF NOT EXISTS idx_statistical_baselines_symbol_calculated ON statistical_baselines(stock_symbol, calculated_at DESC)",
+		"CREATE INDEX IF NOT EXISTS idx_whale_alerts_composite ON whale_alerts(stock_symbol, detected_at DESC, market_board) WHERE market_board != 'NG'",
+		"CREATE INDEX IF NOT EXISTS idx_order_flow_symbol_bucket ON order_flow_imbalance(stock_symbol, bucket DESC)",
 	}
 
 	for _, idx := range indexes {
@@ -778,6 +784,11 @@ func (r *TradeRepository) GetSignalByID(id int64) (*TradingSignalDB, error) {
 	return r.signals.GetSignalByID(id)
 }
 
+// OPTIMIZATION: Bulk fetch signals by IDs to eliminate N+1 queries
+func (r *TradeRepository) GetSignalsByIDs(ids []int64) (map[int64]*TradingSignalDB, error) {
+	return r.signals.GetSignalsByIDs(ids)
+}
+
 func (r *TradeRepository) SaveSignalOutcome(outcome *SignalOutcome) error {
 	return r.signals.SaveSignalOutcome(outcome)
 }
@@ -918,6 +929,11 @@ func (r *TradeRepository) GetStrategySignals(lookbackMinutes int, minConfidence 
 // Analytics methods
 func (r *TradeRepository) SaveStatisticalBaseline(baseline *models.StatisticalBaseline) error {
 	return r.analytics.SaveStatisticalBaseline(baseline)
+}
+
+// OPTIMIZATION: Batch save baselines for better performance
+func (r *TradeRepository) BatchSaveStatisticalBaselines(baselines []models.StatisticalBaseline) error {
+	return r.analytics.BatchSaveStatisticalBaselines(baselines)
 }
 
 func (r *TradeRepository) GetLatestBaseline(symbol string) (*models.StatisticalBaseline, error) {

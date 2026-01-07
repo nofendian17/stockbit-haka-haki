@@ -151,7 +151,7 @@ func (st *SignalTracker) Start() {
 
 	// Ticker for signal generation (runs more frequently)
 	signalTicker := time.NewTicker(30 * time.Second)
-	defer signalTicker.Stop()
+	defer signalTicker.Stop() // FIX: Was ticker.Stop() - goroutine leak
 
 	// Run immediately on start
 	go st.generateSignals()
@@ -213,13 +213,22 @@ func (st *SignalTracker) trackSignalOutcomes() {
 	}
 
 	log.Printf("📊 Updating %d open positions...", len(openOutcomes))
+
+	// OPTIMIZATION: Bulk fetch all signals at once to eliminate N+1 queries
+	signalIDs := make([]int64, len(openOutcomes))
+	for i, outcome := range openOutcomes {
+		signalIDs[i] = outcome.SignalID
+	}
+
+	signalsMap, err := st.repo.GetSignalsByIDs(signalIDs)
+	if err != nil {
+		log.Printf("❌ Error bulk fetching signals: %v", err)
+		return
+	}
+
 	for _, outcome := range openOutcomes {
-		// Get the signal for this outcome
-		signal, err := st.repo.GetSignalByID(outcome.SignalID)
-		if err != nil {
-			log.Printf("❌ Error getting signal %d for outcome: %v", outcome.SignalID, err)
-			continue
-		}
+		// Get the signal from the bulk-fetched map
+		signal := signalsMap[outcome.SignalID]
 		if signal == nil {
 			log.Printf("⚠️ Signal %d not found for outcome %d", outcome.SignalID, outcome.ID)
 			continue

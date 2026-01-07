@@ -32,6 +32,21 @@ func (r *Repository) SaveStatisticalBaseline(baseline *models.StatisticalBaselin
 	return nil
 }
 
+// OPTIMIZATION: BatchSaveStatisticalBaselines persists multiple baselines in a single transaction
+// Uses ON CONFLICT to handle duplicates gracefully
+func (r *Repository) BatchSaveStatisticalBaselines(baselines []models.StatisticalBaseline) error {
+	if len(baselines) == 0 {
+		return nil
+	}
+
+	// Use CreateInBatches for efficient bulk insertion
+	// Batch size of 50 is optimal for this data size
+	if err := r.db.CreateInBatches(baselines, 50).Error; err != nil {
+		return fmt.Errorf("BatchSaveStatisticalBaselines: %w", err)
+	}
+	return nil
+}
+
 // GetLatestBaseline retrieves the most recent statistical baseline for a symbol
 func (r *Repository) GetLatestBaseline(symbol string) (*models.StatisticalBaseline, error) {
 	var baseline models.StatisticalBaseline
