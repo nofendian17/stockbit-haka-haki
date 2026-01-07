@@ -1022,12 +1022,84 @@ func (r *TradeRepository) GetMLTrainingData() ([]models.MLTrainingData, error) {
 	var results []models.MLTrainingData
 
 	// Query to join signals with outcomes and flatten result
+	// OPTIMIZATION: Include OPEN outcomes for real-time training data
 	err := r.db.db.Table("trading_signals s").
 		Select("s.generated_at, s.stock_symbol, s.strategy, s.confidence, s.analysis_data, o.outcome_status as outcome_result, o.profit_loss_pct, o.exit_reason").
 		Joins("JOIN signal_outcomes o ON s.id = o.signal_id").
 		Where("s.analysis_data IS NOT NULL").
+		Where("s.analysis_data != ''").                                    // Exclude empty strings
+		Where("o.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN', 'OPEN')"). // Include OPEN for real-time training
 		Order("s.generated_at DESC").
 		Scan(&results).Error
 
 	return results, err
+}
+
+// GetMLTrainingDataStats returns statistics about ML training data availability
+func (r *TradeRepository) GetMLTrainingDataStats() (map[string]interface{}, error) {
+	stats := make(map[string]interface{})
+
+	// Count total signals
+	var totalSignals int64
+	if err := r.db.db.Model(&models.TradingSignalDB{}).Count(&totalSignals).Error; err != nil {
+		return nil, err
+	}
+	stats["total_signals"] = totalSignals
+
+	// Count signals with analysis_data
+	var signalsWithAnalysis int64
+	if err := r.db.db.Model(&models.TradingSignalDB{}).
+		Where("analysis_data IS NOT NULL AND analysis_data != ''").
+		Count(&signalsWithAnalysis).Error; err != nil {
+		return nil, err
+	}
+	stats["signals_with_analysis"] = signalsWithAnalysis
+
+	// Count total outcomes
+	var totalOutcomes int64
+	if err := r.db.db.Model(&models.SignalOutcome{}).Count(&totalOutcomes).Error; err != nil {
+		return nil, err
+	}
+	stats["total_outcomes"] = totalOutcomes
+
+	// Count outcomes by status
+	var outcomesByStatus []struct {
+		Status string
+		Count  int64
+	}
+	if err := r.db.db.Model(&models.SignalOutcome{}).
+		Select("outcome_status as status, COUNT(*) as count").
+		Group("outcome_status").
+		Scan(&outcomesByStatus).Error; err != nil {
+		return nil, err
+	}
+	stats["outcomes_by_status"] = outcomesByStatus
+
+	// Count complete training records (signals with analysis_data AND outcomes)
+	var completeRecords int64
+	if err := r.db.db.Table("trading_signals s").
+		Joins("JOIN signal_outcomes o ON s.id = o.signal_id").
+		Where("s.analysis_data IS NOT NULL AND s.analysis_data != ''").
+		Where("o.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN', 'OPEN')").
+		Count(&completeRecords).Error; err != nil {
+		return nil, err
+	}
+	stats["complete_training_records"] = completeRecords
+
+	// Count by outcome status
+	var recordsByOutcome []struct {
+		Status string
+		Count  int64
+	}
+	if err := r.db.db.Table("trading_signals s").
+		Select("o.outcome_status as status, COUNT(*) as count").
+		Joins("JOIN signal_outcomes o ON s.id = o.signal_id").
+		Where("s.analysis_data IS NOT NULL AND s.analysis_data != ''").
+		Group("o.outcome_status").
+		Scan(&recordsByOutcome).Error; err != nil {
+		return nil, err
+	}
+	stats["training_records_by_outcome"] = recordsByOutcome
+
+	return stats, nil
 }

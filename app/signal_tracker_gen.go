@@ -48,7 +48,12 @@ func (st *SignalTracker) generateSignals() {
 			scorecard := st.scorecardEval.EvaluateSignal(dbSignal) // Now using correct type
 			if jsonBytes, err := json.Marshal(scorecard); err == nil {
 				dbSignal.AnalysisData = string(jsonBytes)
+				log.Printf("✅ Generated analysis_data for %s %s: %d bytes", signal.StockSymbol, signal.Strategy, len(jsonBytes))
+			} else {
+				log.Printf("⚠️ Failed to marshal scorecard for %s: %v", signal.StockSymbol, err)
 			}
+		} else {
+			log.Printf("⚠️ Scorecard evaluator is nil - no analysis_data generated for %s", signal.StockSymbol)
 		}
 
 		if err := st.repo.SaveTradingSignal(dbSignal); err != nil {

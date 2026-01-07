@@ -627,13 +627,24 @@ func (s *Server) handleGetStockCorrelations(w http.ResponseWriter, r *http.Reque
 	}
 
 	log.Printf("✅ Returning %d correlations for %s", len(correlations), symbol)
-
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"symbol":       symbol,
 		"correlations": correlations,
 		"count":        len(correlations),
 	})
+}
+
+// handleMLDataStats returns statistics about ML training data availability
+func (s *Server) handleMLDataStats(w http.ResponseWriter, r *http.Request) {
+	stats, err := s.repo.GetMLTrainingDataStats()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(stats)
 }
 
 // handleExportMLData returns a CSV of training data
