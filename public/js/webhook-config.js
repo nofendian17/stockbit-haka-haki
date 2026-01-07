@@ -124,12 +124,17 @@ function renderWebhooks(webhooks, tbody, placeholder) {
 
         const statusClass = webhook.is_active ? 'diff-positive' : 'text-secondary';
         const statusText = webhook.is_active ? '✓ Active' : '✗ Disabled';
+        const toggleIcon = webhook.is_active ? '🔔' : '🔕';
+        const toggleTitle = webhook.is_active ? 'Disable webhook' : 'Enable webhook';
 
         row.innerHTML = `
             <td style="font-weight: 500;">${escapeHtml(webhook.name || 'Unnamed')}</td>
             <td style="font-size: 0.85em; word-break: break-all;">${escapeHtml(webhook.url || '')}</td>
             <td class="${statusClass}" style="font-weight: 500;">${statusText}</td>
             <td style="text-align: right;">
+                <button class="btn-icon" onclick="window.toggleWebhook(${webhook.id})" title="${toggleTitle}" style="cursor: pointer;">
+                    ${toggleIcon}
+                </button>
                 <button class="btn-icon" onclick="window.editWebhook(${webhook.id})" title="Edit">
                     ✏️
                 </button>
@@ -200,7 +205,7 @@ async function saveWebhook() {
 /**
  * Edit webhook
  */
-window.editWebhook = function (id) {
+export function editWebhook(id) {
     const webhook = webhooks.find(w => w.id === id);
     if (!webhook) return;
 
@@ -217,12 +222,12 @@ window.editWebhook = function (id) {
     if (enabledInput) enabledInput.checked = webhook.is_active || false;
     if (formSection) formSection.style.display = 'block';
     if (formTitle) formTitle.textContent = 'Edit Webhook';
-};
+}
 
 /**
  * Delete webhook
  */
-window.deleteWebhook = async function (id) {
+export async function deleteWebhook(id) {
     const webhook = webhooks.find(w => w.id === id);
     if (!webhook) return;
 
@@ -238,7 +243,35 @@ window.deleteWebhook = async function (id) {
         console.error('Failed to delete webhook:', error);
         alert('Failed to delete webhook. Please try again.');
     }
-};
+}
+
+/**
+ * Toggle webhook active status
+ */
+export async function toggleWebhook(id) {
+    const webhook = webhooks.find(w => w.id === id);
+    if (!webhook) return;
+
+    const newStatus = !webhook.is_active;
+    
+    try {
+        await API.updateWebhook(id, {
+            name: webhook.name,
+            url: webhook.url,
+            is_active: newStatus
+        });
+        console.log(`✅ Webhook ${newStatus ? 'enabled' : 'disabled'} successfully`);
+        await loadWebhooks();
+    } catch (error) {
+        console.error('Failed to toggle webhook:', error);
+        alert('Failed to toggle webhook. Please try again.');
+    }
+}
+
+// Expose functions to global scope for inline onclick handlers
+window.editWebhook = editWebhook;
+window.deleteWebhook = deleteWebhook;
+window.toggleWebhook = toggleWebhook;
 
 /**
  * Reset webhook form
