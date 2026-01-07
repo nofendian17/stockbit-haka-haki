@@ -86,12 +86,25 @@ func (s *Server) handleGetWhaleStats(w http.ResponseWriter, r *http.Request) {
 	// Time range parsing
 	var startTime, endTime time.Time
 
-	// Default to Last 24 Hours if no start time is provided
+	// Default to Today 8:00 AM WIB if no start time is provided
 	if startStr := query.Get("start"); startStr != "" {
 		startTime, _ = time.Parse(time.RFC3339, startStr)
 	} else {
-		// Default to Last 24 Hours for more useful stats if no trades happened yet today
-		startTime = time.Now().Add(-24 * time.Hour)
+		// Calculate start time based on 8 AM WIB daily reset
+		loc := time.FixedZone("WIB", 7*60*60) // Asia/Jakarta timezone (UTC+7)
+		now := time.Now().In(loc)
+
+		// If current time is before 8 AM, use yesterday 8 AM
+		// If current time is after 8 AM, use today 8 AM
+		today8AM := time.Date(now.Year(), now.Month(), now.Day(), 8, 0, 0, 0, loc)
+
+		if now.Before(today8AM) {
+			// Before 8 AM today, use yesterday 8 AM
+			startTime = today8AM.AddDate(0, 0, -1)
+		} else {
+			// After 8 AM today, use today 8 AM
+			startTime = today8AM
+		}
 	}
 
 	if endStr := query.Get("end"); endStr != "" {
