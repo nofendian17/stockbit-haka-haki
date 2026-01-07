@@ -692,7 +692,10 @@ export function renderPatternFeed(patterns) {
 
     list.innerHTML = '';
 
-    if (!patterns || patterns.length === 0) {
+    if (!patterns || !Array.isArray(patterns) || patterns.length === 0) {
+        if (patterns && !Array.isArray(patterns)) {
+            console.error('renderPatternFeed received non-array:', patterns);
+        }
         list.innerHTML = '<div class="placeholder-small">Menunggu pola...</div>';
         return;
     }
