@@ -102,3 +102,67 @@ func (r *RedisClient) Subscribe(ctx context.Context, channel string) *redis.PubS
 	}
 	return r.client.Subscribe(ctx, channel)
 }
+
+// Exists checks if a key exists in Redis
+func (r *RedisClient) Exists(ctx context.Context, key string) bool {
+	if r.client == nil {
+		return false
+	}
+
+	result, err := r.client.Exists(ctx, key).Result()
+	if err != nil {
+		return false
+	}
+
+	return result > 0
+}
+
+// MGet retrieves multiple values from Redis
+// Returns a slice where nil/zero values indicate key doesn't exist
+func (r *RedisClient) MGet(ctx context.Context, keys []string, dest interface{}) error {
+	if r.client == nil {
+		return fmt.Errorf("redis client not initialized")
+	}
+
+	if len(keys) == 0 {
+		return nil
+	}
+
+	// Convert []string to []interface{} for MGet
+	keysInterface := make([]string, len(keys))
+	copy(keysInterface, keys)
+
+	results, err := r.client.MGet(ctx, keysInterface...).Result()
+	if err != nil {
+		return err
+	}
+
+	// Parse results based on destination type
+	switch v := dest.(type) {
+	case *[]int64:
+		*v = make([]int64, len(results))
+		for i, result := range results {
+			if result == nil {
+				(*v)[i] = 0 // Key doesn't exist
+			} else if str, ok := result.(string); ok {
+				var id int64
+				if err := json.Unmarshal([]byte(str), &id); err == nil {
+					(*v)[i] = id
+				}
+			}
+		}
+	case *[]string:
+		*v = make([]string, len(results))
+		for i, result := range results {
+			if result != nil {
+				if str, ok := result.(string); ok {
+					(*v)[i] = str
+				}
+			}
+		}
+	default:
+		return fmt.Errorf("unsupported destination type for MGet")
+	}
+
+	return nil
+}

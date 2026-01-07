@@ -600,11 +600,38 @@ func (st *SignalTracker) checkOrderFlowImbalance(symbol string, decision string)
 // checkBaselineQuality validates statistical baseline quality
 // Returns: (passed bool, confidenceMultiplier float64, reason string)
 func (st *SignalTracker) checkBaselineQuality(symbol string) (bool, float64, string) {
+	// OPTIMIZATION: Try Redis cache first (5-minute TTL)
+	if st.redis != nil {
+		ctx := context.Background()
+		cacheKey := fmt.Sprintf("baseline:%s", symbol)
+
+		var baseline database.StatisticalBaseline
+		if err := st.redis.Get(ctx, cacheKey, &baseline); err == nil {
+			// Cache hit - use cached baseline
+			return st.evaluateBaselineQuality(&baseline)
+		}
+	}
+
+	// Cache miss or no Redis - fetch from database
 	baseline, err := st.repo.GetLatestBaseline(symbol)
 	if err != nil || baseline == nil {
 		return false, 0.0, "No statistical baseline available"
 	}
 
+	// Cache the result for 5 minutes
+	if st.redis != nil {
+		ctx := context.Background()
+		cacheKey := fmt.Sprintf("baseline:%s", symbol)
+		if err := st.redis.Set(ctx, cacheKey, baseline, 5*time.Minute); err != nil {
+			log.Printf("⚠️ Failed to cache baseline for %s: %v", symbol, err)
+		}
+	}
+
+	return st.evaluateBaselineQuality(baseline)
+}
+
+// evaluateBaselineQuality performs the actual baseline quality evaluation
+func (st *SignalTracker) evaluateBaselineQuality(baseline *database.StatisticalBaseline) (bool, float64, string) {
 	// Strict quality check
 	if baseline.SampleSize < MinBaselineSampleSize {
 		return false, 0.0, fmt.Sprintf("Insufficient baseline data (%d < %d trades)", baseline.SampleSize, MinBaselineSampleSize)
@@ -651,6 +678,52 @@ func (st *SignalTracker) getTimeOfDayMultiplier(t time.Time) (float64, string) {
 // getStrategyPerformanceMultiplier calculates confidence adjustment based on strategy win rate
 // Returns: (multiplier float64, shouldSkip bool, reason string)
 func (st *SignalTracker) getStrategyPerformanceMultiplier(strategy string) (float64, bool, string) {
+	// OPTIMIZATION: Try Redis cache first (5-minute TTL) - Quick Win #3
+	if st.redis != nil {
+		ctx := context.Background()
+		cacheKey := fmt.Sprintf("strategy:perf:%s", strategy)
+
+		type CachedPerf struct {
+			Multiplier float64
+			ShouldSkip bool
+			Reason     string
+		}
+
+		var cached CachedPerf
+		if err := st.redis.Get(ctx, cacheKey, &cached); err == nil {
+			// Cache hit
+			return cached.Multiplier, cached.ShouldSkip, cached.Reason
+		}
+	}
+
+	// Cache miss or no Redis - calculate from database
+	multiplier, shouldSkip, reason := st.calculateStrategyPerformance(strategy)
+
+	// Cache the result for 5 minutes
+	if st.redis != nil {
+		ctx := context.Background()
+		cacheKey := fmt.Sprintf("strategy:perf:%s", strategy)
+
+		cached := struct {
+			Multiplier float64
+			ShouldSkip bool
+			Reason     string
+		}{
+			Multiplier: multiplier,
+			ShouldSkip: shouldSkip,
+			Reason:     reason,
+		}
+
+		if err := st.redis.Set(ctx, cacheKey, cached, 5*time.Minute); err != nil {
+			log.Printf("⚠️ Failed to cache strategy performance for %s: %v", strategy, err)
+		}
+	}
+
+	return multiplier, shouldSkip, reason
+}
+
+// calculateStrategyPerformance performs the actual strategy performance calculation
+func (st *SignalTracker) calculateStrategyPerformance(strategy string) (float64, bool, string) {
 	// Get recent outcomes for this strategy (last 7 days)
 	since := time.Now().Add(-7 * 24 * time.Hour)
 	outcomes, err := st.repo.GetSignalOutcomes("", "", since, time.Time{}, 0)
