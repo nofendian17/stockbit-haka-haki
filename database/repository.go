@@ -660,6 +660,10 @@ func (r *TradeRepository) SaveTrade(trade *Trade) error {
 	return r.trades.SaveTrade(trade)
 }
 
+func (r *TradeRepository) BatchSaveTrades(trades []*Trade) error {
+	return r.trades.BatchSaveTrades(trades)
+}
+
 func (r *TradeRepository) GetRecentTrades(stockSymbol string, limit int, actionFilter string) ([]Trade, error) {
 	return r.trades.GetRecentTrades(stockSymbol, limit, actionFilter)
 }
@@ -796,6 +800,11 @@ func (r *TradeRepository) GetOpenSignals(limit int) ([]TradingSignalDB, error) {
 
 func (r *TradeRepository) GetSignalPerformanceStats(strategy string, symbol string) (*types.PerformanceStats, error) {
 	return r.signals.GetSignalPerformanceStats(strategy, symbol)
+}
+
+// Analytics methods
+func (r *TradeRepository) CalculateBaselinesDB(hoursBack int, minTrades int) ([]models.StatisticalBaseline, error) {
+	return r.analytics.CalculateBaselinesDB(hoursBack, minTrades)
 }
 
 func (r *TradeRepository) GetGlobalPerformanceStats() (*types.PerformanceStats, error) {

@@ -28,6 +28,19 @@ func (r *Repository) SaveTrade(trade *models.Trade) error {
 	return nil
 }
 
+// BatchSaveTrades saves multiple trade records in a single transaction
+func (r *Repository) BatchSaveTrades(trades []*models.Trade) error {
+	if len(trades) == 0 {
+		return nil
+	}
+	// Use CreateInBatches to handle large batches efficiently
+	// Batch size of 1000 is generally a good balance
+	if err := r.db.CreateInBatches(trades, 1000).Error; err != nil {
+		return fmt.Errorf("BatchSaveTrades: %w", err)
+	}
+	return nil
+}
+
 // GetRecentTrades retrieves recent trades with filters
 func (r *Repository) GetRecentTrades(stockSymbol string, limit int, actionFilter string) ([]models.Trade, error) {
 	var trades []models.Trade

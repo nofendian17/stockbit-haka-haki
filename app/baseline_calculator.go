@@ -2,8 +2,6 @@ package app
 
 import (
 	"log"
-	"math"
-	"sort"
 	"time"
 
 	"stockbit-haka-haki/database"
@@ -50,9 +48,9 @@ func (bc *BaselineCalculator) Stop() {
 	bc.done <- true
 }
 
-// calculateBaselines computes statistics for all active stocks
+// calculateBaselines computes statistics for all active stocks using database aggregation
 func (bc *BaselineCalculator) calculateBaselines() {
-	log.Println("📊 Calculating statistical baselines...")
+	log.Println("📊 Calculating statistical baselines (DB-optimized)...")
 
 	// Try multiple lookback periods to handle fresh deployments
 	lookbackPeriods := []struct {
@@ -62,146 +60,47 @@ func (bc *BaselineCalculator) calculateBaselines() {
 	}{
 		{24 * time.Hour, 24, 10}, // Primary: 24 hours with 10 trades minimum
 		{2 * time.Hour, 2, 5},    // Fallback 1: 2 hours with 5 trades
-		{30 * time.Minute, 0, 3}, // Fallback 2: 30 minutes with 3 trades
+		{30 * time.Minute, 0, 3}, // Fallback 2: 30 minutes with 3 trades (hours=0 handles as <1h in logic if needed, but DB query uses hours param)
 	}
 
 	calculated := 0
-	skipped := 0
+	// Track verified symbols to avoid overwriting good data with fallback data
 	processedSymbols := make(map[string]bool)
 
 	for _, period := range lookbackPeriods {
-		since := time.Now().Add(-period.duration)
+		log.Printf("📊 Aggregating baselines for loopback %v...", period.duration)
 
-		symbols, err := bc.repo.GetActiveSymbols(since)
+		// Calculate baselines directly in database
+		baselines, err := bc.repo.CalculateBaselinesDB(period.hours, period.minTrades)
 		if err != nil {
-			log.Printf("⚠️  Failed to get active symbols for %v lookback: %v", period.duration, err)
+			log.Printf("⚠️  Failed to calculate baselines for %v lookback: %v", period.duration, err)
 			continue
 		}
 
-		log.Printf("📊 Found %d active symbols in the last %v", len(symbols), period.duration)
-
-		for _, symbol := range symbols {
-			// Skip if already processed with longer lookback
-			if processedSymbols[symbol] {
+		batchCount := 0
+		for _, baseline := range baselines {
+			// Skip if better quality data already processed
+			if processedSymbols[baseline.StockSymbol] {
 				continue
 			}
 
-			// Fetch trades for this lookback period
-			trades, err := bc.repo.GetTradesByTimeRange(symbol, since, time.Now())
-			if err != nil {
-				log.Printf("⚠️  Failed to get trades for %s: %v", symbol, err)
+			// Validate result integrity (sanity check)
+			if baseline.MeanPrice <= 0 || baseline.SampleSize < period.minTrades {
 				continue
 			}
 
-			if len(trades) < period.minTrades {
-				// Skip symbols with too few trades for reliable statistics
-				continue
-			}
-
-			// Calculate statistics
-			baseline := bc.computeStats(symbol, trades, period.hours)
-
-			// Save to database
-			if err := bc.repo.SaveStatisticalBaseline(baseline); err != nil {
-				log.Printf("⚠️  Failed to save baseline for %s: %v", symbol, err)
+			// Save to database (individual saves for now, could be batched further if needed)
+			if err := bc.repo.SaveStatisticalBaseline(&baseline); err != nil {
+				log.Printf("⚠️  Failed to save baseline for %s: %v", baseline.StockSymbol, err)
 			} else {
 				calculated++
-				processedSymbols[symbol] = true
-				log.Printf("✅ Saved baseline for %s: %d trades (lookback: %v), mean price %.2f, std dev %.2f",
-					symbol, baseline.SampleSize, period.duration, baseline.MeanPrice, baseline.StdDevPrice)
+				batchCount++
+				processedSymbols[baseline.StockSymbol] = true
 			}
 		}
 
-		// If we got enough data with this lookback, no need to try shorter periods
-		if calculated >= 5 {
-			break
-		}
+		log.Printf("✅ Saved %d baselines for lookback %v", batchCount, period.duration)
 	}
 
-	log.Printf("✅ Baseline calculation complete: %d symbols updated, %d checked", calculated, len(processedSymbols)+skipped)
-}
-
-// computeStats calculates statistical metrics from a slice of trades
-func (bc *BaselineCalculator) computeStats(symbol string, trades []database.Trade, lookbackHours int) *database.StatisticalBaseline {
-	var prices []float64
-	var volumes []float64
-	var values []float64
-
-	var sumPrice, sumVolume, sumValue float64
-
-	for _, t := range trades {
-		prices = append(prices, t.Price)
-		volumes = append(volumes, t.VolumeLot)
-		values = append(values, t.TotalAmount)
-
-		sumPrice += t.Price
-		sumVolume += t.VolumeLot
-		sumValue += t.TotalAmount
-	}
-
-	n := float64(len(trades))
-	meanPrice := sumPrice / n
-	meanVolume := sumVolume / n
-	meanValue := sumValue / n
-
-	// Sort for percentiles and median
-	sort.Float64s(prices)
-	sort.Float64s(volumes)
-
-	// Calculate standard deviation
-	var varPrice, varVolume, varValue float64
-	for i := 0; i < len(trades); i++ {
-		varPrice += math.Pow(prices[i]-meanPrice, 2)
-		varVolume += math.Pow(volumes[i]-meanVolume, 2)
-		varValue += math.Pow(values[i]-meanValue, 2)
-	}
-	stdDevPrice := math.Sqrt(varPrice / n)
-	stdDevVolume := math.Sqrt(varVolume / n)
-	stdDevValue := math.Sqrt(varValue / n)
-
-	return &database.StatisticalBaseline{
-		StockSymbol:      symbol,
-		CalculatedAt:     time.Now(),
-		LookbackHours:    lookbackHours,
-		SampleSize:       len(trades),
-		MeanPrice:        meanPrice,
-		StdDevPrice:      stdDevPrice,
-		MedianPrice:      getMedian(prices),
-		PriceP25:         getPercentile(prices, 25),
-		PriceP75:         getPercentile(prices, 75),
-		MeanVolumeLots:   meanVolume,
-		StdDevVolume:     stdDevVolume,
-		MedianVolumeLots: getMedian(volumes),
-		VolumeP25:        getPercentile(volumes, 25),
-		VolumeP75:        getPercentile(volumes, 75),
-		MeanValue:        meanValue,
-		StdDevValue:      stdDevValue,
-	}
-}
-
-// getMedian returns the median of a sorted slice
-func getMedian(data []float64) float64 {
-	length := len(data)
-	if length == 0 {
-		return 0
-	}
-	if length%2 == 0 {
-		return (data[length/2-1] + data[length/2]) / 2
-	}
-	return data[length/2]
-}
-
-// getPercentile returns the p-th percentile of a sorted slice
-func getPercentile(data []float64, p float64) float64 {
-	length := len(data)
-	if length == 0 {
-		return 0
-	}
-	index := (p / 100) * float64(length-1)
-	i := int(math.Floor(index))
-	fraction := index - float64(i)
-	if i+1 < length {
-		return data[i] + fraction*(data[i+1]-data[i])
-	}
-	return data[i]
+	log.Printf("✅ Baseline calculation complete: %d symbols updated", calculated)
 }

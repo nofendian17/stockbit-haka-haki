@@ -38,6 +38,15 @@ const (
 	cacheKeyStatsPrefix = "stats:stock:"
 )
 
+// Config constants
+const (
+	tradeChanSize   = 10000
+	whaleChanSize   = 1000
+	batchSize       = 500
+	batchTimeout    = 500 * time.Millisecond
+	whaleWorkerPool = 5
+)
+
 // RunningTradeHandler mengelola pesan RunningTrade dari protobuf
 type RunningTradeHandler struct {
 	tradeRepo      *database.TradeRepository     // Repository untuk menyimpan data trade
@@ -45,6 +54,11 @@ type RunningTradeHandler struct {
 	redis          *cache.RedisClient            // Redis client for config caching
 	broker         *realtime.Broker              // Realtime SSE broker
 	volatilityProv VolatilityProvider            // Provider for adaptive thresholds
+
+	// Async Processing Channels
+	ingestChan chan *database.Trade
+	whaleChan  chan *database.Trade
+	done       chan struct{}
 
 	// Order Flow Aggregation (Phase 1 Enhancement)
 	flowAggregator *OrderFlowAggregator
@@ -56,6 +70,14 @@ type OrderFlowAggregator struct {
 	currentBucket time.Time
 	flows         map[string]*OrderFlowData // key: stock_symbol
 	mu            sync.RWMutex
+	inputChan     chan *orderFlowInput
+}
+
+type orderFlowInput struct {
+	stock      string
+	action     string
+	volumeLots float64
+	value      float64
 }
 
 // OrderFlowData holds aggregated order flow for a stock
@@ -77,6 +99,9 @@ func NewRunningTradeHandler(tradeRepo *database.TradeRepository, webhookManager 
 		redis:          redis,
 		broker:         broker,
 		volatilityProv: volProv,
+		ingestChan:     make(chan *database.Trade, tradeChanSize),
+		whaleChan:      make(chan *database.Trade, whaleChanSize),
+		done:           make(chan struct{}),
 	}
 
 	// Initialize order flow aggregator
@@ -85,7 +110,59 @@ func NewRunningTradeHandler(tradeRepo *database.TradeRepository, webhookManager 
 		go handler.flowAggregator.Start() // Start background aggregation
 	}
 
+	// Start workers
+	go handler.batchSaverWorker()
+	for i := 0; i < whaleWorkerPool; i++ {
+		go handler.whaleDetectionWorker()
+	}
+
 	return handler
+}
+
+// batchSaverWorker handles batch insertion of trades
+func (h *RunningTradeHandler) batchSaverWorker() {
+	var batch []*database.Trade
+	ticker := time.NewTicker(batchTimeout)
+	defer ticker.Stop()
+
+	flush := func() {
+		if len(batch) > 0 {
+			if h.tradeRepo != nil {
+				if err := h.tradeRepo.BatchSaveTrades(batch); err != nil {
+					log.Printf("⚠️  Failed to batch save trades: %v", err)
+				}
+			}
+			batch = nil
+		}
+	}
+
+	for {
+		select {
+		case trade := <-h.ingestChan:
+			batch = append(batch, trade)
+			if len(batch) >= batchSize {
+				flush()
+			}
+		case <-ticker.C:
+			flush()
+		case <-h.done:
+			flush()
+			return
+		}
+	}
+}
+
+// whaleDetectionWorker processes trades for whale alerts
+func (h *RunningTradeHandler) whaleDetectionWorker() {
+	for trade := range h.whaleChan {
+		h.detectWhale(trade)
+	}
+}
+
+// Close gracefully shuts down the handler
+func (h *RunningTradeHandler) Close() {
+	close(h.done)
+	close(h.whaleChan) // ingestChan is not closed to avoid panic on send, but loop above has simple exit
 }
 
 // Handle adalah method legacy - tidak digunakan dengan implementasi protobuf baru
@@ -165,9 +242,6 @@ func (h *RunningTradeHandler) getStockStats(stock string) *types.StockStats {
 
 // ProcessTrade memproses satu pesan trade individual
 func (h *RunningTradeHandler) ProcessTrade(t *pb.RunningTrade) {
-	// Start benchmarking timer
-	startTime := time.Now()
-
 	// Tentukan action berdasarkan tipe trade
 	var actionDb string
 
@@ -206,170 +280,176 @@ func (h *RunningTradeHandler) ProcessTrade(t *pb.RunningTrade) {
 	// Hitung total nilai transaksi dalam Rupiah
 	totalAmount := t.Price * t.Volume
 
-	// Simpan ke database jika repository tersedia
-	if h.tradeRepo != nil {
-		// Convert trade_number to pointer for nullable field
-		var tradeNumber *int64
-		if t.TradeNumber != 0 {
-			tradeNumber = &t.TradeNumber
+	// Convert trade_number to pointer for nullable field
+	var tradeNumber *int64
+	if t.TradeNumber != 0 {
+		tradeNumber = &t.TradeNumber
+	}
+
+	trade := &database.Trade{
+		Timestamp:   time.Now(), // Stored in UTC
+		StockSymbol: t.Stock,
+		Action:      actionDb,
+		Price:       t.Price,
+		Volume:      t.Volume,
+		VolumeLot:   volumeLot,
+		TotalAmount: totalAmount,
+		MarketBoard: boardType,
+		Change:      changePercentage,
+		TradeNumber: tradeNumber,
+	}
+
+	// 1. Send to Batch Saver (Non-blocking if buffered)
+	select {
+	case h.ingestChan <- trade:
+	default:
+		log.Printf("⚠️ Ingest channel full, dropping trade for %s", trade.StockSymbol)
+	}
+
+	// 2. Send to Whale Detector (Non-blocking)
+	select {
+	case h.whaleChan <- trade:
+	default:
+		// Drop is acceptable for whale detection under extreme load
+	}
+
+	// 3. Send to Order Flow Aggregator (Non-blocking)
+	if h.flowAggregator != nil {
+		h.flowAggregator.inputChan <- &orderFlowInput{
+			stock:      t.Stock,
+			action:     actionDb,
+			volumeLots: volumeLot,
+			value:      totalAmount,
+		}
+	}
+}
+
+// detectWhale performs the whale detection logic directly (now async)
+func (h *RunningTradeHandler) detectWhale(trade *database.Trade) {
+	// Start benchmarking timer
+	startTime := time.Now()
+
+	isWhale := false
+	detectionType := "UNKNOWN"
+
+	// Calculate Statistical Metadata
+	var zScore, volVsAvgPct float64
+
+	// ADAPTIVE THRESHOLD VARIABLES (Function Scope)
+	adaptiveThreshold := zScoreThreshold
+	atrPct := 0.0
+
+	// Get stats using helper method (handles caching internally)
+	stats := h.getStockStats(trade.StockSymbol)
+
+	if stats != nil && stats.MeanVolumeLots > 0 {
+		// We have statistics, use Statistical Detection
+		volVsAvgPct = (trade.VolumeLot / stats.MeanVolumeLots) * 100
+		if stats.StdDevVolume > 0 {
+			zScore = (trade.VolumeLot - stats.MeanVolumeLots) / stats.StdDevVolume
 		}
 
-		trade := &database.Trade{
-			Timestamp:   time.Now(), // Stored in UTC
-			StockSymbol: t.Stock,
-			Action:      actionDb,
-			Price:       t.Price,
-			Volume:      t.Volume,
-			VolumeLot:   volumeLot,
-			TotalAmount: totalAmount,
-			MarketBoard: boardType,
-			Change:      changePercentage,
-			TradeNumber: tradeNumber,
-		}
-
-		if err := h.tradeRepo.SaveTrade(trade); err != nil {
-			// Check if it's a duplicate key error (unique constraint violation)
-			// PostgreSQL error code 23505 = unique_violation
-			errMsg := err.Error()
-			if containsAny(errMsg, []string{"duplicate key", "unique constraint", "23505"}) {
-				// Duplicate trade detected - this is expected, log at debug level
-				// Don't spam logs with duplicate warnings
-				return
-			}
-
-			// Log unexpected errors
-			log.Printf("⚠️  Failed to save trade to database: %v", err)
-		}
-
-		// Add to order flow aggregation (Phase 1 Enhancement)
-		if h.flowAggregator != nil {
-			h.flowAggregator.AddTrade(t.Stock, actionDb, volumeLot, totalAmount)
-		}
-
-		// 🐋 WHALE DETECTION - STATISTICAL MODEL
-
-		isWhale := false
-		detectionType := "UNKNOWN"
-
-		// Calculate Statistical Metadata
-		var zScore, volVsAvgPct float64
-
-		// ADAPTIVE THRESHOLD VARIABLES (Function Scope)
-		adaptiveThreshold := zScoreThreshold
-		atrPct := 0.0
-
-		// Get stats using helper method (handles caching internally)
-		stats := h.getStockStats(t.Stock)
-
-		if stats != nil && stats.MeanVolumeLots > 0 {
-			// We have statistics, use Statistical Detection
-			volVsAvgPct = (volumeLot / stats.MeanVolumeLots) * 100
-			if stats.StdDevVolume > 0 {
-				zScore = (volumeLot - stats.MeanVolumeLots) / stats.StdDevVolume
-			}
-
-			// Must satisfy Minimum Safety Value
-			if totalAmount >= minSafeValue {
-				// ADAPTIVE THRESHOLD LOGIC
-				// Get volatility context if provider available
-				if h.volatilityProv != nil {
-					if vol, err := h.volatilityProv.GetVolatilityPercent(t.Stock); err == nil {
-						atrPct = vol
-						if vol > 1.5 {
-							// High volatility -> Increase threshold to reduce noise
-							adaptiveThreshold = 3.5
-						} else if vol < 0.5 && vol > 0 {
-							// Low volatility -> Decrease threshold (more sensitive)
-							adaptiveThreshold = 2.5
-						}
-					}
-				}
-
-				// Primary: Z-Score threshold (Statistical Anomaly)
-				if zScore >= adaptiveThreshold {
-					isWhale = true
-					detectionType = "Z-SCORE ANOMALY"
-				}
-
-				// Secondary: Volume spike (Relative Volume Spike)
-				if volumeLot >= (stats.MeanVolumeLots * volumeSpikeMultiplier) {
-					isWhale = true
-					if detectionType == "UNKNOWN" {
-						detectionType = "RELATIVE VOL SPIKE"
-					} else {
-						detectionType += " & VOL SPIKE"
+		// Must satisfy Minimum Safety Value
+		if trade.TotalAmount >= minSafeValue {
+			// ADAPTIVE THRESHOLD LOGIC
+			// Get volatility context if provider available
+			if h.volatilityProv != nil {
+				if vol, err := h.volatilityProv.GetVolatilityPercent(trade.StockSymbol); err == nil {
+					atrPct = vol
+					if vol > 1.5 {
+						// High volatility -> Increase threshold to reduce noise
+						adaptiveThreshold = 3.5
+					} else if vol < 0.5 && vol > 0 {
+						// Low volatility -> Decrease threshold (more sensitive)
+						adaptiveThreshold = 2.5
 					}
 				}
 			}
+
+			// Primary: Z-Score threshold (Statistical Anomaly)
+			if zScore >= adaptiveThreshold {
+				isWhale = true
+				detectionType = "Z-SCORE ANOMALY"
+			}
+
+			// Secondary: Volume spike (Relative Volume Spike)
+			if trade.VolumeLot >= (stats.MeanVolumeLots * volumeSpikeMultiplier) {
+				isWhale = true
+				if detectionType == "UNKNOWN" {
+					detectionType = "RELATIVE VOL SPIKE"
+				} else {
+					detectionType += " & VOL SPIKE"
+				}
+			}
+		}
+	} else {
+		// Fallback: No statistics available (New Listing / No History)
+		// Use Hard Thresholds with minimum value safety floor
+		// Require: (High Volume AND Min Value) OR (Very High Value)
+		if trade.TotalAmount >= minSafeValue {
+			if trade.VolumeLot >= fallbackLotThreshold || trade.TotalAmount >= billionIDR {
+				isWhale = true
+				detectionType = "FALLBACK THRESHOLD"
+			}
+		}
+	}
+
+	if isWhale {
+		whaleAlert := &database.WhaleAlert{
+			DetectedAt:        time.Now(),
+			StockSymbol:       trade.StockSymbol,
+			AlertType:         "SINGLE_TRADE",
+			Action:            trade.Action,
+			TriggerPrice:      trade.Price,
+			TriggerVolumeLots: trade.VolumeLot,
+			TriggerValue:      trade.TotalAmount,
+			ConfidenceScore:   calculateConfidenceScore(zScore, volVsAvgPct, detectionType),
+			MarketBoard:       trade.MarketBoard,
+			ZScore:            ptr(zScore),
+			VolumeVsAvgPct:    ptr(volVsAvgPct),
+			AvgPrice:          getAvgPricePtr(stats),
+			// Populate pattern fields for context (Single Trade = Pattern of 1)
+			PatternTradeCount:  ptrInt(1),
+			TotalPatternVolume: ptr(trade.VolumeLot),
+			TotalPatternValue:  ptr(trade.TotalAmount),
+			// Adaptive Threshold Tracking
+			AdaptiveThreshold: ptr(adaptiveThreshold),
+			VolatilityPct:     ptr(atrPct),
+		}
+
+		// Save whale alert to database
+		if err := h.tradeRepo.SaveWhaleAlert(whaleAlert); err != nil {
+			log.Printf("⚠️  Failed to save whale alert: %v", err)
 		} else {
-			// Fallback: No statistics available (New Listing / No History)
-			// Use Hard Thresholds with minimum value safety floor
-			// Require: (High Volume AND Min Value) OR (Very High Value)
-			if totalAmount >= minSafeValue {
-				if volumeLot >= fallbackLotThreshold || totalAmount >= billionIDR {
-					isWhale = true
-					detectionType = "FALLBACK THRESHOLD"
-				}
-			}
-		}
-
-		if isWhale {
-			whaleAlert := &database.WhaleAlert{
-				DetectedAt:        time.Now(),
-				StockSymbol:       t.Stock,
-				AlertType:         "SINGLE_TRADE",
-				Action:            actionDb,
-				TriggerPrice:      t.Price,
-				TriggerVolumeLots: volumeLot,
-				TriggerValue:      totalAmount,
-				ConfidenceScore:   calculateConfidenceScore(zScore, volVsAvgPct, detectionType),
-				MarketBoard:       boardType,
-				ZScore:            ptr(zScore),
-				VolumeVsAvgPct:    ptr(volVsAvgPct),
-				AvgPrice:          getAvgPricePtr(stats),
-				// Populate pattern fields for context (Single Trade = Pattern of 1)
-				PatternTradeCount:  ptrInt(1),
-				TotalPatternVolume: ptr(volumeLot),
-				TotalPatternValue:  ptr(totalAmount),
-				// Adaptive Threshold Tracking
-				AdaptiveThreshold: ptr(adaptiveThreshold),
-				VolatilityPct:     ptr(atrPct),
+			// Prepare Price Info
+			priceInfo := fmt.Sprintf("%.0f", trade.Price)
+			if stats != nil && stats.MeanPrice > 0 {
+				diffPct := ((trade.Price - stats.MeanPrice) / stats.MeanPrice) * 100
+				priceInfo = fmt.Sprintf("%.0f (Avg: %.0f, %+0.1f%%)", trade.Price, stats.MeanPrice, diffPct)
 			}
 
-			// Save whale alert to database
-			if err := h.tradeRepo.SaveWhaleAlert(whaleAlert); err != nil {
-				log.Printf("⚠️  Failed to save whale alert: %v", err)
-			} else {
-				// Prepare Price Info
-				priceInfo := fmt.Sprintf("%.0f", t.Price)
-				if stats.MeanPrice > 0 {
-					diffPct := ((t.Price - stats.MeanPrice) / stats.MeanPrice) * 100
-					priceInfo = fmt.Sprintf("%.0f (Avg: %.0f, %+0.1f%%)", t.Price, stats.MeanPrice, diffPct)
-				}
+			// Log whale detection to console
+			log.Printf("🐋 WHALE ALERT! %s %s [%s] | Vol: %.0f (%.0f%% Avg) | Z-Score: %.2f | Value: %s | Price: %s",
+				trade.StockSymbol, trade.Action, detectionType, trade.VolumeLot, volVsAvgPct, zScore, helpers.FormatRupiah(trade.TotalAmount), priceInfo)
 
-				// Log whale detection to console
-				log.Printf("🐋 WHALE ALERT! %s %s [%s] | Vol: %.0f (%.0f%% Avg) | Z-Score: %.2f | Value: %s | Price: %s",
-					t.Stock, actionDb, detectionType, volumeLot, volVsAvgPct, zScore, helpers.FormatRupiah(totalAmount), priceInfo)
-
-				// Trigger Webhook if manager is available
-				if h.webhookManager != nil {
-					h.webhookManager.SendAlert(whaleAlert)
-				}
-
-				// Broadcast Realtime Event
-				if h.broker != nil && h.webhookManager != nil {
-					// Use WebhookPayload for consistent frontend data (includes Message)
-					payload := h.webhookManager.CreatePayload(whaleAlert)
-					h.broker.Broadcast("whale_alert", payload)
-				} else if h.broker != nil {
-					// Fallback if no webhook manager
-					h.broker.Broadcast("whale_alert", whaleAlert)
-				}
-
-				// Benchmark Latency
-				latency := time.Since(startTime)
-				log.Printf("⏱️ Detection Latency: %v", latency)
+			// Trigger Webhook if manager is available
+			if h.webhookManager != nil {
+				h.webhookManager.SendAlert(whaleAlert)
 			}
+
+			// Broadcast Realtime Event
+			if h.broker != nil && h.webhookManager != nil {
+				// Use WebhookPayload for consistent frontend data (includes Message)
+				payload := h.webhookManager.CreatePayload(whaleAlert)
+				h.broker.Broadcast("whale_alert", payload)
+			} else if h.broker != nil {
+				// Fallback if no webhook manager
+				h.broker.Broadcast("whale_alert", whaleAlert)
+			}
+
+			// Benchmark Latency
+			latency := time.Since(startTime)
+			log.Printf("⏱️ Detection Latency: %v", latency)
 		}
 	}
 }
@@ -472,6 +552,7 @@ func NewOrderFlowAggregator(repo *database.TradeRepository) *OrderFlowAggregator
 		repo:          repo,
 		currentBucket: time.Now().Truncate(time.Minute),
 		flows:         make(map[string]*OrderFlowData),
+		inputChan:     make(chan *orderFlowInput, tradeChanSize),
 	}
 }
 
@@ -482,42 +563,58 @@ func (ofa *OrderFlowAggregator) Start() {
 
 	log.Println("📊 Order Flow Aggregator started")
 
-	for range ticker.C {
-		ofa.flushAndReset()
+	for {
+		select {
+		case input := <-ofa.inputChan:
+			ofa.processInput(input)
+		case <-ticker.C:
+			ofa.flushAndReset()
+		}
 	}
 }
 
-// AddTrade adds a trade to the current minute's aggregation
-func (ofa *OrderFlowAggregator) AddTrade(stock, action string, volumeLots, value float64) {
-	ofa.mu.Lock()
-	defer ofa.mu.Unlock()
-
+// processInput adds a trade to the current minute's aggregation (called from consumer loop)
+func (ofa *OrderFlowAggregator) processInput(input *orderFlowInput) {
+	// No mutex needed here as we are in a single consumer loop
 	// Get or create flow data for this stock
-	flow, exists := ofa.flows[stock]
+	flow, exists := ofa.flows[input.stock]
 	if !exists {
 		flow = &OrderFlowData{
-			StockSymbol: stock,
+			StockSymbol: input.stock,
 		}
-		ofa.flows[stock] = flow
+		ofa.flows[input.stock] = flow
 	}
 
 	// Aggregate based on action
-	switch action {
+	switch input.action {
 	case "BUY":
-		flow.BuyVolumeLots += volumeLots
-		flow.BuyValue += value
+		flow.BuyVolumeLots += input.volumeLots
+		flow.BuyValue += input.value
 		flow.BuyTradeCount++
 	case "SELL":
-		flow.SellVolumeLots += volumeLots
-		flow.SellValue += value
+		flow.SellVolumeLots += input.volumeLots
+		flow.SellValue += input.value
 		flow.SellTradeCount++
+	}
+}
+
+// AddTrade is now deprecated/unused as we use inputChan directly,
+// but kept for interface compatibility if needed, redirecting to channel
+func (ofa *OrderFlowAggregator) AddTrade(stock, action string, volumeLots, value float64) {
+	select {
+	case ofa.inputChan <- &orderFlowInput{
+		stock:      stock,
+		action:     action,
+		volumeLots: volumeLots,
+		value:      value,
+	}:
+	default:
+		// Drop order flow update under heavy load
 	}
 }
 
 // flushAndReset persists current bucket and resets for next minute
 func (ofa *OrderFlowAggregator) flushAndReset() {
-	ofa.mu.Lock()
-
 	// Save current bucket and flows
 	bucket := ofa.currentBucket
 	flows := ofa.flows
@@ -526,9 +623,7 @@ func (ofa *OrderFlowAggregator) flushAndReset() {
 	ofa.currentBucket = time.Now().Truncate(time.Minute)
 	ofa.flows = make(map[string]*OrderFlowData)
 
-	ofa.mu.Unlock()
-
-	// Persist to database (async to avoid blocking)
+	// Persist to database (async in separate goroutine to not block consumer)
 	if len(flows) > 0 {
 		go ofa.persistFlows(bucket, flows)
 	}
@@ -537,7 +632,6 @@ func (ofa *OrderFlowAggregator) flushAndReset() {
 // persistFlows saves aggregated flows to database
 func (ofa *OrderFlowAggregator) persistFlows(bucket time.Time, flows map[string]*OrderFlowData) {
 	if len(flows) == 0 {
-		log.Printf("📊 Order flow: No data to save for bucket %s", bucket.Format("15:04"))
 		return
 	}
 
@@ -578,8 +672,6 @@ func (ofa *OrderFlowAggregator) persistFlows(bucket time.Time, flows map[string]
 			log.Printf("⚠️  Failed to save order flow for %s: %v", flow.StockSymbol, err)
 		} else {
 			saved++
-			log.Printf("📊 Order flow %s: Buy=%.0f Sell=%.0f (Imbalance: %.2f%%)",
-				flow.StockSymbol, flow.BuyVolumeLots, flow.SellVolumeLots, volumeImbalance*100)
 		}
 	}
 

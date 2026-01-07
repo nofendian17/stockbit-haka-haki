@@ -45,6 +45,62 @@ func (r *Repository) GetLatestBaseline(symbol string) (*models.StatisticalBaseli
 	return &baseline, nil
 }
 
+// CalculateBaselinesDB calculates statistical baselines directly in the database
+// Uses candle_1min view for efficient aggregation
+func (r *Repository) CalculateBaselinesDB(hoursBack int, minTrades int) ([]models.StatisticalBaseline, error) {
+	var baselines []models.StatisticalBaseline
+
+	// Complex aggregation query using Postgres/TimescaleDB functions
+	// We use candle_1min to get precise volume/price data but aggregated by minute first for speed
+	query := `
+		WITH stats AS (
+			SELECT
+				stock_symbol,
+				COUNT(*) as sample_size,
+				AVG(close) as mean_price,
+				STDDEV(close) as std_dev_price,
+				PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY close) as median_price,
+				PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY close) as price_p25,
+				PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY close) as price_p75,
+				AVG(volume_lots) as mean_volume_lots,
+				STDDEV(volume_lots) as std_dev_volume,
+				PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY volume_lots) as median_volume_lots,
+				PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY volume_lots) as volume_p25,
+				PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY volume_lots) as volume_p75,
+				AVG(total_value) as mean_value,
+				STDDEV(total_value) as std_dev_value
+			FROM candle_1min
+			WHERE bucket >= NOW() - INTERVAL '1 hour' * ?
+			GROUP BY stock_symbol
+			HAVING COUNT(*) >= ?
+		)
+		SELECT
+			stock_symbol,
+			NOW() as calculated_at,
+			? as lookback_hours,
+			sample_size,
+			COALESCE(mean_price, 0) as mean_price,
+			COALESCE(std_dev_price, 0) as std_dev_price,
+			COALESCE(median_price, 0) as median_price,
+			COALESCE(price_p25, 0) as price_p25,
+			COALESCE(price_p75, 0) as price_p75,
+			COALESCE(mean_volume_lots, 0) as mean_volume_lots,
+			COALESCE(std_dev_volume, 0) as std_dev_volume,
+			COALESCE(median_volume_lots, 0) as median_volume_lots,
+			COALESCE(volume_p25, 0) as volume_p25,
+			COALESCE(volume_p75, 0) as volume_p75,
+			COALESCE(mean_value, 0) as mean_value,
+			COALESCE(std_dev_value, 0) as std_dev_value
+		FROM stats
+	`
+
+	if err := r.db.Raw(query, hoursBack, minTrades, hoursBack).Scan(&baselines).Error; err != nil {
+		return nil, fmt.Errorf("CalculateBaselinesDB: %w", err)
+	}
+
+	return baselines, nil
+}
+
 // ============================================================================
 // Market Regimes
 // ============================================================================
