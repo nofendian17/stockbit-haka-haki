@@ -212,10 +212,12 @@ export async function fetchDailyPerformance() {
 export async function fetchMarketIntelligence() {
     try {
         // Only fetch endpoints that don't require specific symbol
-        const patterns = await fetchDetectedPatterns().catch(() => null);
+        const patternsData = await fetchDetectedPatterns().catch(() => null);
+        // Backend returns { patterns: [...], count: ... }
+        const patternsList = patternsData ? (patternsData.patterns || []) : [];
 
         return {
-            patterns: patterns || []
+            patterns: patternsList
         };
     } catch (error) {
         console.error('Failed to fetch market intelligence:', error);
