@@ -133,6 +133,19 @@ func (r *TradeRepository) InitSchema() error {
 		ADD COLUMN IF NOT EXISTS analysis TEXT
 	`)
 
+	// Manual migration for whale_alerts adaptive columns
+	r.db.db.Exec(`
+		ALTER TABLE whale_alerts 
+		ADD COLUMN IF NOT EXISTS adaptive_threshold DECIMAL(5,2),
+		ADD COLUMN IF NOT EXISTS volatility_pct DECIMAL(5,2)
+	`)
+
+	// Manual migration for trading_signals analysis_data
+	r.db.db.Exec(`
+		ALTER TABLE trading_signals 
+		ADD COLUMN IF NOT EXISTS analysis_data JSONB
+	`)
+
 	// Setup TimescaleDB extension and hypertables
 	if err := r.setupTimescaleDB(); err != nil {
 		return err
@@ -168,6 +181,8 @@ func (r *TradeRepository) createHypertableTables() error {
 			avg_price DECIMAL(15,2),
 			confidence_score DECIMAL(5,2) NOT NULL,
 			market_board TEXT,
+			adaptive_threshold DECIMAL(5,2),
+			volatility_pct DECIMAL(5,2),
 			PRIMARY KEY (id, detected_at)
 		)`,
 		`whale_webhook_logs (
@@ -198,6 +213,7 @@ func (r *TradeRepository) createHypertableTables() error {
 			market_regime TEXT,
 			volume_imbalance_ratio DECIMAL(10,4),
 			whale_alert_id BIGINT,
+			analysis_data JSONB,
 			PRIMARY KEY (id, generated_at)
 		)`,
 		`signal_outcomes (
