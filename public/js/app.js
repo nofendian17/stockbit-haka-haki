@@ -36,8 +36,23 @@ const state = {
     },
     whaleSSE: null,
     patternSSE: null,
-    currentPatternType: 'accumulation'
+    currentPatternType: 'accumulation',
+    // Optimization: Track visibility and active tabs
+    isPageVisible: true,
+    activeAnalyticsTab: 'correlations-view',
+    pollingIntervalId: null,
+    statsIntervalId: null
 };
+
+// OPTIMIZATION: Visibility API - pause polling when tab is hidden
+document.addEventListener('visibilitychange', () => {
+    state.isPageVisible = !document.hidden;
+    if (state.isPageVisible) {
+        console.log('📊 Tab visible - resuming polling');
+    } else {
+        console.log('⏸️ Tab hidden - pausing non-essential polling');
+    }
+});
 
 /**
  * Initialize the application
@@ -640,21 +655,127 @@ function setupAnalyticsTabs() {
             tab.classList.add('active');
 
             const target = tab.dataset.target;
+
+            // OPTIMIZATION: Track active tab for selective polling
+            state.activeAnalyticsTab = target;
+
             document.querySelectorAll('.tab-panel').forEach(panel => {
                 panel.classList.remove('active');
             });
             const targetPanel = document.getElementById(target);
             if (targetPanel) targetPanel.classList.add('active');
 
-            // Load data if needed
+            // Load data if needed (lazy loading)
             if (target === 'correlations-view') {
                 loadCorrelations();
             } else if (target === 'performance-view') {
                 loadPerformance();
+            } else if (target === 'optimization-view') {
+                loadOptimizationData();
             }
         });
     });
 }
+
+/**
+ * Load strategy optimization data (EV, thresholds, effectiveness)
+ */
+async function loadOptimizationData() {
+    console.log('📊 Loading strategy optimization data...');
+
+    const evList = safeGetElement('ev-list');
+    const thresholdList = safeGetElement('threshold-list');
+    const effectivenessBody = safeGetElement('effectiveness-body');
+
+    // Show loading states
+    if (evList) evList.innerHTML = '<div class="placeholder-small">Memuat data...</div>';
+    if (thresholdList) thresholdList.innerHTML = '<div class="placeholder-small">Memuat data...</div>';
+    if (effectivenessBody) effectivenessBody.innerHTML = '<tr><td colspan="6" class="text-center">Memuat data...</td></tr>';
+
+    try {
+        // Fetch all optimization data in parallel
+        const [evData, thresholdData, effectivenessData] = await Promise.all([
+            API.fetchExpectedValues(30).catch(() => ({ expected_values: [] })),
+            API.fetchOptimalThresholds(30).catch(() => ({ thresholds: [] })),
+            API.fetchStrategyEffectiveness(30).catch(() => ({ effectiveness: [] }))
+        ]);
+
+        // Render Expected Values
+        if (evList) {
+            const evs = evData.expected_values || [];
+            if (evs.length === 0) {
+                evList.innerHTML = '<div class="placeholder-small">Belum ada data historis</div>';
+            } else {
+                evList.innerHTML = evs.map(ev => {
+                    const evClass = ev.expected_value > 0 ? 'diff-positive' : (ev.expected_value < 0 ? 'diff-negative' : '');
+                    const recClass = ev.recommendation === 'STRONG' ? 'diff-positive' :
+                        (ev.recommendation === 'AVOID' ? 'diff-negative' : '');
+                    return `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid var(--border-color);">
+                            <span style="font-weight: 600;">${ev.strategy}</span>
+                            <div style="text-align: right;">
+                                <span class="${evClass}" style="font-weight: 600;">${ev.expected_value > 0 ? '+' : ''}${ev.expected_value.toFixed(4)}</span>
+                                <span class="${recClass}" style="font-size: 0.75em; margin-left: 0.5rem; padding: 2px 6px; background: rgba(255,255,255,0.1); border-radius: 4px;">${ev.recommendation}</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        // Render Optimal Thresholds
+        if (thresholdList) {
+            const thresholds = thresholdData.thresholds || [];
+            if (thresholds.length === 0) {
+                thresholdList.innerHTML = '<div class="placeholder-small">Belum ada data historis</div>';
+            } else {
+                thresholdList.innerHTML = thresholds.map(t => `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid var(--border-color);">
+                        <span style="font-weight: 600;">${t.strategy}</span>
+                        <div style="text-align: right;">
+                            <span style="color: var(--accent-gold); font-weight: 600;">${(t.recommended_min_conf * 100).toFixed(0)}%</span>
+                            <span style="font-size: 0.75em; color: var(--text-secondary); margin-left: 0.5rem;">(${t.sample_size} sinyal)</span>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        // Render Effectiveness Table
+        if (effectivenessBody) {
+            const effs = effectivenessData.effectiveness || [];
+            if (effs.length === 0) {
+                effectivenessBody.innerHTML = '<tr><td colspan="6" class="text-center">Belum ada data historis</td></tr>';
+            } else {
+                effectivenessBody.innerHTML = effs.map(e => {
+                    const wrClass = e.win_rate >= 50 ? 'diff-positive' : (e.win_rate < 40 ? 'diff-negative' : '');
+                    const evClass = e.expected_value > 0 ? 'diff-positive' : (e.expected_value < 0 ? 'diff-negative' : '');
+                    return `
+                        <tr>
+                            <td><strong>${e.strategy}</strong></td>
+                            <td>${e.market_regime}</td>
+                            <td class="text-right">${e.total_signals}</td>
+                            <td class="text-right ${wrClass}">${e.win_rate.toFixed(1)}%</td>
+                            <td class="text-right">${e.avg_profit_pct.toFixed(2)}%</td>
+                            <td class="text-right ${evClass}">${e.expected_value > 0 ? '+' : ''}${e.expected_value.toFixed(4)}</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+        }
+
+        console.log('✅ Strategy optimization data loaded successfully');
+    } catch (error) {
+        console.error('Failed to load optimization data:', error);
+        if (evList) evList.innerHTML = '<div class="placeholder-small" style="color: var(--accent-sell);">Gagal memuat data</div>';
+        if (thresholdList) thresholdList.innerHTML = '<div class="placeholder-small" style="color: var(--accent-sell);">Gagal memuat data</div>';
+        if (effectivenessBody) effectivenessBody.innerHTML = '<tr><td colspan="6" class="text-center" style="color: var(--accent-sell);">Gagal memuat data</td></tr>';
+    }
+}
+
+// Export for global access (button onclick)
+window.loadOptimizationData = loadOptimizationData;
+
 
 /**
  * Setup pattern analysis
@@ -777,33 +898,43 @@ function stopPatternAnalysis() {
 }
 
 /**
- * Start analytics polling
- */
-/**
- * Start analytics polling
+ * Start analytics polling with visibility optimization
  */
 function startAnalyticsPolling() {
     const pollAnalytics = () => {
-        Promise.all([
-            API.fetchMarketIntelligence().then(data => {
-                renderPatternFeed(data.patterns);
-            }),
-            API.fetchAnalyticsHub().then(data => {
-                if (data.performance && data.performance.performance) {
-                    // Handle nested structure if API returns { performance: { performance: [...] } }
-                    renderDailyPerformance(data.performance.performance);
-                } else {
-                    renderDailyPerformance(data.performance || []);
-                }
-            }),
-            API.fetchOrderFlow().then(renderOrderFlow),
+        // OPTIMIZATION: Skip polling if tab is hidden (except for critical data)
+        if (!state.isPageVisible) {
+            console.log('⏸️ Skipping analytics poll - tab hidden');
+            return;
+        }
+
+        // OPTIMIZATION: Only fetch data relevant to active view
+        const promises = [
+            // Always fetch these (critical for main dashboard)
+            API.fetchOrderFlow().then(renderOrderFlow).catch(() => null),
             API.fetchMarketRegime('IHSG').then(renderMarketIntelligence).catch(() => {
-                // Determine regime by looking at general stats or fallback
                 renderMarketIntelligence({ regime: 'UNKNOWN', confidence: 0 });
             }),
-            API.fetchRecentFollowups(),
-            API.fetchRunningPositions().then(renderPositions)
-        ]).catch(error => {
+            API.fetchRunningPositions().then(renderPositions).catch(() => null)
+        ];
+
+        // Fetch pattern feed only if market intel section is visible
+        promises.push(
+            API.fetchMarketIntelligence().then(data => {
+                renderPatternFeed(data.patterns);
+            }).catch(() => null)
+        );
+
+        // Fetch tab-specific data only if that tab is active
+        if (state.activeAnalyticsTab === 'performance-view') {
+            promises.push(
+                API.fetchDailyPerformance().then(data => {
+                    renderDailyPerformance(data.performance || []);
+                }).catch(() => null)
+            );
+        }
+
+        Promise.all(promises).catch(error => {
             console.error('Analytics polling error:', error);
         });
     };
@@ -811,11 +942,15 @@ function startAnalyticsPolling() {
     // Initial fetch
     pollAnalytics();
 
-    // Start polling
-    setInterval(pollAnalytics, CONFIG.ANALYTICS_POLL_INTERVAL);
+    // Start polling with stored interval ID for potential cleanup
+    state.pollingIntervalId = setInterval(pollAnalytics, CONFIG.ANALYTICS_POLL_INTERVAL);
 
-    // Stats polling
-    setInterval(fetchStats, CONFIG.STATS_POLL_INTERVAL);
+    // Stats polling - only when visible
+    state.statsIntervalId = setInterval(() => {
+        if (state.isPageVisible) {
+            fetchStats();
+        }
+    }, CONFIG.STATS_POLL_INTERVAL);
 }
 
 

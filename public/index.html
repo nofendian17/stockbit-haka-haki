@@ -509,6 +509,7 @@
           <div class="stats-tabs">
             <button class="s-tab active" data-target="correlations-view">Korelasi</button>
             <button class="s-tab" data-target="performance-view">Pertumbuhan Strategi</button>
+            <button class="s-tab" data-target="optimization-view">📊 Optimasi Sinyal</button>
             <button id="export-ml-btn" onclick="window.location.href='/api/analytics/export/ml-data'"
               class="btn-export">
               <span style="font-size: 1.1em;">📥</span> ML Data
@@ -541,6 +542,54 @@
                     <!-- Rows injected here -->
                   </tbody>
                 </table>
+              </div>
+            </div>
+            <!-- Strategy Optimization View (NEW) -->
+            <div id="optimization-view" class="tab-panel">
+              <div class="optimization-grid"
+                style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
+                <!-- Expected Values Card -->
+                <div class="intel-card" style="padding: 1rem;">
+                  <span class="card-label">📈 EXPECTED VALUE (EV)</span>
+                  <div id="ev-list" style="margin-top: 0.5rem;">
+                    <div class="placeholder-small">Memuat data...</div>
+                  </div>
+                </div>
+                <!-- Optimal Thresholds Card -->
+                <div class="intel-card" style="padding: 1rem;">
+                  <span class="card-label">🎯 CONFIDENCE THRESHOLD OPTIMAL</span>
+                  <div id="threshold-list" style="margin-top: 0.5rem;">
+                    <div class="placeholder-small">Memuat data...</div>
+                  </div>
+                </div>
+              </div>
+              <!-- Strategy Effectiveness Table -->
+              <div style="margin-top: 1rem;">
+                <h4 style="margin-bottom: 0.5rem; color: var(--text-primary);">📊 Efektivitas per Market Regime</h4>
+                <div class="mini-table-container">
+                  <table id="effectiveness-table">
+                    <thead>
+                      <tr>
+                        <th><span class="th-icon">🎯</span> Strategi</th>
+                        <th><span class="th-icon">📊</span> Regime</th>
+                        <th class="text-right"><span class="th-icon">🔢</span> Sinyal</th>
+                        <th class="text-right"><span class="th-icon">🏆</span> Win Rate</th>
+                        <th class="text-right"><span class="th-icon">💰</span> Avg Profit</th>
+                        <th class="text-right"><span class="th-icon">📈</span> EV</th>
+                      </tr>
+                    </thead>
+                    <tbody id="effectiveness-body">
+                      <tr>
+                        <td colspan="6" class="text-center">Memuat data...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div style="margin-top: 0.5rem; text-align: center;">
+                <button id="refresh-optimization-btn" class="btn-refresh" onclick="window.loadOptimizationData()">
+                  <span class="btn-icon">🔄</span> Refresh Data
+                </button>
               </div>
             </div>
           </div>

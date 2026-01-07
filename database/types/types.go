@@ -78,3 +78,46 @@ type PerformanceStats struct {
 	AvgRiskReward  float64 `json:"avg_risk_reward"`
 	Expectancy     float64 `json:"expectancy"`
 }
+
+// StrategyEffectiveness represents multi-dimensional effectiveness analysis
+// Strategy performance broken down by market regime
+type StrategyEffectiveness struct {
+	Strategy      string  `json:"strategy"`
+	MarketRegime  string  `json:"market_regime"`
+	TotalSignals  int64   `json:"total_signals"`
+	Wins          int64   `json:"wins"`
+	Losses        int64   `json:"losses"`
+	WinRate       float64 `json:"win_rate"`
+	AvgProfitPct  float64 `json:"avg_profit_pct"`
+	AvgLossPct    float64 `json:"avg_loss_pct"`
+	ExpectedValue float64 `json:"expected_value"`
+}
+
+// OptimalThreshold represents the optimal confidence threshold for a strategy
+type OptimalThreshold struct {
+	Strategy           string  `json:"strategy"`
+	OptimalConfidence  float64 `json:"optimal_confidence"`
+	WinRateAtThreshold float64 `json:"win_rate_at_threshold"`
+	SampleSize         int64   `json:"sample_size"`
+	RecommendedMinConf float64 `json:"recommended_min_conf"`
+}
+
+// TimeEffectiveness represents signal effectiveness by hour of day
+type TimeEffectiveness struct {
+	Hour         int     `json:"hour"`
+	Strategy     string  `json:"strategy"`
+	TotalSignals int64   `json:"total_signals"`
+	WinRate      float64 `json:"win_rate"`
+	AvgProfitPct float64 `json:"avg_profit_pct"`
+}
+
+// SignalExpectedValue represents EV calculation for signal prioritization
+type SignalExpectedValue struct {
+	Strategy       string  `json:"strategy"`
+	WinRate        float64 `json:"win_rate"`
+	AvgWinPct      float64 `json:"avg_win_pct"`
+	AvgLossPct     float64 `json:"avg_loss_pct"`
+	ExpectedValue  float64 `json:"expected_value"`
+	TotalSignals   int64   `json:"total_signals"`
+	Recommendation string  `json:"recommendation"` // "STRONG", "MODERATE", "WEAK", "AVOID"
+}

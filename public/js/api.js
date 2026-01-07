@@ -400,3 +400,52 @@ export async function fetchSignalPerformance(strategy = '', symbol = '') {
 export async function fetchSignalOutcome(signalId) {
     return apiFetch(`${API_ENDPOINTS.SIGNAL_OUTCOME}/${signalId}/outcome`);
 }
+
+/**
+ * Strategy Optimization Analytics Functions
+ */
+
+/**
+ * Fetch strategy effectiveness by market regime
+ * @param {number} daysBack - Days to look back
+ * @returns {Promise<Object>} Strategy effectiveness data
+ */
+export async function fetchStrategyEffectiveness(daysBack = 30) {
+    const params = new URLSearchParams();
+    params.append('days', daysBack);
+    return apiFetch(`${API_ENDPOINTS.STRATEGY_EFFECTIVENESS}?${params.toString()}`);
+}
+
+/**
+ * Fetch optimal confidence thresholds per strategy
+ * @param {number} daysBack - Days to look back
+ * @returns {Promise<Object>} Optimal thresholds data
+ */
+export async function fetchOptimalThresholds(daysBack = 30) {
+    const params = new URLSearchParams();
+    params.append('days', daysBack);
+    return apiFetch(`${API_ENDPOINTS.OPTIMAL_THRESHOLDS}?${params.toString()}`);
+}
+
+/**
+ * Fetch time-of-day effectiveness
+ * @param {number} daysBack - Days to look back
+ * @returns {Promise<Object>} Time effectiveness data
+ */
+export async function fetchTimeEffectiveness(daysBack = 30) {
+    const params = new URLSearchParams();
+    params.append('days', daysBack);
+    return apiFetch(`${API_ENDPOINTS.TIME_EFFECTIVENESS}?${params.toString()}`);
+}
+
+/**
+ * Fetch expected values for strategies
+ * @param {number} daysBack - Days to look back
+ * @returns {Promise<Object>} Expected values data
+ */
+export async function fetchExpectedValues(daysBack = 30) {
+    const params = new URLSearchParams();
+    params.append('days', daysBack);
+    return apiFetch(`${API_ENDPOINTS.EXPECTED_VALUES}?${params.toString()}`);
+}
+

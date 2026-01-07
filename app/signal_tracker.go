@@ -294,6 +294,28 @@ func (st *SignalTracker) shouldCreateOutcome(signal *database.TradingSignalDB) (
 		return false, baselineReason
 	}
 
+	// OPTIMIZATION NEW #1: Dynamic Confidence Threshold (Historical Data Driven)
+	optimalThreshold, thresholdReason := st.getDynamicConfidenceThreshold(signal.Strategy)
+	if signal.Confidence < optimalThreshold {
+		return false, fmt.Sprintf("Below optimal confidence threshold (%.2f < %.2f): %s",
+			signal.Confidence, optimalThreshold, thresholdReason)
+	}
+
+	// OPTIMIZATION NEW #2: Regime-Specific Effectiveness Check
+	regimePassed, regimeReason := st.checkRegimeEffectiveness(signal.Strategy, signal.StockSymbol)
+	if !regimePassed {
+		return false, regimeReason
+	}
+
+	// OPTIMIZATION NEW #3: Expected Value Filter (Reject Negative EV Strategies)
+	evPassed, ev, evReason := st.checkSignalExpectedValue(signal.Strategy)
+	if !evPassed {
+		return false, evReason
+	}
+	if ev > 0 {
+		log.Printf("📈 Signal EV check passed for %s: +%.4f", signal.Strategy, ev)
+	}
+
 	// OPTIMIZATION #2: Order Flow Imbalance Check
 	flowPassed, _, flowReason := st.checkOrderFlowImbalance(signal.StockSymbol, signal.Decision)
 	if !flowPassed {
@@ -890,4 +912,167 @@ func (st *SignalTracker) GetOpenPositions(symbol, strategy string, limit int) ([
 	}
 
 	return outcomes, nil
+}
+
+// ============================================================================
+// SIGNAL OPTIMIZATION FUNCTIONS (Historical Data Driven)
+// ============================================================================
+
+// getDynamicConfidenceThreshold returns the optimal confidence threshold for a strategy
+// based on historical data. This replaces static thresholds with data-driven values.
+func (st *SignalTracker) getDynamicConfidenceThreshold(strategy string) (float64, string) {
+	// OPTIMIZATION: Try Redis cache first (10-minute TTL)
+	if st.redis != nil {
+		ctx := context.Background()
+		cacheKey := fmt.Sprintf("opt:threshold:%s", strategy)
+
+		type CachedThreshold struct {
+			Threshold float64
+			Reason    string
+		}
+
+		var cached CachedThreshold
+		if err := st.redis.Get(ctx, cacheKey, &cached); err == nil {
+			return cached.Threshold, cached.Reason
+		}
+	}
+
+	// Fetch from database (last 30 days)
+	thresholds, err := st.repo.GetOptimalConfidenceThresholds(30)
+	if err != nil || len(thresholds) == 0 {
+		return 0.6, "Using default threshold (no historical data)"
+	}
+
+	// Find threshold for this strategy
+	var optThreshold float64 = 0.6
+	var reason string = "Using default threshold"
+	for _, t := range thresholds {
+		if t.Strategy == strategy {
+			optThreshold = t.RecommendedMinConf
+			reason = fmt.Sprintf("Optimal threshold %.0f%% based on %d signals (win rate %.1f%%)",
+				t.OptimalConfidence*100, t.SampleSize, t.WinRateAtThreshold)
+			break
+		}
+	}
+
+	// Cache the result for 10 minutes
+	if st.redis != nil {
+		ctx := context.Background()
+		cacheKey := fmt.Sprintf("opt:threshold:%s", strategy)
+		cached := struct {
+			Threshold float64
+			Reason    string
+		}{Threshold: optThreshold, Reason: reason}
+
+		if err := st.redis.Set(ctx, cacheKey, cached, 10*time.Minute); err != nil {
+			log.Printf("⚠️ Failed to cache optimal threshold for %s: %v", strategy, err)
+		}
+	}
+
+	return optThreshold, reason
+}
+
+// checkRegimeEffectiveness validates that a strategy performs well in the current regime
+// Returns: (passed bool, reason string)
+func (st *SignalTracker) checkRegimeEffectiveness(strategy string, symbol string) (bool, string) {
+	// Get current regime
+	regime, err := st.repo.GetLatestRegime(symbol)
+	if err != nil || regime == nil {
+		return true, "" // No regime data - allow
+	}
+
+	// OPTIMIZATION: Try Redis cache first (10-minute TTL)
+	cacheKey := fmt.Sprintf("opt:regime_eff:%s:%s", strategy, regime.Regime)
+	if st.redis != nil {
+		ctx := context.Background()
+		var cachedWinRate float64
+		if err := st.redis.Get(ctx, cacheKey, &cachedWinRate); err == nil {
+			if cachedWinRate < 40.0 {
+				return false, fmt.Sprintf("%s underperforms in %s regime (%.1f%% win rate)",
+					strategy, regime.Regime, cachedWinRate)
+			}
+			return true, ""
+		}
+	}
+
+	// Fetch effectiveness data
+	effectiveness, err := st.repo.GetStrategyEffectivenessByRegime(30)
+	if err != nil || len(effectiveness) == 0 {
+		return true, "" // No historical data - allow
+	}
+
+	// Find win rate for this strategy + regime combination
+	var winRate float64 = 50.0 // Default to neutral
+	for _, eff := range effectiveness {
+		if eff.Strategy == strategy && eff.MarketRegime == regime.Regime {
+			winRate = eff.WinRate
+			break
+		}
+	}
+
+	// Cache the result
+	if st.redis != nil {
+		ctx := context.Background()
+		if err := st.redis.Set(ctx, cacheKey, winRate, 10*time.Minute); err != nil {
+			log.Printf("⚠️ Failed to cache regime effectiveness: %v", err)
+		}
+	}
+
+	// Reject if win rate is below 40% in this regime
+	if winRate < 40.0 {
+		return false, fmt.Sprintf("%s underperforms in %s regime (%.1f%% win rate)",
+			strategy, regime.Regime, winRate)
+	}
+
+	return true, ""
+}
+
+// checkSignalExpectedValue validates that a strategy has positive expected value
+// EV = (Win Rate × Avg Win) - ((1 - Win Rate) × |Avg Loss|)
+// Returns: (passed bool, ev float64, reason string)
+func (st *SignalTracker) checkSignalExpectedValue(strategy string) (bool, float64, string) {
+	// OPTIMIZATION: Try Redis cache first (10-minute TTL)
+	cacheKey := fmt.Sprintf("opt:ev:%s", strategy)
+	if st.redis != nil {
+		ctx := context.Background()
+		var cachedEV float64
+		if err := st.redis.Get(ctx, cacheKey, &cachedEV); err == nil {
+			if cachedEV < 0 {
+				return false, cachedEV, fmt.Sprintf("Negative EV: %.4f (strategy not profitable)", cachedEV)
+			}
+			return true, cachedEV, ""
+		}
+	}
+
+	// Fetch expected value data
+	evData, err := st.repo.GetSignalExpectedValues(30)
+	if err != nil || len(evData) == 0 {
+		return true, 0, "" // No data - allow
+	}
+
+	// Find EV for this strategy
+	var ev float64 = 0.0
+	var found bool
+	for _, e := range evData {
+		if e.Strategy == strategy {
+			ev = e.ExpectedValue
+			found = true
+			break
+		}
+	}
+
+	// Cache the result
+	if st.redis != nil && found {
+		ctx := context.Background()
+		if err := st.redis.Set(ctx, cacheKey, ev, 10*time.Minute); err != nil {
+			log.Printf("⚠️ Failed to cache EV: %v", err)
+		}
+	}
+
+	// Reject negative EV strategies
+	if found && ev < 0 {
+		return false, ev, fmt.Sprintf("Negative EV: %.4f (strategy not profitable)", ev)
+	}
+
+	return true, ev, ""
 }

@@ -722,3 +722,176 @@ func (r *Repository) GetRecentSignalsWithOutcomes(lookbackMinutes int, minConfid
 	}
 	return signals, nil
 }
+
+// ============================================================================
+// Signal Effectiveness Analysis Functions
+// ============================================================================
+
+// GetStrategyEffectivenessByRegime returns multi-dimensional effectiveness analysis
+// Strategy performance broken down by market regime for adaptive strategy selection
+func (r *Repository) GetStrategyEffectivenessByRegime(daysBack int) ([]types.StrategyEffectiveness, error) {
+	var results []types.StrategyEffectiveness
+
+	query := `
+		SELECT
+			ts.strategy,
+			COALESCE(ts.market_regime, 'UNKNOWN') as market_regime,
+			COUNT(*) as total_signals,
+			SUM(CASE WHEN so.outcome_status = 'WIN' THEN 1 ELSE 0 END) as wins,
+			SUM(CASE WHEN so.outcome_status = 'LOSS' THEN 1 ELSE 0 END) as losses,
+			ROUND(
+				(SUM(CASE WHEN so.outcome_status = 'WIN' THEN 1 ELSE 0 END)::DECIMAL /
+					NULLIF(SUM(CASE WHEN so.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN') THEN 1 ELSE 0 END), 0)) * 100,
+				2
+			) as win_rate,
+			COALESCE(AVG(CASE WHEN so.outcome_status = 'WIN' THEN so.profit_loss_pct END), 0) as avg_profit_pct,
+			COALESCE(AVG(CASE WHEN so.outcome_status = 'LOSS' THEN so.profit_loss_pct END), 0) as avg_loss_pct,
+			-- EV = (WinRate * AvgWin) - ((1 - WinRate) * |AvgLoss|)
+			ROUND(
+				(SUM(CASE WHEN so.outcome_status = 'WIN' THEN 1 ELSE 0 END)::DECIMAL /
+					NULLIF(SUM(CASE WHEN so.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN') THEN 1 ELSE 0 END), 0)) *
+				COALESCE(AVG(CASE WHEN so.outcome_status = 'WIN' THEN so.profit_loss_pct END), 0) -
+				(1 - SUM(CASE WHEN so.outcome_status = 'WIN' THEN 1 ELSE 0 END)::DECIMAL /
+					NULLIF(SUM(CASE WHEN so.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN') THEN 1 ELSE 0 END), 0)) *
+				ABS(COALESCE(AVG(CASE WHEN so.outcome_status = 'LOSS' THEN so.profit_loss_pct END), 0)),
+				4
+			) as expected_value
+		FROM trading_signals ts
+		JOIN signal_outcomes so ON ts.id = so.signal_id
+		WHERE so.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN')
+		  AND ts.generated_at >= NOW() - INTERVAL '1 day' * ?
+		GROUP BY ts.strategy, ts.market_regime
+		HAVING COUNT(*) >= 5
+		ORDER BY expected_value DESC
+	`
+
+	if err := r.db.Raw(query, daysBack).Scan(&results).Error; err != nil {
+		return nil, fmt.Errorf("GetStrategyEffectivenessByRegime: %w", err)
+	}
+
+	return results, nil
+}
+
+// GetOptimalConfidenceThresholds calculates optimal confidence thresholds per strategy
+// Returns the minimum confidence level where historical win rate exceeds 50%
+func (r *Repository) GetOptimalConfidenceThresholds(daysBack int) ([]types.OptimalThreshold, error) {
+	var results []types.OptimalThreshold
+
+	query := `
+		WITH confidence_buckets AS (
+			SELECT
+				ts.strategy,
+				FLOOR(ts.confidence * 10) / 10 as confidence_bucket,
+				COUNT(*) as total,
+				SUM(CASE WHEN so.outcome_status = 'WIN' THEN 1 ELSE 0 END) as wins
+			FROM trading_signals ts
+			JOIN signal_outcomes so ON ts.id = so.signal_id
+			WHERE so.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN')
+			  AND ts.generated_at >= NOW() - INTERVAL '1 day' * ?
+			GROUP BY ts.strategy, FLOOR(ts.confidence * 10) / 10
+		),
+		optimal_confidence AS (
+			SELECT
+				strategy,
+				MIN(confidence_bucket) FILTER (WHERE wins::DECIMAL / NULLIF(total, 0) >= 0.5) as optimal_confidence,
+				AVG(wins::DECIMAL / NULLIF(total, 0)) * 100 as avg_win_rate,
+				SUM(total) as sample_size
+			FROM confidence_buckets
+			GROUP BY strategy
+		)
+		SELECT
+			strategy,
+			COALESCE(optimal_confidence, 0.6) as optimal_confidence,
+			COALESCE(avg_win_rate, 0) as win_rate_at_threshold,
+			COALESCE(sample_size, 0) as sample_size,
+			CASE
+				WHEN optimal_confidence IS NULL THEN 0.7
+				ELSE GREATEST(optimal_confidence - 0.05, 0.5)
+			END as recommended_min_conf
+		FROM optimal_confidence
+		ORDER BY optimal_confidence ASC
+	`
+
+	if err := r.db.Raw(query, daysBack).Scan(&results).Error; err != nil {
+		return nil, fmt.Errorf("GetOptimalConfidenceThresholds: %w", err)
+	}
+
+	return results, nil
+}
+
+// GetTimeOfDayEffectiveness returns signal effectiveness grouped by hour
+// Identifies optimal trading windows for each strategy
+func (r *Repository) GetTimeOfDayEffectiveness(daysBack int) ([]types.TimeEffectiveness, error) {
+	var results []types.TimeEffectiveness
+
+	query := `
+		SELECT
+			EXTRACT(HOUR FROM ts.generated_at AT TIME ZONE 'Asia/Jakarta')::INT as hour,
+			ts.strategy,
+			COUNT(*) as total_signals,
+			ROUND(
+				(SUM(CASE WHEN so.outcome_status = 'WIN' THEN 1 ELSE 0 END)::DECIMAL /
+					NULLIF(SUM(CASE WHEN so.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN') THEN 1 ELSE 0 END), 0)) * 100,
+				2
+			) as win_rate,
+			COALESCE(AVG(so.profit_loss_pct), 0) as avg_profit_pct
+		FROM trading_signals ts
+		JOIN signal_outcomes so ON ts.id = so.signal_id
+		WHERE so.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN')
+		  AND ts.generated_at >= NOW() - INTERVAL '1 day' * ?
+		GROUP BY EXTRACT(HOUR FROM ts.generated_at AT TIME ZONE 'Asia/Jakarta'), ts.strategy
+		HAVING COUNT(*) >= 3
+		ORDER BY hour, win_rate DESC
+	`
+
+	if err := r.db.Raw(query, daysBack).Scan(&results).Error; err != nil {
+		return nil, fmt.Errorf("GetTimeOfDayEffectiveness: %w", err)
+	}
+
+	return results, nil
+}
+
+// GetSignalExpectedValues returns expected value calculations for all strategies
+// EV = (Win Rate × Avg Win) - ((1 - Win Rate) × |Avg Loss|)
+func (r *Repository) GetSignalExpectedValues(daysBack int) ([]types.SignalExpectedValue, error) {
+	var results []types.SignalExpectedValue
+
+	query := `
+		WITH strategy_stats AS (
+			SELECT
+				ts.strategy,
+				COUNT(*) as total_signals,
+				SUM(CASE WHEN so.outcome_status = 'WIN' THEN 1 ELSE 0 END)::DECIMAL /
+					NULLIF(SUM(CASE WHEN so.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN') THEN 1 ELSE 0 END), 0) as win_rate,
+				COALESCE(AVG(CASE WHEN so.outcome_status = 'WIN' THEN so.profit_loss_pct END), 0) as avg_win_pct,
+				ABS(COALESCE(AVG(CASE WHEN so.outcome_status = 'LOSS' THEN so.profit_loss_pct END), 0)) as avg_loss_pct
+			FROM trading_signals ts
+			JOIN signal_outcomes so ON ts.id = so.signal_id
+			WHERE so.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN')
+			  AND ts.generated_at >= NOW() - INTERVAL '1 day' * ?
+			GROUP BY ts.strategy
+			HAVING COUNT(*) >= 10
+		)
+		SELECT
+			strategy,
+			ROUND(win_rate * 100, 2) as win_rate,
+			ROUND(avg_win_pct, 4) as avg_win_pct,
+			ROUND(avg_loss_pct, 4) as avg_loss_pct,
+			ROUND((win_rate * avg_win_pct) - ((1 - win_rate) * avg_loss_pct), 4) as expected_value,
+			total_signals,
+			CASE
+				WHEN (win_rate * avg_win_pct) - ((1 - win_rate) * avg_loss_pct) > 0.5 THEN 'STRONG'
+				WHEN (win_rate * avg_win_pct) - ((1 - win_rate) * avg_loss_pct) > 0.2 THEN 'MODERATE'
+				WHEN (win_rate * avg_win_pct) - ((1 - win_rate) * avg_loss_pct) > 0 THEN 'WEAK'
+				ELSE 'AVOID'
+			END as recommendation
+		FROM strategy_stats
+		ORDER BY expected_value DESC
+	`
+
+	if err := r.db.Raw(query, daysBack).Scan(&results).Error; err != nil {
+		return nil, fmt.Errorf("GetSignalExpectedValues: %w", err)
+	}
+
+	return results, nil
+}

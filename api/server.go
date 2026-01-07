@@ -1,9 +1,11 @@
 package api
 
 import (
+	"compress/gzip"
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"stockbit-haka-haki/database"
@@ -94,6 +96,12 @@ func (s *Server) Start(port int) error {
 	mux.HandleFunc("GET /api/positions/open", s.handleGetOpenPositions)
 	mux.HandleFunc("GET /api/positions/history", s.handleGetProfitLossHistory)
 
+	// Signal Effectiveness Analysis Routes (Optimization)
+	mux.HandleFunc("GET /api/analytics/strategy-effectiveness", s.handleGetStrategyEffectiveness)
+	mux.HandleFunc("GET /api/analytics/optimal-thresholds", s.handleGetOptimalThresholds)
+	mux.HandleFunc("GET /api/analytics/time-effectiveness", s.handleGetTimeEffectiveness)
+	mux.HandleFunc("GET /api/analytics/expected-values", s.handleGetExpectedValues)
+
 	// Accumulation/Distribution Summary Route
 	mux.HandleFunc("GET /api/accumulation-summary", s.handleAccumulationSummary)
 
@@ -103,8 +111,8 @@ func (s *Server) Start(port int) error {
 	fs := http.FileServer(http.Dir("./public"))
 	mux.Handle("GET /", fs)
 
-	// Add middleware
-	handler := s.corsMiddleware(s.loggingMiddleware(mux))
+	// Add middleware (gzip -> cors -> logging)
+	handler := s.gzipMiddleware(s.corsMiddleware(s.loggingMiddleware(mux)))
 
 	serverAddr := fmt.Sprintf("0.0.0.0:%d", port)
 	log.Printf("🚀 API Server starting on %s", serverAddr)
@@ -130,6 +138,46 @@ func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
 		start := time.Now()
 		next.ServeHTTP(w, r)
 		log.Printf("%s %s %v", r.Method, r.URL.Path, time.Since(start))
+	})
+}
+
+// gzipResponseWriter wraps http.ResponseWriter to support gzip compression
+type gzipResponseWriter struct {
+	http.ResponseWriter
+	writer *gzip.Writer
+}
+
+func (g *gzipResponseWriter) Write(data []byte) (int, error) {
+	return g.writer.Write(data)
+}
+
+// gzipMiddleware compresses API responses using gzip
+func (s *Server) gzipMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Only compress API responses (not static files)
+		if !strings.HasPrefix(r.URL.Path, "/api/") {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Check if client supports gzip
+		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Skip SSE endpoints (streaming)
+		if strings.Contains(r.URL.Path, "/stream") || r.URL.Path == "/api/events" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		w.Header().Set("Content-Encoding", "gzip")
+		gz := gzip.NewWriter(w)
+		defer gz.Close()
+
+		gzw := &gzipResponseWriter{ResponseWriter: w, writer: gz}
+		next.ServeHTTP(gzw, r)
 	})
 }
 

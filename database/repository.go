@@ -1017,6 +1017,30 @@ func (r *TradeRepository) GetRecentSignalsWithOutcomes(lookbackMinutes int, minC
 	return r.signals.GetRecentSignalsWithOutcomes(lookbackMinutes, minConfidence, strategyFilter)
 }
 
+// ============================================================================
+// Signal Effectiveness Analysis Facade Methods
+// ============================================================================
+
+// GetStrategyEffectivenessByRegime returns multi-dimensional effectiveness analysis
+func (r *TradeRepository) GetStrategyEffectivenessByRegime(daysBack int) ([]types.StrategyEffectiveness, error) {
+	return r.signals.GetStrategyEffectivenessByRegime(daysBack)
+}
+
+// GetOptimalConfidenceThresholds calculates optimal confidence thresholds per strategy
+func (r *TradeRepository) GetOptimalConfidenceThresholds(daysBack int) ([]types.OptimalThreshold, error) {
+	return r.signals.GetOptimalConfidenceThresholds(daysBack)
+}
+
+// GetTimeOfDayEffectiveness returns signal effectiveness grouped by hour
+func (r *TradeRepository) GetTimeOfDayEffectiveness(daysBack int) ([]types.TimeEffectiveness, error) {
+	return r.signals.GetTimeOfDayEffectiveness(daysBack)
+}
+
+// GetSignalExpectedValues returns expected value calculations for all strategies
+func (r *TradeRepository) GetSignalExpectedValues(daysBack int) ([]types.SignalExpectedValue, error) {
+	return r.signals.GetSignalExpectedValues(daysBack)
+}
+
 // GetMLTrainingData retrieves joined data for machine learning training
 func (r *TradeRepository) GetMLTrainingData() ([]models.MLTrainingData, error) {
 	var results []models.MLTrainingData

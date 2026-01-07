@@ -33,10 +33,11 @@ export const API_ENDPOINTS = {
     STATS: '/api/whales/stats',
     EVENTS: '/api/events',
 
-    // Strategies
+    // Strategies & Signals
     STRATEGIES_SIGNALS: '/api/strategies/signals',
-    STRATEGIES_STREAM: '/api/strategies/signals/stream',
     SIGNALS_HISTORY: '/api/signals/history',
+    SIGNAL_PERFORMANCE: '/api/signals/performance',
+    SIGNAL_OUTCOME: '/api/signals',  // Use /api/signals/{id}/outcome
 
     // Positions
     POSITIONS_OPEN: '/api/positions/open',
@@ -44,31 +45,20 @@ export const API_ENDPOINTS = {
 
     // Analytics
     ACCUMULATION_SUMMARY: '/api/accumulation-summary',
-    ANALYTICS_HUB: '/api/analytics/hub',
     ORDER_FLOW: '/api/orderflow',
     CORRELATIONS: '/api/analytics/correlations',
     PERFORMANCE: '/api/analytics/performance/daily',
+
+    // Strategy Optimization Analytics
+    STRATEGY_EFFECTIVENESS: '/api/analytics/strategy-effectiveness',
+    OPTIMAL_THRESHOLDS: '/api/analytics/optimal-thresholds',
+    TIME_EFFECTIVENESS: '/api/analytics/time-effectiveness',
+    EXPECTED_VALUES: '/api/analytics/expected-values',
 
     // Pattern Analysis (Non-streaming)
     PATTERN_ACCUMULATION: '/api/patterns/accumulation',
     PATTERN_ANOMALIES: '/api/patterns/anomalies',
     PATTERN_TIMING: '/api/patterns/timing',
-
-    // Pattern Analysis (Streaming)
-    PATTERN_STREAM: '/api/patterns',
-    PATTERN_ACCUMULATION_STREAM: '/api/patterns/accumulation/stream',
-    PATTERN_ANOMALIES_STREAM: '/api/patterns/anomalies/stream',
-    PATTERN_TIMING_STREAM: '/api/patterns/timing/stream',
-    PATTERN_SYMBOL_STREAM: '/api/patterns/symbol/stream',
-
-    // Signal Performance
-    SIGNAL_PERFORMANCE: '/api/signals/performance',
-    SIGNAL_OUTCOME: '/api/signals',  // Use /api/signals/{id}/outcome
-
-    // Market Intelligence (Phase 2)
-    BASELINES: '/api/baselines',
-    REGIMES: '/api/regimes',
-    PATTERNS: '/api/patterns',
 
     // Webhooks Configuration
     WEBHOOKS: '/api/config/webhooks',
@@ -80,3 +70,4 @@ export const API_ENDPOINTS = {
 };
 
 export default CONFIG;
+

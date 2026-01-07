@@ -212,10 +212,10 @@ type WhaleStats struct {
 //   - FAKEOUT_FILTER: Filter false breakouts using volume analysis
 type TradingSignalDB struct {
 	ID                   int64     `gorm:"primaryKey;autoIncrement" json:"id"`
-	GeneratedAt          time.Time `gorm:"primaryKey;index;not null" json:"generated_at"`
-	StockSymbol          string    `gorm:"type:text;index;not null" json:"stock_symbol"`
-	Strategy             string    `gorm:"type:text;not null" json:"strategy"` // VOLUME_BREAKOUT, MEAN_REVERSION, FAKEOUT_FILTER
-	Decision             string    `gorm:"type:text;not null" json:"decision"` // BUY, SELL, WAIT, NO_TRADE
+	GeneratedAt          time.Time `gorm:"primaryKey;index:idx_signal_time;not null" json:"generated_at"`
+	StockSymbol          string    `gorm:"type:text;index;index:idx_symbol_strategy,priority:1;not null" json:"stock_symbol"`
+	Strategy             string    `gorm:"type:text;index:idx_symbol_strategy,priority:2;index:idx_strategy_time,priority:1;not null" json:"strategy"` // VOLUME_BREAKOUT, MEAN_REVERSION, FAKEOUT_FILTER
+	Decision             string    `gorm:"type:text;not null" json:"decision"`                                                                         // BUY, SELL, WAIT, NO_TRADE
 	Confidence           float64   `gorm:"type:decimal(5,2);not null" json:"confidence"`
 	TriggerPrice         float64   `gorm:"type:decimal(15,2)" json:"trigger_price"`
 	TriggerVolumeLots    float64   `gorm:"type:decimal(15,2)" json:"trigger_volume_lots"`
@@ -251,7 +251,7 @@ func (TradingSignalDB) TableName() string {
 type SignalOutcome struct {
 	ID                    int64      `gorm:"primaryKey;autoIncrement" json:"id"`
 	SignalID              int64      `gorm:"index;not null" json:"signal_id"`
-	StockSymbol           string     `gorm:"type:text;index;not null" json:"stock_symbol"`
+	StockSymbol           string     `gorm:"type:text;index;index:idx_outcome_symbol_status,priority:1;not null" json:"stock_symbol"`
 	EntryTime             time.Time  `gorm:"primaryKey;index;not null" json:"entry_time"`
 	EntryPrice            float64    `gorm:"type:decimal(15,2);not null" json:"entry_price"`
 	EntryDecision         string     `gorm:"type:text;not null" json:"entry_decision"` // BUY or SELL
@@ -261,12 +261,12 @@ type SignalOutcome struct {
 	ExitPrice             *float64   `gorm:"type:decimal(15,2)" json:"exit_price,omitempty"`
 	ExitReason            *string    `gorm:"type:text" json:"exit_reason,omitempty"` // TAKE_PROFIT, STOP_LOSS, TIME_BASED, REVERSE_SIGNAL
 	HoldingPeriodMinutes  *int       `json:"holding_period_minutes,omitempty"`
-	PriceChangePct        *float64   `gorm:"type:decimal(10,4)" json:"price_change_pct,omitempty"`        // (exit - entry) / entry * 100
-	ProfitLossPct         *float64   `gorm:"type:decimal(10,4)" json:"profit_loss_pct,omitempty"`         // Adjusted for direction
-	MaxFavorableExcursion *float64   `gorm:"type:decimal(10,4)" json:"max_favorable_excursion,omitempty"` // MFE: Best price reached
-	MaxAdverseExcursion   *float64   `gorm:"type:decimal(10,4)" json:"max_adverse_excursion,omitempty"`   // MAE: Worst price reached
-	RiskRewardRatio       *float64   `gorm:"type:decimal(10,4)" json:"risk_reward_ratio,omitempty"`       // MFE / MAE
-	OutcomeStatus         string     `gorm:"size:20;index" json:"outcome_status"`                         // WIN, LOSS, BREAKEVEN, OPEN
+	PriceChangePct        *float64   `gorm:"type:decimal(10,4)" json:"price_change_pct,omitempty"`                           // (exit - entry) / entry * 100
+	ProfitLossPct         *float64   `gorm:"type:decimal(10,4)" json:"profit_loss_pct,omitempty"`                            // Adjusted for direction
+	MaxFavorableExcursion *float64   `gorm:"type:decimal(10,4)" json:"max_favorable_excursion,omitempty"`                    // MFE: Best price reached
+	MaxAdverseExcursion   *float64   `gorm:"type:decimal(10,4)" json:"max_adverse_excursion,omitempty"`                      // MAE: Worst price reached
+	RiskRewardRatio       *float64   `gorm:"type:decimal(10,4)" json:"risk_reward_ratio,omitempty"`                          // MFE / MAE
+	OutcomeStatus         string     `gorm:"size:20;index;index:idx_outcome_symbol_status,priority:2" json:"outcome_status"` // WIN, LOSS, BREAKEVEN, OPEN
 }
 
 // TableName specifies the table name for SignalOutcome

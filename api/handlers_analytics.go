@@ -677,3 +677,102 @@ func (s *Server) handleExportMLData(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 }
+
+// ============================================================================
+// Signal Effectiveness Analysis Handlers
+// ============================================================================
+
+// handleGetStrategyEffectiveness returns multi-dimensional strategy effectiveness
+// by market regime for adaptive strategy selection
+func (s *Server) handleGetStrategyEffectiveness(w http.ResponseWriter, r *http.Request) {
+	daysBack := 30
+	if d := r.URL.Query().Get("days"); d != "" {
+		if parsed, err := strconv.Atoi(d); err == nil && parsed > 0 {
+			daysBack = parsed
+		}
+	}
+
+	effectiveness, err := s.repo.GetStrategyEffectivenessByRegime(daysBack)
+	if err != nil {
+		log.Printf("❌ Failed to get strategy effectiveness: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"effectiveness": effectiveness,
+		"days_back":     daysBack,
+		"count":         len(effectiveness),
+	})
+}
+
+// handleGetOptimalThresholds returns optimal confidence thresholds per strategy
+func (s *Server) handleGetOptimalThresholds(w http.ResponseWriter, r *http.Request) {
+	daysBack := 30
+	if d := r.URL.Query().Get("days"); d != "" {
+		if parsed, err := strconv.Atoi(d); err == nil && parsed > 0 {
+			daysBack = parsed
+		}
+	}
+
+	thresholds, err := s.repo.GetOptimalConfidenceThresholds(daysBack)
+	if err != nil {
+		log.Printf("❌ Failed to get optimal thresholds: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"thresholds": thresholds,
+		"days_back":  daysBack,
+	})
+}
+
+// handleGetTimeEffectiveness returns signal effectiveness by hour of day
+func (s *Server) handleGetTimeEffectiveness(w http.ResponseWriter, r *http.Request) {
+	daysBack := 30
+	if d := r.URL.Query().Get("days"); d != "" {
+		if parsed, err := strconv.Atoi(d); err == nil && parsed > 0 {
+			daysBack = parsed
+		}
+	}
+
+	effectiveness, err := s.repo.GetTimeOfDayEffectiveness(daysBack)
+	if err != nil {
+		log.Printf("❌ Failed to get time effectiveness: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"time_effectiveness": effectiveness,
+		"days_back":          daysBack,
+		"count":              len(effectiveness),
+	})
+}
+
+// handleGetExpectedValues returns expected value calculations for strategies
+func (s *Server) handleGetExpectedValues(w http.ResponseWriter, r *http.Request) {
+	daysBack := 30
+	if d := r.URL.Query().Get("days"); d != "" {
+		if parsed, err := strconv.Atoi(d); err == nil && parsed > 0 {
+			daysBack = parsed
+		}
+	}
+
+	evs, err := s.repo.GetSignalExpectedValues(daysBack)
+	if err != nil {
+		log.Printf("❌ Failed to get expected values: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"expected_values": evs,
+		"days_back":       daysBack,
+	})
+}
