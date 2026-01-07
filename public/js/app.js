@@ -779,14 +779,22 @@ function stopPatternAnalysis() {
 /**
  * Start analytics polling
  */
+/**
+ * Start analytics polling
+ */
 function startAnalyticsPolling() {
-    setInterval(() => {
+    const pollAnalytics = () => {
         Promise.all([
             API.fetchMarketIntelligence().then(data => {
                 renderPatternFeed(data.patterns);
             }),
             API.fetchAnalyticsHub().then(data => {
-                renderDailyPerformance(data.performance.daily || []);
+                if (data.performance && data.performance.performance) {
+                    // Handle nested structure if API returns { performance: { performance: [...] } }
+                    renderDailyPerformance(data.performance.performance);
+                } else {
+                    renderDailyPerformance(data.performance || []);
+                }
             }),
             API.fetchOrderFlow().then(renderOrderFlow),
             API.fetchMarketRegime('IHSG').then(renderMarketIntelligence).catch(() => {
@@ -798,7 +806,13 @@ function startAnalyticsPolling() {
         ]).catch(error => {
             console.error('Analytics polling error:', error);
         });
-    }, CONFIG.ANALYTICS_POLL_INTERVAL);
+    };
+
+    // Initial fetch
+    pollAnalytics();
+
+    // Start polling
+    setInterval(pollAnalytics, CONFIG.ANALYTICS_POLL_INTERVAL);
 
     // Stats polling
     setInterval(fetchStats, CONFIG.STATS_POLL_INTERVAL);
@@ -923,7 +937,8 @@ async function loadPerformance() {
 
     try {
         const data = await API.fetchDailyPerformance();
-        renderDailyPerformance(data.daily || []);
+        // Backend returns { performance: [...] }
+        renderDailyPerformance(data.performance || []);
     } catch (error) {
         console.error('Failed to load performance:', error);
         if (tbody) {
