@@ -25,12 +25,12 @@ const (
 	SignalTimeWindowMinutes  = 5  // Time window for duplicate detection
 
 	// Optimization: Order Flow Imbalance thresholds
-	OrderFlowBuyThreshold  = 0.3  // 30% buy imbalance required for BUY signals
-	AggressiveBuyThreshold = 55.0 // 55% aggressive buyers required
+	OrderFlowBuyThreshold  = 0.5  // 50% buy imbalance required for BUY signals (Tightened from 30%)
+	AggressiveBuyThreshold = 60.0 // 60% aggressive buyers required
 
 	// Optimization: Baseline quality requirements
-	MinBaselineSampleSize       = 30 // Minimum trades for reliable baseline
-	MinBaselineSampleSizeStrict = 50 // Minimum for full confidence
+	MinBaselineSampleSize       = 50 // Minimum trades for reliable baseline (Tightened from 30)
+	MinBaselineSampleSizeStrict = 80 // Minimum for full confidence
 
 	// Optimization: Time-of-day adjustments
 	MorningBoostHour     = 10 // Before 10:00 WIB = morning momentum
@@ -581,7 +581,10 @@ func (st *SignalTracker) checkOrderFlowImbalance(symbol string, decision string)
 
 	// Check aggressive buyers if available
 	if orderFlow.AggressiveBuyPct != nil && *orderFlow.AggressiveBuyPct < AggressiveBuyThreshold {
-		return false, 0.7, fmt.Sprintf("Low aggressive buy pressure (%.1f%% < %.0f%%)", *orderFlow.AggressiveBuyPct, AggressiveBuyThreshold)
+		// Only penalize if buy pressure is also weak
+		if buyPressure < 0.6 {
+			return false, 0.7, fmt.Sprintf("Low aggressive buy pressure (%.1f%% < %.0f%%)", *orderFlow.AggressiveBuyPct, AggressiveBuyThreshold)
+		}
 	}
 
 	// Check buy imbalance

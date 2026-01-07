@@ -789,8 +789,8 @@ func (r *TradeRepository) GetDailyStrategyPerformance(strategy, symbol string, l
 	return r.signals.GetDailyStrategyPerformance(strategy, symbol, limit)
 }
 
-func (r *TradeRepository) EvaluateVolumeBreakoutStrategy(alert *models.WhaleAlert, zscores *types.ZScoreData) *TradingSignal {
-	signal := r.signals.EvaluateVolumeBreakoutStrategy(alert, zscores, nil)
+func (r *TradeRepository) EvaluateVolumeBreakoutStrategy(alert *models.WhaleAlert, zscores *types.ZScoreData, vwap float64) *TradingSignal {
+	signal := r.signals.EvaluateVolumeBreakoutStrategy(alert, zscores, nil, vwap)
 	// Convert models.TradingSignal back to TradingSignal
 	return &TradingSignal{
 		StockSymbol:  signal.StockSymbol,
@@ -807,8 +807,8 @@ func (r *TradeRepository) EvaluateVolumeBreakoutStrategy(alert *models.WhaleAler
 	}
 }
 
-func (r *TradeRepository) EvaluateMeanReversionStrategy(alert *models.WhaleAlert, zscores *types.ZScoreData, prevVolumeZScore float64) *TradingSignal {
-	signal := r.signals.EvaluateMeanReversionStrategy(alert, zscores, prevVolumeZScore, nil)
+func (r *TradeRepository) EvaluateMeanReversionStrategy(alert *models.WhaleAlert, zscores *types.ZScoreData, prevVolumeZScore float64, vwap float64) *TradingSignal {
+	signal := r.signals.EvaluateMeanReversionStrategy(alert, zscores, prevVolumeZScore, nil, vwap)
 	// Convert models.TradingSignal back to TradingSignal
 	return &TradingSignal{
 		StockSymbol:  signal.StockSymbol,
@@ -825,8 +825,8 @@ func (r *TradeRepository) EvaluateMeanReversionStrategy(alert *models.WhaleAlert
 	}
 }
 
-func (r *TradeRepository) EvaluateFakeoutFilterStrategy(alert *models.WhaleAlert, zscores *types.ZScoreData) *TradingSignal {
-	signal := r.signals.EvaluateFakeoutFilterStrategy(alert, zscores, nil)
+func (r *TradeRepository) EvaluateFakeoutFilterStrategy(alert *models.WhaleAlert, zscores *types.ZScoreData, vwap float64) *TradingSignal {
+	signal := r.signals.EvaluateFakeoutFilterStrategy(alert, zscores, nil, vwap)
 	// Convert models.TradingSignal back to TradingSignal
 	return &TradingSignal{
 		StockSymbol:  signal.StockSymbol,
