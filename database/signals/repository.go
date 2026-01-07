@@ -647,3 +647,58 @@ func calculateConfidence(value, minThreshold, maxThreshold float64) float64 {
 
 	return confidence
 }
+
+// GetRecentSignalsWithOutcomes retrieves recent persisted signals with their outcomes
+func (r *Repository) GetRecentSignalsWithOutcomes(lookbackMinutes int, minConfidence float64, strategyFilter string) ([]models.TradingSignal, error) {
+	var results []struct {
+		models.TradingSignalDB
+		Outcome       *string  `gorm:"column:outcome_status"`
+		ProfitLossPct *float64 `gorm:"column:profit_loss_pct"`
+	}
+
+	query := r.db.Table("trading_signals").
+		Select("trading_signals.*, signal_outcomes.outcome_status, signal_outcomes.profit_loss_pct").
+		Joins("LEFT JOIN signal_outcomes ON trading_signals.id = signal_outcomes.signal_id").
+		Where("trading_signals.generated_at >= NOW() - INTERVAL '1 minute' * ?", lookbackMinutes).
+		Where("trading_signals.confidence >= ?", minConfidence).
+		Order("trading_signals.generated_at DESC")
+
+	if strategyFilter != "" && strategyFilter != "ALL" {
+		query = query.Where("trading_signals.strategy = ?", strategyFilter)
+	}
+
+	if err := query.Scan(&results).Error; err != nil {
+		return nil, fmt.Errorf("GetRecentSignalsWithOutcomes: %w", err)
+	}
+
+	signals := make([]models.TradingSignal, len(results))
+	for i, r := range results {
+		outcome := ""
+		if r.Outcome != nil {
+			outcome = *r.Outcome
+		}
+
+		pnl := 0.0
+		if r.ProfitLossPct != nil {
+			pnl = *r.ProfitLossPct
+		}
+
+		signals[i] = models.TradingSignal{
+			StockSymbol:   r.StockSymbol,
+			Timestamp:     r.GeneratedAt,
+			Strategy:      r.Strategy,
+			Decision:      r.Decision,
+			PriceZScore:   r.PriceZScore,
+			VolumeZScore:  r.VolumeZScore,
+			Price:         r.TriggerPrice,
+			Volume:        r.TriggerVolumeLots,
+			Change:        r.PriceChangePct,
+			Confidence:    r.Confidence,
+			Reason:        r.Reason,
+			Outcome:       outcome,
+			OutcomeStatus: outcome,
+			ProfitLossPct: pnl,
+		}
+	}
+	return signals, nil
+}

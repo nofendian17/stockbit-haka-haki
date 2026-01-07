@@ -35,7 +35,7 @@ func (s *Server) handleGetStrategySignals(w http.ResponseWriter, r *http.Request
 		lookbackMinutes, minConfidence, strategyFilter)
 
 	// Get strategy signals
-	signals, err := s.repo.GetStrategySignals(lookbackMinutes, minConfidence, strategyFilter)
+	signals, err := s.repo.GetRecentSignalsWithOutcomes(lookbackMinutes, minConfidence, strategyFilter)
 	if err != nil {
 		log.Printf("❌ Error fetching strategy signals: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -98,7 +98,7 @@ func (s *Server) handleStrategySignalsStream(w http.ResponseWriter, r *http.Requ
 
 		case <-ticker.C:
 			// Get recent signals (last 5 minutes for real-time updates only)
-			signals, err := s.repo.GetStrategySignals(5, 0.3, strategyFilter)
+			signals, err := s.repo.GetRecentSignalsWithOutcomes(5, 0.3, strategyFilter)
 			if err != nil {
 				log.Printf("Error getting strategy signals: %v", err)
 				continue

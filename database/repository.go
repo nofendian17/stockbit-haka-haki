@@ -965,3 +965,8 @@ func (r *TradeRepository) SaveWebhook(webhook *models.WhaleWebhook) error {
 func (r *TradeRepository) DeleteWebhook(id int) error {
 	return r.db.db.Delete(&models.WhaleWebhook{}, id).Error
 }
+
+// GetRecentSignalsWithOutcomes retrieves recent persisted signals with their outcomes
+func (r *TradeRepository) GetRecentSignalsWithOutcomes(lookbackMinutes int, minConfidence float64, strategyFilter string) ([]TradingSignal, error) {
+	return r.signals.GetRecentSignalsWithOutcomes(lookbackMinutes, minConfidence, strategyFilter)
+}

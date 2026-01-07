@@ -166,17 +166,20 @@ type WhaleWebhookLog struct {
 
 // TradingSignal represents a generated trading strategy signal
 type TradingSignal struct {
-	StockSymbol  string    `json:"stock_symbol"`
-	Timestamp    time.Time `json:"timestamp"`
-	Strategy     string    `json:"strategy"` // "VOLUME_BREAKOUT", "MEAN_REVERSION", "FAKEOUT_FILTER"
-	Decision     string    `json:"decision"` // "BUY", "SELL", "WAIT", "NO_TRADE"
-	PriceZScore  float64   `json:"price_z_score"`
-	VolumeZScore float64   `json:"volume_z_score"`
-	Price        float64   `json:"price"`
-	Volume       float64   `json:"volume"`
-	Change       float64   `json:"change"`
-	Confidence   float64   `json:"confidence"`
-	Reason       string    `json:"reason"`
+	StockSymbol   string    `json:"stock_symbol"`
+	Timestamp     time.Time `json:"timestamp"`
+	Strategy      string    `json:"strategy"` // "VOLUME_BREAKOUT", "MEAN_REVERSION", "FAKEOUT_FILTER"
+	Decision      string    `json:"decision"` // "BUY", "SELL", "WAIT", "NO_TRADE"
+	PriceZScore   float64   `json:"price_z_score"`
+	VolumeZScore  float64   `json:"volume_z_score"`
+	Price         float64   `json:"price"`
+	Volume        float64   `json:"volume"`
+	Change        float64   `json:"change"`
+	Confidence    float64   `json:"confidence"`
+	Reason        string    `json:"reason"`
+	Outcome       string    `json:"outcome,omitempty"`        // WIN, LOSS, BREAKEVEN
+	OutcomeStatus string    `json:"outcome_status,omitempty"` // OPEN, SKIPPED, or Outcome
+	ProfitLossPct float64   `json:"profit_loss_pct,omitempty"`
 }
 
 // WhaleStats represents aggregated statistics for whale activity

@@ -358,8 +358,19 @@ function renderOutcome(signal) {
     }
 
     const profit = signal.profit_loss_pct || 0;
-    const outcomeClass = signal.outcome === 'WIN' ? 'outcome-win' : 'outcome-loss';
-    const sign = profit >= 0 ? '+' : '';
+    let outcomeClass = 'outcome-loss';
 
+    if (signal.outcome === 'WIN') {
+        outcomeClass = 'outcome-win';
+    } else if (signal.outcome === 'OPEN') {
+        outcomeClass = 'badge'; // Use default blue/neutral badge style
+        return `<span class="badge" style="background: var(--accent-blue); color: white;">OPEN (${profit >= 0 ? '+' : ''}${profit.toFixed(1)}%)</span>`;
+    } else if (signal.outcome === 'SKIPPED') {
+        return `<span class="badge" style="background: var(--accent-gold); color: white;">SKIPPED</span>`;
+    } else if (signal.outcome === 'BREAKEVEN') {
+        return `<span class="badge" style="background: var(--text-secondary); color: white;">BREAKEVEN</span>`;
+    }
+
+    const sign = profit >= 0 ? '+' : '';
     return `<span class="outcome-badge ${outcomeClass}">${signal.outcome} (${sign}${profit.toFixed(1)}%)</span>`;
 }
