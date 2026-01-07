@@ -2,6 +2,7 @@ package database
 
 import (
 	"fmt"
+	"log"
 	"stockbit-haka-haki/database/analytics"
 	models "stockbit-haka-haki/database/models_pkg"
 	"stockbit-haka-haki/database/signals"
@@ -852,10 +853,40 @@ func (r *TradeRepository) GetStrategySignals(lookbackMinutes int, minConfidence 
 		Find(&alerts).Error
 
 	if err != nil {
+		log.Printf("❌ Error fetching whale alerts: %v", err)
 		return nil, err
 	}
 
-	return r.signals.GetStrategySignals(lookbackMinutes, minConfidence, strategyFilter, alerts)
+	log.Printf("📊 Found %d whale alerts in last %d minutes", len(alerts), lookbackMinutes)
+
+	// Get signals from signals repository
+	modelSignals, err := r.signals.GetStrategySignals(lookbackMinutes, minConfidence, strategyFilter, alerts)
+	if err != nil {
+		log.Printf("❌ Error generating strategy signals: %v", err)
+		return nil, err
+	}
+
+	log.Printf("✅ Generated %d strategy signals (min confidence: %.2f)", len(modelSignals), minConfidence)
+
+	// Convert models.TradingSignal to database.TradingSignal
+	signals := make([]TradingSignal, len(modelSignals))
+	for i, ms := range modelSignals {
+		signals[i] = TradingSignal{
+			StockSymbol:  ms.StockSymbol,
+			Timestamp:    ms.Timestamp,
+			Strategy:     ms.Strategy,
+			Decision:     ms.Decision,
+			PriceZScore:  ms.PriceZScore,
+			VolumeZScore: ms.VolumeZScore,
+			Price:        ms.Price,
+			Volume:       ms.Volume,
+			Change:       ms.Change,
+			Confidence:   ms.Confidence,
+			Reason:       ms.Reason,
+		}
+	}
+
+	return signals, nil
 }
 
 // Analytics methods

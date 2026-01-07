@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"stockbit-haka-haki/database"
 	"strconv"
 	"time"
 )
@@ -30,18 +31,31 @@ func (s *Server) handleGetStrategySignals(w http.ResponseWriter, r *http.Request
 
 	strategyFilter := query.Get("strategy") // "VOLUME_BREAKOUT", "MEAN_REVERSION", "FAKEOUT_FILTER", or "ALL"
 
+	log.Printf("📊 Fetching strategy signals (lookback: %d min, confidence: %.2f, strategy: %s)",
+		lookbackMinutes, minConfidence, strategyFilter)
+
 	// Get strategy signals
 	signals, err := s.repo.GetStrategySignals(lookbackMinutes, minConfidence, strategyFilter)
 	if err != nil {
+		log.Printf("❌ Error fetching strategy signals: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	// Ensure signals is never nil
+	if signals == nil {
+		signals = []database.TradingSignal{}
+	}
+
+	log.Printf("✅ Returning %d strategy signals", len(signals))
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"signals": signals,
 		"count":   len(signals),
-	})
+	}); err != nil {
+		log.Printf("❌ Error encoding JSON response: %v", err)
+	}
 }
 
 // handleStrategySignalsStream streams strategy signals via SSE

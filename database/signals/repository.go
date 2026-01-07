@@ -436,8 +436,28 @@ func (r *Repository) GetStrategySignals(lookbackMinutes int, minConfidence float
 
 		if baseline.SampleSize > 30 {
 			// Calculate Z-Score using persistent baseline (more accurate)
+			// Prevent division by zero - if stddev is 0 or very small, skip
+			if baseline.StdDevPrice <= 0.0001 || baseline.StdDevVolume <= 0.0001 {
+				log.Printf("⚠️ Invalid baseline stddev for %s (price: %.4f, volume: %.4f), skipping",
+					alert.StockSymbol, baseline.StdDevPrice, baseline.StdDevVolume)
+				continue
+			}
+
 			priceZ := (alert.TriggerPrice - baseline.MeanPrice) / baseline.StdDevPrice
 			volZ := (volumeLots - baseline.MeanVolumeLots) / baseline.StdDevVolume
+
+			// Clamp z-scores to prevent extreme values
+			if priceZ > 100 {
+				priceZ = 100
+			} else if priceZ < -100 {
+				priceZ = -100
+			}
+			if volZ > 100 {
+				volZ = 100
+			} else if volZ < -100 {
+				volZ = -100
+			}
+
 			zscores = &types.ZScoreData{
 				PriceZScore:  priceZ,
 				VolumeZScore: volZ,
