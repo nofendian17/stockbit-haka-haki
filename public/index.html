@@ -49,6 +49,9 @@
       <div id="market-regime-container" class="regime-badge-container">
         <span id="market-regime" class="status-badge" style="display:none;">RANGING</span>
       </div>
+      <button id="webhook-config-btn" class="help-button" title="Konfigurasi Webhook">
+        <span class="help-icon">🔔</span>
+      </button>
       <button id="help-btn" class="help-button" title="Panduan Penggunaan">
         <span class="help-icon">❓</span>
       </button>
@@ -815,6 +818,91 @@
             <span class="placeholder-icon">⏳</span>
             <p>Memuat data analisis...</p>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Webhook Configuration Modal -->
+  <div id="webhook-modal" class="modal">
+    <div class="modal-content" style="max-width: 800px;">
+      <div class="modal-header">
+        <h2>🔔 Konfigurasi Webhook</h2>
+        <button class="modal-close" id="webhook-modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <!-- Webhook List -->
+        <div class="webhook-list-section">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3 style="margin: 0;">Daftar Webhook</h3>
+            <button id="add-webhook-btn" class="btn-primary" style="padding: 0.5rem 1rem;">
+              <span class="btn-icon">➕</span> Tambah Webhook
+            </button>
+          </div>
+
+          <div class="table-container" style="max-height: 300px; overflow-y: auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nama</th>
+                  <th>URL</th>
+                  <th>Status</th>
+                  <th style="text-align: right;">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="webhook-list-body">
+                <!-- Rows will be injected here -->
+              </tbody>
+            </table>
+            <div id="webhook-loading" class="loading" style="display: none;">
+              <div class="loading-spinner"></div>
+              <p>Memuat webhooks...</p>
+            </div>
+            <div id="webhook-placeholder" class="placeholder">
+              <span class="placeholder-icon">🔔</span>
+              <p>Belum ada webhook terkonfigurasi</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Webhook Form (hidden by default) -->
+        <div id="webhook-form-section"
+          style="display: none; margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--border-color);">
+          <h3 id="webhook-form-title">Tambah Webhook Baru</h3>
+          <form id="webhook-form">
+            <div class="control-group" style="margin-bottom: 1rem;">
+              <label for="webhook-name" class="control-label">
+                <span class="label-icon">📝</span>
+                Nama Webhook
+              </label>
+              <input type="text" id="webhook-name" placeholder="Contoh: Telegram Bot" required />
+            </div>
+
+            <div class="control-group" style="margin-bottom: 1rem;">
+              <label for="webhook-url" class="control-label">
+                <span class="label-icon">🔗</span>
+                URL Webhook
+              </label>
+              <input type="url" id="webhook-url" placeholder="https://example.com/webhook" required />
+            </div>
+
+            <div class="control-group" style="margin-bottom: 1.5rem;">
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                <input type="checkbox" id="webhook-enabled" checked />
+                <span>Aktifkan webhook ini</span>
+              </label>
+            </div>
+
+            <div style="display: flex; gap: 1rem;">
+              <button type="submit" id="save-webhook-btn" class="btn-primary">
+                <span class="btn-icon">💾</span> Simpan
+              </button>
+              <button type="button" id="cancel-webhook-btn" class="btn-secondary">
+                <span class="btn-icon">✖️</span> Batal
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </div>

@@ -9,6 +9,7 @@ import * as API from './api.js';
 import { renderWhaleAlerts, renderRunningPositions, renderSummaryTable, updateStatsTicker, renderStockCorrelations, renderProfitLossHistory } from './render.js';
 import { createWhaleAlertSSE, createPatternAnalysisSSE } from './sse-handler.js';
 import { initStrategySystem } from './strategy-manager.js';
+import { initWebhookManagement } from './webhook-config.js';
 
 // Configure marked.js for markdown rendering
 if (typeof marked !== 'undefined') {
@@ -67,6 +68,9 @@ async function init() {
 
     // Initialize strategy system
     initStrategySystem();
+
+    // Initialize webhook management
+    initWebhookManagement();
 
     // Connect SSE for real-time updates
     connectWhaleAlertSSE();

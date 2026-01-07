@@ -261,7 +261,7 @@ export async function fetchDetectedPatterns() {
  */
 export async function fetchProfitLossHistory(filters = {}) {
     const params = new URLSearchParams();
-    
+
     if (filters.strategy && filters.strategy !== 'ALL') {
         params.append('strategy', filters.strategy);
     }
@@ -279,3 +279,117 @@ export async function fetchProfitLossHistory(filters = {}) {
     return apiFetch(url);
 }
 
+/**
+ * Webhook Management Functions
+ */
+
+/**
+ * Fetch all webhooks
+ * @returns {Promise<Array>} List of webhooks
+ */
+export async function fetchWebhooks() {
+    return apiFetch(API_ENDPOINTS.WEBHOOKS);
+}
+
+/**
+ * Create a new webhook
+ * @param {Object} webhook - Webhook data
+ * @returns {Promise<Object>} Created webhook
+ */
+export async function createWebhook(webhook) {
+    return apiFetch(API_ENDPOINTS.WEBHOOKS, {
+        method: 'POST',
+        body: JSON.stringify(webhook),
+    });
+}
+
+/**
+ * Update an existing webhook
+ * @param {number} id - Webhook ID
+ * @param {Object} webhook - Updated webhook data
+ * @returns {Promise<Object>} Updated webhook
+ */
+export async function updateWebhook(id, webhook) {
+    return apiFetch(`${API_ENDPOINTS.WEBHOOKS}/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(webhook),
+    });
+}
+
+/**
+ * Delete a webhook
+ * @param {number} id - Webhook ID
+ * @returns {Promise<void>}
+ */
+export async function deleteWebhook(id) {
+    return apiFetch(`${API_ENDPOINTS.WEBHOOKS}/${id}`, {
+        method: 'DELETE',
+    });
+}
+
+/**
+ * Pattern Analysis Functions (Non-streaming)
+ */
+
+/**
+ * Fetch accumulation patterns
+ * @param {number} hoursBack - Hours to look back
+ * @param {number} minAlerts - Minimum alerts threshold
+ * @returns {Promise<Object>} Accumulation patterns
+ */
+export async function fetchAccumulationPattern(hoursBack = 24, minAlerts = 3) {
+    const params = new URLSearchParams();
+    params.append('hours', hoursBack);
+    params.append('min_alerts', minAlerts);
+    return apiFetch(`${API_ENDPOINTS.PATTERN_ACCUMULATION}?${params.toString()}`);
+}
+
+/**
+ * Fetch extreme anomalies
+ * @param {number} minZScore - Minimum Z-score threshold
+ * @param {number} hoursBack - Hours to look back
+ * @returns {Promise<Object>} Extreme anomalies
+ */
+export async function fetchExtremeAnomalies(minZScore = 5.0, hoursBack = 48) {
+    const params = new URLSearchParams();
+    params.append('min_z', minZScore);
+    params.append('hours', hoursBack);
+    return apiFetch(`${API_ENDPOINTS.PATTERN_ANOMALIES}?${params.toString()}`);
+}
+
+/**
+ * Fetch time-based statistics
+ * @param {number} daysBack - Days to look back
+ * @returns {Promise<Object>} Time-based statistics
+ */
+export async function fetchTimeBasedStats(daysBack = 7) {
+    const params = new URLSearchParams();
+    params.append('days', daysBack);
+    return apiFetch(`${API_ENDPOINTS.PATTERN_TIMING}?${params.toString()}`);
+}
+
+/**
+ * Signal Performance Functions
+ */
+
+/**
+ * Fetch signal performance statistics
+ * @param {string} strategy - Strategy filter (optional)
+ * @param {string} symbol - Symbol filter (optional)
+ * @returns {Promise<Object>} Performance statistics
+ */
+export async function fetchSignalPerformance(strategy = '', symbol = '') {
+    const params = new URLSearchParams();
+    if (strategy) params.append('strategy', strategy);
+    if (symbol) params.append('symbol', symbol.toUpperCase());
+    return apiFetch(`${API_ENDPOINTS.SIGNAL_PERFORMANCE}?${params.toString()}`);
+}
+
+/**
+ * Fetch signal outcome by signal ID
+ * @param {number} signalId - Signal ID
+ * @returns {Promise<Object>} Signal outcome
+ */
+export async function fetchSignalOutcome(signalId) {
+    return apiFetch(`${API_ENDPOINTS.SIGNAL_OUTCOME}/${signalId}/outcome`);
+}

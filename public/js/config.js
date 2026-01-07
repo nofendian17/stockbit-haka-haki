@@ -49,12 +49,33 @@ export const API_ENDPOINTS = {
     CORRELATIONS: '/api/analytics/correlations',
     PERFORMANCE: '/api/analytics/performance/daily',
 
-    // Pattern Analysis
+    // Pattern Analysis (Non-streaming)
+    PATTERN_ACCUMULATION: '/api/patterns/accumulation',
+    PATTERN_ANOMALIES: '/api/patterns/anomalies',
+    PATTERN_TIMING: '/api/patterns/timing',
+
+    // Pattern Analysis (Streaming)
     PATTERN_STREAM: '/api/patterns',
+    PATTERN_ACCUMULATION_STREAM: '/api/patterns/accumulation/stream',
+    PATTERN_ANOMALIES_STREAM: '/api/patterns/anomalies/stream',
+    PATTERN_TIMING_STREAM: '/api/patterns/timing/stream',
+    PATTERN_SYMBOL_STREAM: '/api/patterns/symbol/stream',
+
+    // Signal Performance
+    SIGNAL_PERFORMANCE: '/api/signals/performance',
+    SIGNAL_OUTCOME: '/api/signals',  // Use /api/signals/{id}/outcome
+
+    // Market Intelligence (Phase 2)
+    BASELINES: '/api/baselines',
+    REGIMES: '/api/regimes',
+    PATTERNS: '/api/patterns',
+
+    // Webhooks Configuration
+    WEBHOOKS: '/api/config/webhooks',
 
     // Candles & Followup
     CANDLES: '/api/candles',
-    FOLLOWUP: '/api/whales',  // Fixed: use /api/whales/{id}/followup
+    FOLLOWUP: '/api/whales',  // Use /api/whales/{id}/followup
     RECENT_FOLLOWUPS: '/api/whales/followups',
 };
 
