@@ -175,3 +175,30 @@ export function formatStrategyName(strategy) {
 export function clamp(value, min, max) {
     return Math.min(Math.max(value, min), max);
 }
+
+/**
+ * Get color for market regime
+ * @param {string} regime - Market regime code
+ * @returns {string} Color hex code or var
+ */
+export function getRegimeColor(regime) {
+    switch (regime) {
+        case 'TRENDING_UP': return 'var(--diff-positive)';
+        case 'TRENDING_DOWN': return 'var(--diff-negative)';
+        case 'RANGING': return 'var(--accent-gold)';
+        case 'BREAKOUT': return '#9B59B6'; // Purple
+        case 'BREAKDOWN': return '#E67E22'; // Orange
+        case 'VOLATILE': return '#E74C3C';
+        default: return '#7F8C8D';
+    }
+}
+
+/**
+ * Get display label for market regime
+ * @param {string} regime - Market regime code
+ * @returns {string} Display label
+ */
+export function getRegimeLabel(regime) {
+    if (!regime) return 'UNKNOWN';
+    return regime.replace(/_/g, ' ');
+}

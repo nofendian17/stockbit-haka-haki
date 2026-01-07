@@ -6,7 +6,7 @@
 import { CONFIG } from './config.js';
 import { debounce, safeGetElement } from './utils.js';
 import * as API from './api.js';
-import { renderWhaleAlerts, renderRunningPositions, renderSummaryTable, updateStatsTicker, renderStockCorrelations, renderProfitLossHistory } from './render.js';
+import { renderWhaleAlerts, renderRunningPositions, renderSummaryTable, updateStatsTicker, renderStockCorrelations, renderProfitLossHistory, renderMarketIntelligence, renderOrderFlow, renderPatternFeed, renderDailyPerformance } from './render.js';
 import { createWhaleAlertSSE, createPatternAnalysisSSE } from './sse-handler.js';
 import { initStrategySystem } from './strategy-manager.js';
 import { initWebhookManagement } from './webhook-config.js';
@@ -649,6 +649,8 @@ function setupAnalyticsTabs() {
             // Load data if needed
             if (target === 'correlations-view') {
                 loadCorrelations();
+            } else if (target === 'performance-view') {
+                loadPerformance();
             }
         });
     });
@@ -780,9 +782,17 @@ function stopPatternAnalysis() {
 function startAnalyticsPolling() {
     setInterval(() => {
         Promise.all([
-            API.fetchMarketIntelligence(),
-            API.fetchAnalyticsHub(),
-            API.fetchOrderFlow(),
+            API.fetchMarketIntelligence().then(data => {
+                renderPatternFeed(data.patterns);
+            }),
+            API.fetchAnalyticsHub().then(data => {
+                renderDailyPerformance(data.performance.daily || []);
+            }),
+            API.fetchOrderFlow().then(renderOrderFlow),
+            API.fetchMarketRegime('IHSG').then(renderMarketIntelligence).catch(() => {
+                // Determine regime by looking at general stats or fallback
+                renderMarketIntelligence({ regime: 'UNKNOWN', confidence: 0 });
+            }),
             API.fetchRecentFollowups(),
             API.fetchRunningPositions().then(renderPositions)
         ]).catch(error => {
@@ -899,6 +909,26 @@ async function loadProfitLossHistory() {
         }
     } finally {
         if (loading) loading.style.display = 'none';
+    }
+}
+
+/**
+ * Load daily performance
+ */
+async function loadPerformance() {
+    const tbody = document.getElementById('daily-performance-body');
+    if (tbody) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center" style="padding: 20px;">Memuat data...</td></tr>';
+    }
+
+    try {
+        const data = await API.fetchDailyPerformance();
+        renderDailyPerformance(data.daily || []);
+    } catch (error) {
+        console.error('Failed to load performance:', error);
+        if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center" style="padding: 20px; color: var(--accent-sell);">Gagal memuat data</td></tr>';
+        }
     }
 }
 

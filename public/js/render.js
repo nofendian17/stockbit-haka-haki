@@ -3,7 +3,7 @@
  * Handles all UI rendering logic
  */
 
-import { formatCurrency, formatNumber, formatTime, getTimeAgo, formatStrategyName, parseTimestamp, formatPercent } from './utils.js';
+import { formatCurrency, formatNumber, formatTime, getTimeAgo, formatStrategyName, parseTimestamp, formatPercent, getRegimeColor, getRegimeLabel } from './utils.js';
 
 /**
  * Render whale alerts table
@@ -504,7 +504,7 @@ function createHistoryRow(record) {
     // Exit reason with enhanced formatting
     const exitReason = record.exit_reason || '-';
     let exitReasonText = exitReason;
-    
+
     // Map standard exit reasons
     if (exitReason === 'TAKE_PROFIT' || exitReason.includes('TAKE_PROFIT')) {
         exitReasonText = '🎯 Take Profit';
@@ -576,4 +576,201 @@ function createHistoryRow(record) {
     });
 
     return row;
+}
+
+/**
+ * Render market intelligence (regime & baseline)
+ * @param {Object} data - Market intelligence data
+ */
+export function renderMarketIntelligence(data) {
+    // 1. Render Market Regime
+    const regimeCard = document.getElementById('regime-card');
+    const regimeEl = document.getElementById('intel-regime');
+    const regimeDescEl = document.getElementById('intel-regime-desc');
+    const headerRegimeBadge = document.getElementById('market-regime');
+
+    // Default values
+    let regime = 'UNKNOWN';
+    let confidence = 0;
+
+    // Check if we have regime data (it might be in data.regime or directly in data if passed that way)
+    const regimeData = data.regime || data;
+
+    if (regimeData && regimeData.regime) {
+        regime = regimeData.regime;
+        confidence = regimeData.confidence || 0;
+
+        // Update card
+        if (regimeEl) {
+            regimeEl.textContent = getRegimeLabel(regime);
+            regimeEl.className = `regime-display ${regime.toLowerCase()}`;
+            regimeEl.style.color = getRegimeColor(regime);
+        }
+
+        if (regimeDescEl) {
+            const confPct = (confidence * 100).toFixed(0);
+            regimeDescEl.innerHTML = `Confidence: <strong>${confPct}%</strong><br>Volatility: ${(regimeData.volatility || 0).toFixed(2)}`;
+        }
+
+        // Update header badge
+        if (headerRegimeBadge) {
+            headerRegimeBadge.textContent = getRegimeLabel(regime);
+            headerRegimeBadge.style.display = 'inline-block';
+            headerRegimeBadge.style.backgroundColor = getRegimeColor(regime);
+            headerRegimeBadge.style.color = '#fff'; // Assuming white text for badges
+        }
+    } else {
+        // Fallback if no data
+        if (regimeEl) regimeEl.textContent = 'STABIL';
+        if (regimeDescEl) regimeDescEl.textContent = 'Menunggu data pasar...';
+        if (headerRegimeBadge) headerRegimeBadge.style.display = 'none';
+    }
+
+    // 2. Render Statistical Baseline
+    // Baseline might be in data.baseline
+    const baseline = data.baseline || {};
+    const avgVolEl = document.getElementById('b-avg-vol');
+    const stdDevEl = document.getElementById('b-std-dev');
+
+    if (baseline && (baseline.mean_volume_lots || baseline.mean_volume)) {
+        const meanVol = baseline.mean_volume_lots || baseline.mean_volume || 0;
+        const stdDev = baseline.std_dev_price || 0; // Or std_dev_volume depending on what we want to show
+
+        if (avgVolEl) avgVolEl.textContent = formatNumber(meanVol);
+        if (stdDevEl) stdDevEl.textContent = stdDev.toFixed(2);
+    } else {
+        if (avgVolEl) avgVolEl.textContent = '-';
+        if (stdDevEl) stdDevEl.textContent = '-';
+    }
+}
+
+/**
+ * Render order flow pressure
+ * @param {Object} data - Order flow data
+ */
+export function renderOrderFlow(data) {
+    const buyFill = document.getElementById('buy-pressure-fill');
+    const sellFill = document.getElementById('sell-pressure-fill');
+    const buyLabel = document.getElementById('buy-pressure-pct');
+    const sellLabel = document.getElementById('sell-pressure-pct');
+
+    if (!data || (!data.buy_volume_lots && !data.buy_volume)) {
+        // Reset to 50/50 if no data
+        if (buyFill) buyFill.style.width = '50%';
+        if (sellFill) sellFill.style.width = '50%';
+        if (buyLabel) buyLabel.textContent = '50% BELI';
+        if (sellLabel) sellLabel.textContent = '50% JUAL';
+        return;
+    }
+
+    const buyVol = data.buy_volume_lots || data.buy_volume || 0;
+    const sellVol = data.sell_volume_lots || data.sell_volume || 0;
+    const total = buyVol + sellVol;
+
+    let buyPct = 50;
+    let sellPct = 50;
+
+    if (total > 0) {
+        buyPct = (buyVol / total) * 100;
+        sellPct = 100 - buyPct;
+    }
+
+    if (buyFill) buyFill.style.width = `${buyPct}%`;
+    if (sellFill) sellFill.style.width = `${sellPct}%`;
+
+    if (buyLabel) buyLabel.textContent = `${buyPct.toFixed(0)}% BELI`;
+    if (sellLabel) sellLabel.textContent = `${sellPct.toFixed(0)}% JUAL`;
+}
+
+/**
+ * Render pattern feed
+ * @param {Array} patterns - Array of pattern objects
+ */
+export function renderPatternFeed(patterns) {
+    const list = document.getElementById('pattern-list');
+    if (!list) return;
+
+    list.innerHTML = '';
+
+    if (!patterns || patterns.length === 0) {
+        list.innerHTML = '<div class="placeholder-small">Menunggu pola...</div>';
+        return;
+    }
+
+    patterns.slice(0, 10).forEach(p => {
+        const item = document.createElement('div');
+        item.className = 'pattern-item';
+
+        // Type badge color
+        let typeColor = '#666';
+        if (p.pattern_type === 'DOUBLE_BOTTOM' || p.pattern_type === 'BULLISH_FLAG') typeColor = 'var(--diff-positive)';
+        else if (p.pattern_type === 'DOUBLE_TOP' || p.pattern_type === 'BEARISH_FLAG') typeColor = 'var(--diff-negative)';
+
+        const timeAgo = getTimeAgo(p.detected_at);
+
+        item.innerHTML = `
+            <div class="pattern-header-row">
+                <span class="p-symbol">${p.stock_symbol}</span>
+                <span class="p-time">${timeAgo}</span>
+            </div>
+            <div class="pattern-detail">
+                <span class="p-type" style="color: ${typeColor}">${p.pattern_type.replace('_', ' ')}</span>
+                <span class="p-conf">Conf: ${(p.confidence * 100).toFixed(0)}%</span>
+            </div>
+        `;
+        list.appendChild(item);
+    });
+}
+
+/**
+ * Render daily performance table
+ * @param {Array} data - Array of performance records
+ */
+export function renderDailyPerformance(data) {
+    const tbody = document.getElementById('daily-performance-body');
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+
+    if (!data || data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center" style="padding: 20px;">Belum ada data performa harian</td></tr>';
+        return;
+    }
+
+    data.forEach(row => {
+        const tr = document.createElement('tr');
+
+        // Win rate color
+        const wr = row.win_rate || 0;
+        const wrClass = wr >= 50 ? 'diff-positive' : wr > 0 ? 'diff-negative' : ''; // Yellow/Gold for low winrate maybe? Let's stick to positive/negative for now or custom class
+
+        // Profit
+        const profit = row.total_profit_pct || 0;
+        const profitClass = profit >= 0 ? 'diff-positive' : 'diff-negative';
+        const profitSign = profit >= 0 ? '+' : '';
+
+        // Day
+        const day = new Date(row.day).toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' });
+
+        tr.innerHTML = `
+            <td><strong>${row.stock_symbol}</strong></td>
+            <td>${day}</td>
+            <td><span class="badge" style="background:#333; font-size:0.7em;">${formatStrategyName(row.strategy)}</span></td>
+            <td class="text-right ${wrClass}">${wr.toFixed(1)}% <span style="font-size:0.7em; color:#888;">(${row.wins}/${row.total_signals})</span></td>
+            <td class="text-right">
+                <span class="${profitClass}"><strong>${profitSign}${profit.toFixed(2)}%</strong></span>
+                <div style="font-size:0.7em; color:#888;">@ ${formatNumber(row.avg_entry_price)}</div>
+            </td>
+            <td class="text-right">
+                <div class="diff-positive" style="font-size:0.85em;">Win: +${(row.avg_win_pct || 0).toFixed(2)}%</div>
+                <div class="diff-negative" style="font-size:0.85em;">Loss: ${(row.avg_loss_pct || 0).toFixed(2)}%</div>
+            </td>
+            <td class="text-right">
+                <div class="diff-positive" style="font-size:0.85em;">Best: +${(row.best_trade_pct || 0).toFixed(2)}%</div>
+                <div class="diff-negative" style="font-size:0.85em;">Worst: ${(row.worst_trade_pct || 0).toFixed(2)}%</div>
+            </td>
+            <td class="text-right">${(row.avg_holding_minutes || 0).toFixed(0)}m</td>
+        `;
+        tbody.appendChild(tr);
+    });
 }
