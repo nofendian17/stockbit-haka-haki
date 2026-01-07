@@ -557,7 +557,15 @@ func (s *Server) handleGetMarketRegimes(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	regime, err := s.repo.GetLatestRegime(symbol)
+	var regime *database.MarketRegime
+	var err error
+
+	if symbol == "IHSG" || symbol == "COMPOSITE" {
+		regime, err = s.repo.GetAggregateMarketRegime()
+	} else {
+		regime, err = s.repo.GetLatestRegime(symbol)
+	}
+
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

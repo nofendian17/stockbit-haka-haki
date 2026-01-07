@@ -70,6 +70,56 @@ func (r *Repository) GetLatestRegime(symbol string) (*models.MarketRegime, error
 	return &regime, nil
 }
 
+// GetAggregateMarketRegime calculates the overall market regime based on individual stock regimes
+func (r *Repository) GetAggregateMarketRegime() (*models.MarketRegime, error) {
+	type result struct {
+		Regime    string
+		Count     int64
+		AvgConf   float64
+		AvgVol    float64
+		AvgChange float64
+	}
+
+	var res result
+	// Query to find the majority regime among active stocks in the last 24 hours
+	err := r.db.Raw(`
+		WITH latest_regimes AS (
+			SELECT DISTINCT ON (stock_symbol) *
+			FROM market_regimes
+			WHERE detected_at >= NOW() - INTERVAL '24 hours'
+			ORDER BY stock_symbol, detected_at DESC
+		)
+		SELECT 
+			regime, 
+			COUNT(*) as count, 
+			AVG(confidence) as avg_conf, 
+			AVG(volatility) as avg_vol,
+			AVG(price_change_pct) as avg_change
+		FROM latest_regimes
+		GROUP BY regime
+		ORDER BY count DESC
+		LIMIT 1
+	`).Scan(&res).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("GetAggregateMarketRegime: %w", err)
+	}
+
+	if res.Regime == "" {
+		return nil, nil // No data
+	}
+
+	return &models.MarketRegime{
+		StockSymbol:     "IHSG", // Virtual symbol
+		DetectedAt:      time.Now(),
+		Regime:          res.Regime,
+		Confidence:      res.AvgConf,
+		Volatility:      &res.AvgVol,
+		PriceChangePct:  &res.AvgChange,
+		LookbackPeriods: 24, // Represents 24h aggregation
+	}, nil
+}
+
 // ============================================================================
 // Detected Patterns
 // ============================================================================

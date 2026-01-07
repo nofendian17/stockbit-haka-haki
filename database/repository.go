@@ -907,6 +907,10 @@ func (r *TradeRepository) GetLatestRegime(symbol string) (*models.MarketRegime, 
 	return r.analytics.GetLatestRegime(symbol)
 }
 
+func (r *TradeRepository) GetAggregateMarketRegime() (*models.MarketRegime, error) {
+	return r.analytics.GetAggregateMarketRegime()
+}
+
 func (r *TradeRepository) SaveDetectedPattern(pattern *models.DetectedPattern) error {
 	return r.analytics.SaveDetectedPattern(pattern)
 }
