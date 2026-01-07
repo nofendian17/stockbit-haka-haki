@@ -1050,7 +1050,7 @@ func (r *TradeRepository) GetMLTrainingDataStats() (map[string]interface{}, erro
 	// Count signals with analysis_data
 	var signalsWithAnalysis int64
 	if err := r.db.db.Model(&models.TradingSignalDB{}).
-		Where("analysis_data IS NOT NULL AND analysis_data != ''").
+		Where("analysis_data IS NOT NULL AND analysis_data != '{}'::jsonb").
 		Count(&signalsWithAnalysis).Error; err != nil {
 		return nil, err
 	}
@@ -1080,7 +1080,7 @@ func (r *TradeRepository) GetMLTrainingDataStats() (map[string]interface{}, erro
 	var completeRecords int64
 	if err := r.db.db.Table("trading_signals s").
 		Joins("JOIN signal_outcomes o ON s.id = o.signal_id").
-		Where("s.analysis_data IS NOT NULL AND s.analysis_data != ''").
+		Where("s.analysis_data IS NOT NULL AND s.analysis_data != '{}'::jsonb").
 		Where("o.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN', 'OPEN')").
 		Count(&completeRecords).Error; err != nil {
 		return nil, err
@@ -1095,7 +1095,7 @@ func (r *TradeRepository) GetMLTrainingDataStats() (map[string]interface{}, erro
 	if err := r.db.db.Table("trading_signals s").
 		Select("o.outcome_status as status, COUNT(*) as count").
 		Joins("JOIN signal_outcomes o ON s.id = o.signal_id").
-		Where("s.analysis_data IS NOT NULL AND s.analysis_data != ''").
+		Where("s.analysis_data IS NOT NULL AND s.analysis_data != '{}'::jsonb").
 		Group("o.outcome_status").
 		Scan(&recordsByOutcome).Error; err != nil {
 		return nil, err
