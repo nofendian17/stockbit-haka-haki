@@ -1023,11 +1023,13 @@ func (r *TradeRepository) GetMLTrainingData() ([]models.MLTrainingData, error) {
 
 	// Query to join signals with outcomes and flatten result
 	// OPTIMIZATION: Include OPEN outcomes for real-time training data
+	// Cast JSONB to text for proper string handling in Go
 	err := r.db.db.Table("trading_signals s").
-		Select("s.generated_at, s.stock_symbol, s.strategy, s.confidence, s.analysis_data, o.outcome_status as outcome_result, o.profit_loss_pct, o.exit_reason").
+		Select("s.generated_at, s.stock_symbol, s.strategy, s.confidence, s.analysis_data::text as analysis_data, o.outcome_status as outcome_result, o.profit_loss_pct, o.exit_reason").
 		Joins("JOIN signal_outcomes o ON s.id = o.signal_id").
 		Where("s.analysis_data IS NOT NULL").
-		Where("s.analysis_data != ''").                                    // Exclude empty strings
+		Where("s.analysis_data::text != 'null'").                          // Exclude JSON null
+		Where("s.analysis_data::text != ''").                              // Exclude empty strings
 		Where("o.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN', 'OPEN')"). // Include OPEN for real-time training
 		Order("s.generated_at DESC").
 		Scan(&results).Error
