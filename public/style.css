@@ -2448,6 +2448,43 @@ footer {
   #daily-performance-table td {
     padding: 0.5rem 0.6rem;
   }
+
+  /* Mobile Controls Optimization */
+  .controls-section {
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .controls {
+    flex-direction: column;
+    gap: 0.8rem;
+  }
+
+  .control-group {
+    min-width: 100%;
+    width: 100%;
+  }
+
+  input,
+  select {
+    max-width: none !important;
+    width: 100% !important;
+    font-size: 16px;
+    /* Prevent zoom on iOS */
+  }
+
+  .btn-refresh,
+  .btn-clear {
+    width: 100%;
+    justify-content: center;
+    padding: 0.8rem;
+  }
+
+  /* Hide less important columns on mobile if table is too wide */
+  .col-time {
+    display: none;
+    /* Optional: hide time if space is tight, or just keep it scrolling */
+  }
 }
 
 
@@ -2607,7 +2644,8 @@ footer {
   align-items: center;
   gap: 6px;
   font-weight: 600;
-  margin-left: auto; /* Push to right in flex container */
+  margin-left: auto;
+  /* Push to right in flex container */
 }
 
 .btn-export:hover {
