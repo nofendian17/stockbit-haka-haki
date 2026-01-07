@@ -971,3 +971,18 @@ func (r *TradeRepository) DeleteWebhook(id int) error {
 func (r *TradeRepository) GetRecentSignalsWithOutcomes(lookbackMinutes int, minConfidence float64, strategyFilter string) ([]TradingSignal, error) {
 	return r.signals.GetRecentSignalsWithOutcomes(lookbackMinutes, minConfidence, strategyFilter)
 }
+
+// GetMLTrainingData retrieves joined data for machine learning training
+func (r *TradeRepository) GetMLTrainingData() ([]models.MLTrainingData, error) {
+	var results []models.MLTrainingData
+
+	// Query to join signals with outcomes and flatten result
+	err := r.db.db.Table("trading_signals s").
+		Select("s.generated_at, s.stock_symbol, s.strategy, s.confidence, s.analysis_data, o.result as outcome_result, o.profit_loss_pct, o.exit_reason").
+		Joins("JOIN signal_outcomes o ON s.id = o.signal_id").
+		Where("s.analysis_data IS NOT NULL AND s.analysis_data != ''").
+		Order("s.generated_at DESC").
+		Scan(&results).Error
+
+	return results, err
+}

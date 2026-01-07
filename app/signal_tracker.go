@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"time"
@@ -112,17 +113,32 @@ func getTradingSession(t time.Time) string {
 
 // SignalTracker monitors trading signals and tracks their outcomes
 type SignalTracker struct {
-	repo  *database.TradeRepository
-	redis *cache.RedisClient
-	done  chan bool
+	repo          *database.TradeRepository
+	redis         *cache.RedisClient
+	done          chan bool
+	mtfAnalyzer   *MTFAnalyzer            // Multi-timeframe analyzer
+	scorecardEval *ScorecardEvaluator     // Scorecard evaluator for signal quality
+	exitCalc      *ExitStrategyCalculator // ATR-based exit strategy calculator
 }
 
 // NewSignalTracker creates a new signal outcome tracker
 func NewSignalTracker(repo *database.TradeRepository, redis *cache.RedisClient) *SignalTracker {
+	// Initialize MTF Analyzer
+	mtf := NewMTFAnalyzer(repo)
+
+	// Initialize Scorecard Evaluator with MTF
+	scoreEval := NewScorecardEvaluator(repo, mtf)
+
+	// Initialize Exit Strategy Calculator
+	exitCalc := NewExitStrategyCalculator(repo)
+
 	return &SignalTracker{
-		repo:  repo,
-		redis: redis,
-		done:  make(chan bool),
+		repo:          repo,
+		redis:         redis,
+		done:          make(chan bool),
+		mtfAnalyzer:   mtf,
+		scorecardEval: scoreEval,
+		exitCalc:      exitCalc,
 	}
 }
 
@@ -233,6 +249,29 @@ func (st *SignalTracker) trackSignalOutcomes() {
 // Returns: (shouldCreate bool, reason string)
 func (st *SignalTracker) shouldCreateOutcome(signal *database.TradingSignalDB) (bool, string) {
 	ctx := context.Background()
+
+	// NEW: Scorecard Evaluation (comprehensive quality check)
+	if st.scorecardEval != nil {
+		var scorecard *SignalScorecard
+
+		// 1. Try to load from AnalysisData (generation time features)
+		if signal.AnalysisData != "" {
+			var loadedScorecard SignalScorecard
+			if err := json.Unmarshal([]byte(signal.AnalysisData), &loadedScorecard); err == nil {
+				scorecard = &loadedScorecard
+			}
+		}
+
+		// 2. Fallback: Re-evaluate if missing
+		if scorecard == nil {
+			scorecard = st.scorecardEval.EvaluateSignal(signal)
+		}
+
+		if !scorecard.IsPassing() {
+			return false, fmt.Sprintf("Scorecard too low (%d/%d required)", scorecard.Total(), MinScoreForSignal)
+		}
+		log.Printf("✅ Scorecard PASSED for %s: %s", signal.StockSymbol, scorecard.String())
+	}
 
 	// OPTIMIZATION #10: Strategy Performance Check (disable underperforming strategies)
 	strategyMult, shouldSkip, reason := st.getStrategyPerformanceMultiplier(signal.Strategy)
@@ -366,13 +405,19 @@ func (st *SignalTracker) createSignalOutcome(signal *database.TradingSignalDB) (
 		log.Printf("   └─ %s", timeReason)
 	}
 
+	// Calculate ATR-based exit levels for initial setup
+	exitLevels := st.exitCalc.GetExitLevels(signal.StockSymbol, signal.TriggerPrice)
+
+	// Create outcome
 	outcome := &database.SignalOutcome{
-		SignalID:      signal.ID,
-		StockSymbol:   signal.StockSymbol,
-		EntryTime:     signal.GeneratedAt,
-		EntryPrice:    signal.TriggerPrice,
-		EntryDecision: signal.Decision,
-		OutcomeStatus: "OPEN",
+		SignalID:          signal.ID,
+		StockSymbol:       signal.StockSymbol,
+		EntryTime:         signal.GeneratedAt,
+		EntryPrice:        signal.TriggerPrice,
+		EntryDecision:     signal.Decision,
+		OutcomeStatus:     "OPEN",
+		ATRAtEntry:        &exitLevels.ATR,
+		TrailingStopPrice: &exitLevels.StopLossPrice,
 	}
 
 	if err := st.repo.SaveSignalOutcome(outcome); err != nil {
@@ -472,18 +517,38 @@ func (st *SignalTracker) updateSignalOutcome(signal *database.TradingSignalDB, o
 	// Get latest order flow to determine momentum
 	orderFlow, _ := st.repo.GetLatestOrderFlow(signal.StockSymbol)
 
-	// Determine exit conditions with dynamic take profit
+	// Determine exit conditions with ATR-based dynamic exit strategy
 	shouldExit := false
 	exitReason := ""
 
-	// Always enforce stop loss (-2%)
-	if profitLossPct <= -2.0 {
-		shouldExit = true
-		exitReason = "STOP_LOSS"
+	// Calculate ATR-based exit levels
+	exitLevels := st.exitCalc.GetExitLevels(signal.StockSymbol, outcome.EntryPrice)
+
+	// Get current trailing stop (initialize if nil)
+	var currentTrailingStop float64
+	if outcome.TrailingStopPrice != nil {
+		currentTrailingStop = *outcome.TrailingStopPrice
+	} else {
+		// Initialize trailing stop at entry price minus initial stop
+		currentTrailingStop = outcome.EntryPrice * (1 - exitLevels.InitialStopPct/100)
 	}
 
-	// Maximum holding period removed to let profits run until market close
-	// Stop loss and other exit conditions still apply
+	// Use ATR-based exit strategy
+	shouldExit, exitReason, newTrailingStop := st.exitCalc.ShouldExitPosition(
+		outcome.EntryPrice,
+		currentPrice,
+		exitLevels,
+		currentTrailingStop,
+		profitLossPct,
+		holdingMinutes,
+	)
+
+	// Update trailing stop in outcome
+	if newTrailingStop > currentTrailingStop {
+		outcome.TrailingStopPrice = &newTrailingStop
+		log.Printf("📈 Updated trailing stop for %s: %.0f → %.0f",
+			signal.StockSymbol, currentTrailingStop, newTrailingStop)
+	}
 
 	// Force exit at market close
 	if !shouldExit && currentSession == "AFTER_HOURS" {
@@ -493,36 +558,26 @@ func (st *SignalTracker) updateSignalOutcome(signal *database.TradingSignalDB, o
 	}
 
 	// Auto-exit in pre-closing session (14:50-15:00) if profitable
-	if currentSession == "PRE_CLOSING" && profitLossPct > 0.5 {
+	if !shouldExit && currentSession == "PRE_CLOSING" && profitLossPct > 0.5 {
 		shouldExit = true
 		exitReason = "PRE_CLOSE_PROFIT_TAKING"
 		log.Printf("⏰ Pre-close profit taking for signal %d (%s): %.2f%%",
 			signal.ID, signal.StockSymbol, profitLossPct)
 	}
 
-	// Dynamic Take Profit based on order flow momentum (only during trading hours)
-	// Indonesian market: Only BUY positions
+	// Order flow momentum reversal check (additional exit signal)
 	if !shouldExit && isTradingTime(now) && profitLossPct > 0 && orderFlow != nil {
-		// Calculate sell pressure (for exit signal)
 		totalVolume := orderFlow.BuyVolumeLots + orderFlow.SellVolumeLots
 		var sellPressure float64
 		if totalVolume > 0 {
 			sellPressure = (orderFlow.SellVolumeLots / totalVolume) * 100
 		}
 
-		// Take profit jika sell pressure meningkat (momentum melemah)
-		if sellPressure > 60 && profitLossPct >= 1.0 {
+		// Take profit if sell pressure high and we have gains
+		if sellPressure > 60 && profitLossPct >= exitLevels.TakeProfit1Pct*0.5 {
 			shouldExit = true
 			exitReason = "TAKE_PROFIT_MOMENTUM_REVERSAL"
-		} else if profitLossPct >= 5.0 {
-			// Maximum take profit di 5%
-			shouldExit = true
-			exitReason = "TAKE_PROFIT_MAX"
 		}
-	} else if profitLossPct >= 5.0 {
-		// Fallback: Close at 5% if no order flow data
-		shouldExit = true
-		exitReason = "TAKE_PROFIT_MAX"
 	}
 
 	// Update outcome

@@ -251,9 +251,24 @@ function renderSignalRow(signal, isInitialLoad = false) {
         <td data-label="Hasil" class="text-center">
             ${renderOutcome(signal)}
         </td>
-        <td data-label="Alasan" class="reason-cell" title="${zScoreInfo}">
+        <td data-label="Alasan" class="reason-cell reason-cell-multiline" title="${zScoreInfo}">
             ${enhancedReason}
             ${priceZScore > 0 || volumeZScore > 0 ? `<div style="font-size:0.7em; color:#888; margin-top:4px;">${zScoreInfo}</div>` : ''}
+            ${(() => {
+            if (signal.analysis_data) {
+                try {
+                    const analysis = JSON.parse(signal.analysis_data);
+                    if (analysis.factors) {
+                        const score = analysis.total_score || 0;
+                        const scoreColor = score >= 80 ? '#0ECB81' : score >= 60 ? '#F0B90B' : '#F6465D';
+                        return `<div style="font-size:0.7em; margin-top:4px; font-weight:600; color:${scoreColor}">
+                                Score: ${score}/100
+                             </div>`;
+                    }
+                } catch (e) { return ''; }
+            }
+            return '';
+        })()}
         </td>
     `;
 

@@ -562,7 +562,10 @@ func (a *App) reconnectWebSocket() error {
 func (a *App) setupHandlers() {
 	// 4. Register Message Handlers
 	// Running Trade Handler
-	runningTradeHandler := handlers.NewRunningTradeHandler(a.tradeRepo, a.webhookManager, a.redis, a.broker)
+	// Running Trade Handler
+	// Initialize Volatility Provider (ExitStrategyCalculator) for Adaptive Thresholds
+	volatilityProv := NewExitStrategyCalculator(a.tradeRepo)
+	runningTradeHandler := handlers.NewRunningTradeHandler(a.tradeRepo, a.webhookManager, a.redis, a.broker, volatilityProv)
 	a.handlerManager.RegisterHandler("running_trade", runningTradeHandler)
 }
 

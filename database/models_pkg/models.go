@@ -111,6 +111,8 @@ type WhaleAlert struct {
 	AvgPrice           *float64  `gorm:"type:decimal(15,2)" json:"avg_price,omitempty"` // New field for average price context
 	ConfidenceScore    float64   `gorm:"type:decimal(5,2);not null" json:"confidence_score"`
 	MarketBoard        string    `gorm:"type:text" json:"market_board,omitempty"`
+	AdaptiveThreshold  *float64  `gorm:"type:decimal(5,2)" json:"adaptive_threshold,omitempty"`
+	VolatilityPct      *float64  `gorm:"type:decimal(5,2)" json:"volatility_pct,omitempty"`
 }
 
 // TableName specifies the table name for WhaleAlert
@@ -223,7 +225,21 @@ type TradingSignalDB struct {
 	Reason               string    `gorm:"type:text" json:"reason"`
 	MarketRegime         *string   `gorm:"type:text" json:"market_regime,omitempty"` // Future: TRENDING_UP, RANGING, etc.
 	VolumeImbalanceRatio *float64  `gorm:"type:decimal(10,4)" json:"volume_imbalance_ratio,omitempty"`
-	WhaleAlertID         *int64    `gorm:"index" json:"whale_alert_id,omitempty"` // Reference to whale_alerts
+	WhaleAlertID         *int64    `gorm:"index" json:"whale_alert_id,omitempty"`     // Reference to whale_alerts
+	AnalysisData         string    `gorm:"type:jsonb" json:"analysis_data,omitempty"` // Features for ML (Scorecard, MTF)
+}
+
+// MLTrainingData represents a flattened record for ML training
+// Joins Signal Features (Input) with Outcome (Target)
+type MLTrainingData struct {
+	GeneratedAt   time.Time `json:"generated_at"`
+	StockSymbol   string    `json:"stock_symbol"`
+	Strategy      string    `json:"strategy"`
+	Confidence    float64   `json:"confidence"`
+	AnalysisData  string    `json:"analysis_data"` // JSON feature vector
+	OutcomeResult string    `json:"outcome_result"`
+	ProfitLossPct float64   `json:"profit_loss_pct"`
+	ExitReason    string    `json:"exit_reason"`
 }
 
 // TableName specifies the table name for TradingSignalDB
@@ -239,6 +255,8 @@ type SignalOutcome struct {
 	EntryTime             time.Time  `gorm:"primaryKey;index;not null" json:"entry_time"`
 	EntryPrice            float64    `gorm:"type:decimal(15,2);not null" json:"entry_price"`
 	EntryDecision         string     `gorm:"type:text;not null" json:"entry_decision"` // BUY or SELL
+	ATRAtEntry            *float64   `gorm:"type:decimal(15,4)" json:"atr_at_entry,omitempty"`
+	TrailingStopPrice     *float64   `gorm:"type:decimal(15,2)" json:"trailing_stop_price,omitempty"`
 	ExitTime              *time.Time `gorm:"index" json:"exit_time,omitempty"`
 	ExitPrice             *float64   `gorm:"type:decimal(15,2)" json:"exit_price,omitempty"`
 	ExitReason            *string    `gorm:"type:text" json:"exit_reason,omitempty"` // TAKE_PROFIT, STOP_LOSS, TIME_BASED, REVERSE_SIGNAL

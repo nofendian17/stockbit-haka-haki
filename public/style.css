@@ -2592,3 +2592,41 @@ footer {
 .reason-cell:hover {
   color: var(--text-primary);
 }
+
+/* FIXES: Layout Improvements */
+.btn-export {
+  background: rgba(30, 34, 41, 0.6);
+  border: 1px solid rgba(42, 46, 55, 0.8);
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  margin-left: auto; /* Push to right in flex container */
+}
+
+.btn-export:hover {
+  background: var(--accent-blue);
+  color: white;
+  border-color: var(--accent-blue);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.reason-cell-multiline {
+  max-width: 250px;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.reason-cell-multiline strong {
+  color: var(--text-primary);
+}

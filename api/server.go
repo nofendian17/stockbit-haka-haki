@@ -87,6 +87,7 @@ func (s *Server) Start(port int) error {
 	mux.HandleFunc("GET /api/candles", s.handleGetCandles)
 
 	// Phase 3 Enhancement Routes
+	mux.HandleFunc("GET /api/analytics/export/ml-data", s.handleExportMLData)
 	mux.HandleFunc("GET /api/analytics/correlations", s.handleGetStockCorrelations)
 	mux.HandleFunc("GET /api/analytics/performance/daily", s.handleGetDailyPerformance)
 	mux.HandleFunc("GET /api/positions/open", s.handleGetOpenPositions)

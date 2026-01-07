@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"time"
@@ -40,6 +41,14 @@ func (st *SignalTracker) generateSignals() {
 			VolumeZScore:      signal.VolumeZScore,
 			PriceChangePct:    signal.Change,
 			Reason:            signal.Reason,
+		}
+
+		// Generate Analysis Data for ML (Scorecard & Features)
+		if st.scorecardEval != nil {
+			scorecard := st.scorecardEval.EvaluateSignal(dbSignal) // Now using correct type
+			if jsonBytes, err := json.Marshal(scorecard); err == nil {
+				dbSignal.AnalysisData = string(jsonBytes)
+			}
 		}
 
 		if err := st.repo.SaveTradingSignal(dbSignal); err != nil {

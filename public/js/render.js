@@ -120,7 +120,9 @@ function createWhaleAlertRow(alert) {
                 <span style="font-size:0.85em; color:var(--text-secondary);">${alert.market_board || 'RG'}</span>
                 ${anomalyHtml}
                 ${!anomalyHtml ? `<span style="font-size:0.75em; color:#aaa;">${alertType === 'ACCUMULATION' ? 'Akumulasi' : 'Transaksi Besar'}</span>` : ''}
+                ${!anomalyHtml ? `<span style="font-size:0.75em; color:#aaa;">${alertType === 'ACCUMULATION' ? 'Akumulasi' : 'Transaksi Besar'}</span>` : ''}
                 ${zScore > 0 ? `<span style="font-size:0.7em; color:#888;" title="Statistical Anomaly Score">Z: ${zScore.toFixed(2)}</span>` : ''}
+                ${alert.adaptive_threshold ? `<span style="font-size:0.65em; color:var(--text-secondary);" title="Threshold: ${alert.adaptive_threshold.toFixed(2)} | Volatility: ${alert.volatility_pct ? alert.volatility_pct.toFixed(2) : 0}%">T: ${alert.adaptive_threshold.toFixed(1)} ${alert.volatility_pct > 1.5 ? '⚠️' : ''}</span>` : ''}
                 <span style="font-size: 0.65em; color: var(--accent-blue); margin-top: 2px;">Klik info ↗</span>
             </div>
         </td>

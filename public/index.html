@@ -509,6 +509,10 @@
           <div class="stats-tabs">
             <button class="s-tab active" data-target="correlations-view">Korelasi</button>
             <button class="s-tab" data-target="performance-view">Pertumbuhan Strategi</button>
+            <button id="export-ml-btn" onclick="window.location.href='/api/analytics/export/ml-data'"
+              class="btn-export">
+              <span style="font-size: 1.1em;">📥</span> ML Data
+            </button>
           </div>
           <div class="tab-viewport">
             <!-- Correlation View -->

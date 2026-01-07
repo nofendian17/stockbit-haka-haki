@@ -16,6 +16,12 @@ import (
 	"stockbit-haka-haki/realtime"
 )
 
+// VolatilityProvider interface allows fetching volatility metrics (ATR%)
+// Used to adjust detection thresholds dynamically
+type VolatilityProvider interface {
+	GetVolatilityPercent(symbol string) (float64, error)
+}
+
 // Detection thresholds
 const (
 	minSafeValue          = 100_000_000.0   // 100 Million IDR - Safety floor to avoid penny stock noise
@@ -38,6 +44,7 @@ type RunningTradeHandler struct {
 	webhookManager *notifications.WebhookManager // Manager untuk notifikasi webhook
 	redis          *cache.RedisClient            // Redis client for config caching
 	broker         *realtime.Broker              // Realtime SSE broker
+	volatilityProv VolatilityProvider            // Provider for adaptive thresholds
 
 	// Order Flow Aggregation (Phase 1 Enhancement)
 	flowAggregator *OrderFlowAggregator
@@ -63,12 +70,13 @@ type OrderFlowData struct {
 }
 
 // NewRunningTradeHandler membuat instance handler baru
-func NewRunningTradeHandler(tradeRepo *database.TradeRepository, webhookManager *notifications.WebhookManager, redis *cache.RedisClient, broker *realtime.Broker) *RunningTradeHandler {
+func NewRunningTradeHandler(tradeRepo *database.TradeRepository, webhookManager *notifications.WebhookManager, redis *cache.RedisClient, broker *realtime.Broker, volProv VolatilityProvider) *RunningTradeHandler {
 	handler := &RunningTradeHandler{
 		tradeRepo:      tradeRepo,
 		webhookManager: webhookManager,
 		redis:          redis,
 		broker:         broker,
+		volatilityProv: volProv,
 	}
 
 	// Initialize order flow aggregator
@@ -246,6 +254,10 @@ func (h *RunningTradeHandler) ProcessTrade(t *pb.RunningTrade) {
 		// Calculate Statistical Metadata
 		var zScore, volVsAvgPct float64
 
+		// ADAPTIVE THRESHOLD VARIABLES (Function Scope)
+		adaptiveThreshold := zScoreThreshold
+		atrPct := 0.0
+
 		// Get stats using helper method (handles caching internally)
 		stats := h.getStockStats(t.Stock)
 
@@ -258,8 +270,23 @@ func (h *RunningTradeHandler) ProcessTrade(t *pb.RunningTrade) {
 
 			// Must satisfy Minimum Safety Value
 			if totalAmount >= minSafeValue {
+				// ADAPTIVE THRESHOLD LOGIC
+				// Get volatility context if provider available
+				if h.volatilityProv != nil {
+					if vol, err := h.volatilityProv.GetVolatilityPercent(t.Stock); err == nil {
+						atrPct = vol
+						if vol > 1.5 {
+							// High volatility -> Increase threshold to reduce noise
+							adaptiveThreshold = 3.5
+						} else if vol < 0.5 && vol > 0 {
+							// Low volatility -> Decrease threshold (more sensitive)
+							adaptiveThreshold = 2.5
+						}
+					}
+				}
+
 				// Primary: Z-Score threshold (Statistical Anomaly)
-				if zScore >= zScoreThreshold {
+				if zScore >= adaptiveThreshold {
 					isWhale = true
 					detectionType = "Z-SCORE ANOMALY"
 				}
@@ -304,6 +331,9 @@ func (h *RunningTradeHandler) ProcessTrade(t *pb.RunningTrade) {
 				PatternTradeCount:  ptrInt(1),
 				TotalPatternVolume: ptr(volumeLot),
 				TotalPatternValue:  ptr(totalAmount),
+				// Adaptive Threshold Tracking
+				AdaptiveThreshold: ptr(adaptiveThreshold),
+				VolatilityPct:     ptr(atrPct),
 			}
 
 			// Save whale alert to database
