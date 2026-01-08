@@ -4,7 +4,7 @@
  */
 
 import { CONFIG } from './config.js';
-import { safeGetElement, formatStrategyName, getTimeAgo, parseTimestamp, setupTableInfiniteScroll } from './utils.js';
+import { safeGetElement, formatStrategyName, getTimeAgo, parseTimestamp, setupTableInfiniteScroll } from './utils.js?v=2';
 import { fetchStrategySignals, fetchSignalHistory } from './api.js';
 import { createStrategySignalSSE, closeSSE } from './sse-handler.js';
 
