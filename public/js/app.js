@@ -8,7 +8,7 @@ import { debounce, safeGetElement, setupTableInfiniteScroll } from './utils.js?v
 import * as API from './api.js';
 import { renderWhaleAlerts, renderRunningPositions, renderSummaryTable, updateStatsTicker, renderStockCorrelations, renderProfitLossHistory, renderMarketIntelligence, renderOrderFlow, renderPatternFeed, renderDailyPerformance } from './render.js';
 import { createWhaleAlertSSE, createPatternAnalysisSSE, createCustomPromptSSE } from './sse-handler.js?v=2';
-import { initStrategySystem } from './strategy-manager.js';
+import { initStrategySystem } from './strategy-manager.js?v=2';
 import { initWebhookManagement } from './webhook-config.js';
 
 // Configure marked.js for markdown rendering
