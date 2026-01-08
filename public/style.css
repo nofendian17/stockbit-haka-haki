@@ -733,50 +733,35 @@ footer {
   }
   
   .nav-container {
-    padding: 0.5rem 1rem;
-    gap: 0.75rem;
+    padding: 0.4rem 0.75rem;
+    gap: 0.5rem;
   }
   
   .nav-brand {
-    font-size: 1rem;
+    font-size: 0.85rem;
   }
   
   .brand-icon {
-    font-size: 1.25rem;
-  }
-  
-  .nav-stats {
-    gap: 0.5rem;
-    padding-top: 0.5rem;
-    border-top: 1px solid var(--border-color);
-  }
-  
-  .stat-card {
-    flex: 1;
-    min-width: 0;
-  }
-  
-  .stat-label {
-    font-size: 0.65rem;
-  }
-  
-  .stat-value {
-    font-size: 0.9rem;
-  }
-  
-  .nav-actions {
-    gap: 0.5rem;
-  }
-  
-  .icon-btn {
-    width: 32px;
-    height: 32px;
     font-size: 1rem;
   }
   
+  .nav-stats {
+    display: none; /* Hide stats on mobile to save space */
+  }
+  
+  .nav-actions {
+    gap: 0.4rem;
+  }
+  
+  .icon-btn {
+    width: 28px;
+    height: 28px;
+    font-size: 0.9rem;
+  }
+  
   .status-live {
-    font-size: 0.75rem;
-    padding: 0.25rem 0.5rem;
+    font-size: 0.7rem;
+    padding: 0.2rem 0.4rem;
   }
   
   /* Filters Mobile */
@@ -939,24 +924,27 @@ footer {
     font-size: 1rem;
   }
   
+  .nav-container {
+    padding: 0.3rem 0.5rem;
+  }
+  
   .nav-brand {
-    font-size: 0.9rem;
+    font-size: 0.8rem;
   }
   
   .brand-icon {
-    font-size: 1.1rem;
+    font-size: 0.9rem;
   }
   
-  .stat-card {
-    text-align: center;
-  }
-  
-  .stat-label {
-    font-size: 0.6rem;
-  }
-  
-  .stat-value {
+  .icon-btn {
+    width: 26px;
+    height: 26px;
     font-size: 0.85rem;
+  }
+  
+  .status-live {
+    font-size: 0.65rem;
+    padding: 0.15rem 0.35rem;
   }
   
   .data-table {
