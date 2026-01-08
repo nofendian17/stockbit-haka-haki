@@ -297,7 +297,7 @@ export async function fetchProfitLossHistory(filters = {}) {
     if (filters.strategy && filters.strategy !== 'ALL') {
         params.append('strategy', filters.strategy);
     }
-    if (filters.status) {
+    if (filters.status && filters.status !== 'ALL') {
         params.append('status', filters.status);
     }
     if (filters.limit) {
