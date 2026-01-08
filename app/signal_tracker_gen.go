@@ -41,6 +41,7 @@ func (st *SignalTracker) generateSignals() {
 			VolumeZScore:      signal.VolumeZScore,
 			PriceChangePct:    signal.Change,
 			Reason:            signal.Reason,
+			AnalysisData:      "{}", // Initialize with empty JSON object to prevent DB error
 		}
 
 		// Generate Analysis Data for ML (Scorecard & Features)

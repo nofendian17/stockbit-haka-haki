@@ -108,6 +108,7 @@ func (pd *PatternDetector) detectPatterns() {
 					Confidence:   p.Confidence,
 					TriggerPrice: *p.BreakoutLevel,
 					Reason:       fmt.Sprintf("Detected %s pattern with %.0f%% confidence", p.PatternType, p.Confidence*100),
+					AnalysisData: "{}", // Initialize with empty JSON object to prevent DB error
 				}
 
 				if p.PatternDirection != nil {
