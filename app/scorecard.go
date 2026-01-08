@@ -10,7 +10,7 @@ import (
 
 // Scorecard thresholds
 const (
-	MinScoreForSignal = 60 // Minimum score out of 100 to generate signal
+	MinScoreForSignal = 45 // Minimum score out of 100 to generate signal
 )
 
 // SignalScorecard represents a weighted scoring system for signal quality evaluation.
