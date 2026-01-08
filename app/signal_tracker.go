@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"time"
@@ -113,12 +112,11 @@ func getTradingSession(t time.Time) string {
 
 // SignalTracker monitors trading signals and tracks their outcomes
 type SignalTracker struct {
-	repo          *database.TradeRepository
-	redis         *cache.RedisClient
-	done          chan bool
-	mtfAnalyzer   *MTFAnalyzer            // Multi-timeframe analyzer
-	scorecardEval *ScorecardEvaluator     // Scorecard evaluator for signal quality
-	exitCalc      *ExitStrategyCalculator // ATR-based exit strategy calculator
+	repo        *database.TradeRepository
+	redis       *cache.RedisClient
+	done        chan bool
+	mtfAnalyzer *MTFAnalyzer            // Multi-timeframe analyzer
+	exitCalc    *ExitStrategyCalculator // ATR-based exit strategy calculator
 }
 
 // NewSignalTracker creates a new signal outcome tracker
@@ -126,19 +124,15 @@ func NewSignalTracker(repo *database.TradeRepository, redis *cache.RedisClient) 
 	// Initialize MTF Analyzer
 	mtf := NewMTFAnalyzer(repo)
 
-	// Initialize Scorecard Evaluator with MTF
-	scoreEval := NewScorecardEvaluator(repo, mtf)
-
 	// Initialize Exit Strategy Calculator
 	exitCalc := NewExitStrategyCalculator(repo)
 
 	return &SignalTracker{
-		repo:          repo,
-		redis:         redis,
-		done:          make(chan bool),
-		mtfAnalyzer:   mtf,
-		scorecardEval: scoreEval,
-		exitCalc:      exitCalc,
+		repo:        repo,
+		redis:       redis,
+		done:        make(chan bool),
+		mtfAnalyzer: mtf,
+		exitCalc:    exitCalc,
 	}
 }
 
@@ -259,29 +253,6 @@ func (st *SignalTracker) trackSignalOutcomes() {
 func (st *SignalTracker) shouldCreateOutcome(signal *database.TradingSignalDB) (bool, string) {
 	ctx := context.Background()
 
-	// NEW: Scorecard Evaluation (comprehensive quality check)
-	if st.scorecardEval != nil {
-		var scorecard *SignalScorecard
-
-		// 1. Try to load from AnalysisData (generation time features)
-		if signal.AnalysisData != "" {
-			var loadedScorecard SignalScorecard
-			if err := json.Unmarshal([]byte(signal.AnalysisData), &loadedScorecard); err == nil {
-				scorecard = &loadedScorecard
-			}
-		}
-
-		// 2. Fallback: Re-evaluate if missing
-		if scorecard == nil {
-			scorecard = st.scorecardEval.EvaluateSignal(signal)
-		}
-
-		if !scorecard.IsPassing() {
-			return false, fmt.Sprintf("Scorecard too low (%d/%d required)", scorecard.Total(), MinScoreForSignal)
-		}
-		log.Printf("✅ Scorecard PASSED for %s: %s", signal.StockSymbol, scorecard.String())
-	}
-
 	// OPTIMIZATION #10: Strategy Performance Check (disable underperforming strategies)
 	strategyMult, shouldSkip, reason := st.getStrategyPerformanceMultiplier(signal.Strategy)
 	if shouldSkip {
@@ -294,8 +265,32 @@ func (st *SignalTracker) shouldCreateOutcome(signal *database.TradingSignalDB) (
 		return false, baselineReason
 	}
 
+	// OPTIMIZATION NEW: "Smart Volume" & "Trend" Adaptive Logic
+	// 1. Calculate Volume Z-Score Multiplier (High Volume = Higher Confidence)
+	isHighVolume := signal.VolumeZScore > 2.5
+
+	// 2. Trend Alignment Check (Price vs VWAP)
+	isTrendAligned := false
+	baseline, _ := st.repo.GetLatestBaseline(signal.StockSymbol)
+	if baseline != nil && baseline.MeanVolumeLots > 0 {
+		vwap := baseline.MeanValue / baseline.MeanVolumeLots
+		if signal.TriggerPrice > vwap {
+			isTrendAligned = true
+		}
+	}
+
 	// OPTIMIZATION NEW #1: Dynamic Confidence Threshold (Historical Data Driven)
 	optimalThreshold, thresholdReason := st.getDynamicConfidenceThreshold(signal.Strategy)
+
+	// Adaptive: Relax confidence if High Volume or Trend Aligned
+	if isHighVolume {
+		optimalThreshold *= 0.95 // 5% relaxation
+		thresholdReason += " (Relaxed due to High Volume)"
+	} else if isTrendAligned {
+		optimalThreshold *= 0.98 // 2% relaxation
+		thresholdReason += " (Relaxed due to Trend Alignment)"
+	}
+
 	if signal.Confidence < optimalThreshold {
 		return false, fmt.Sprintf("Below optimal confidence threshold (%.2f < %.2f): %s",
 			signal.Confidence, optimalThreshold, thresholdReason)
@@ -316,8 +311,14 @@ func (st *SignalTracker) shouldCreateOutcome(signal *database.TradingSignalDB) (
 		log.Printf("📈 Signal EV check passed for %s: +%.4f", signal.Strategy, ev)
 	}
 
-	// OPTIMIZATION #2: Order Flow Imbalance Check
-	flowPassed, _, flowReason := st.checkOrderFlowImbalance(signal.StockSymbol, signal.Decision)
+	// OPTIMIZATION #2: Order Flow Imbalance Check (Adaptive)
+	// Default to standard threshold, but relax if strong momentum indicators exist
+	dynamicFlowThreshold := OrderFlowBuyThreshold
+	if isHighVolume || isTrendAligned {
+		dynamicFlowThreshold = 0.45 // Relax to 45% if we have volume or trend support
+	}
+
+	flowPassed, _, flowReason := st.checkOrderFlowImbalance(signal.StockSymbol, signal.Decision, dynamicFlowThreshold)
 	if !flowPassed {
 		return false, flowReason
 	}
@@ -646,7 +647,7 @@ func (st *SignalTracker) updateSignalOutcome(signal *database.TradingSignalDB, o
 
 // checkOrderFlowImbalance validates order flow for BUY signals
 // Returns: (passed bool, confidenceMultiplier float64, reason string)
-func (st *SignalTracker) checkOrderFlowImbalance(symbol string, decision string) (bool, float64, string) {
+func (st *SignalTracker) checkOrderFlowImbalance(symbol string, decision string, requiredThreshold float64) (bool, float64, string) {
 	if decision != "BUY" {
 		return true, 1.0, "" // Only check for BUY signals
 	}
@@ -674,8 +675,15 @@ func (st *SignalTracker) checkOrderFlowImbalance(symbol string, decision string)
 	}
 
 	// Check buy imbalance
-	if buyPressure < OrderFlowBuyThreshold {
-		return false, 0.7, fmt.Sprintf("Insufficient buy pressure (%.1f%% < %.0f%%)", buyPressure*100, OrderFlowBuyThreshold*100)
+	if buyPressure < requiredThreshold {
+		// New: Aggressive Haka Override
+		// If buyers are aggressively hitting the ask (>60%), accept lower passive balance
+		if orderFlow.AggressiveBuyPct != nil && *orderFlow.AggressiveBuyPct > AggressiveBuyThreshold {
+			if buyPressure > 0.4 { // Hard floor
+				return true, 1.2, fmt.Sprintf("Aggressive Haka detected (%.1f%%)", *orderFlow.AggressiveBuyPct)
+			}
+		}
+		return false, 0.7, fmt.Sprintf("Insufficient buy pressure (%.1f%% < %.0f%%)", buyPressure*100, requiredThreshold*100)
 	}
 
 	// Strong buy pressure - boost confidence

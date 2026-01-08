@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"time"
@@ -41,20 +40,7 @@ func (st *SignalTracker) generateSignals() {
 			VolumeZScore:      signal.VolumeZScore,
 			PriceChangePct:    signal.Change,
 			Reason:            signal.Reason,
-			AnalysisData:      "{}", // Initialize with empty JSON object to prevent DB error
-		}
-
-		// Generate Analysis Data for ML (Scorecard & Features)
-		if st.scorecardEval != nil {
-			scorecard := st.scorecardEval.EvaluateSignal(dbSignal) // Now using correct type
-			if jsonBytes, err := json.Marshal(scorecard); err == nil {
-				dbSignal.AnalysisData = string(jsonBytes)
-				log.Printf("✅ Generated analysis_data for %s %s: %d bytes", signal.StockSymbol, signal.Strategy, len(jsonBytes))
-			} else {
-				log.Printf("⚠️ Failed to marshal scorecard for %s: %v", signal.StockSymbol, err)
-			}
-		} else {
-			log.Printf("⚠️ Scorecard evaluator is nil - no analysis_data generated for %s", signal.StockSymbol)
+			AnalysisData:      "{}",
 		}
 
 		if err := st.repo.SaveTradingSignal(dbSignal); err != nil {
