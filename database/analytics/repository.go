@@ -177,7 +177,14 @@ func (r *Repository) GetAggregateMarketRegime() (*models.MarketRegime, error) {
 	}
 
 	if res.Regime == "" {
-		return nil, nil // No data
+		// Return default NEUTRAL regime instead of nil
+		return &models.MarketRegime{
+			StockSymbol:     "IHSG",
+			DetectedAt:      time.Now(),
+			Regime:          "NEUTRAL",
+			Confidence:      0.5,
+			LookbackPeriods: 24,
+		}, nil
 	}
 
 	return &models.MarketRegime{
@@ -237,20 +244,29 @@ func (r *Repository) SaveStockCorrelation(correlation *models.StockCorrelation) 
 	return nil
 }
 
-// GetStockCorrelations retrieves recent correlations for a symbol
+// GetStockCorrelations retrieves recent correlations for a symbol or top global correlations
 func (r *Repository) GetStockCorrelations(symbol string, limit int) ([]models.StockCorrelation, error) {
 	var correlations []models.StockCorrelation
-	err := r.db.Where("stock_a = ? OR stock_b = ?", symbol, symbol).
-		Order("calculated_at DESC").
-		Limit(limit).
-		Find(&correlations).Error
+	query := r.db.Order("ABS(correlation_coefficient) DESC").Limit(limit)
+
+	if symbol != "" {
+		// Specific symbol correlations (either A or B)
+		query = query.Where("stock_a = ? OR stock_b = ?", symbol, symbol)
+	} else {
+		// Global top correlations (only strong ones, e.g., > 0.5 or < -0.5)
+		query = query.Where("ABS(correlation_coefficient) >= 0.5")
+	}
+
+	// Ensure we get the latest calculation
+	// Note for global: we might want distinct pairs, but for now simple latest strong ones is good enough
+	err := query.Find(&correlations).Error
 
 	if err != nil {
-		log.Printf("❌ Error fetching correlations for %s: %v", symbol, err)
+		log.Printf("❌ Error fetching correlations (symbol=%s): %v", symbol, err)
 		return nil, fmt.Errorf("GetStockCorrelations: %w", err)
 	}
 
-	log.Printf("📊 Found %d correlations for symbol %s", len(correlations), symbol)
+	log.Printf("📊 Found %d correlations (symbol=%s)", len(correlations), symbol)
 	return correlations, nil
 }
 

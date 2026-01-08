@@ -961,25 +961,34 @@ async function loadCorrelations() {
     const container = safeGetElement('correlation-container');
     const searchSymbol = state.currentFilters.search.toUpperCase();
 
-    if (!searchSymbol) {
-        if (container) {
-            container.innerHTML = `
-                <div class="placeholder-small">
-                    <span class="placeholder-icon">🔍</span>
-                    <p>Cari kode saham (misal: BBCA) untuk melihat korelasi</p>
-                </div>
-            `;
-        }
-        return;
-    }
-
     if (container) {
         container.innerHTML = '<div class="stream-loading">Memuat data korelasi...</div>';
     }
 
     try {
+        // If searchSymbol is empty, this fetches global top correlations
         const data = await API.fetchCorrelations(searchSymbol);
-        renderStockCorrelations(data.correlations, container);
+
+        if (container) {
+            if (!data.correlations || data.correlations.length === 0) {
+                container.innerHTML = `
+                    <div class="placeholder-small">
+                        <span class="placeholder-icon">🔗</span>
+                        <p>Belum ada data korelasi yang cukup.</p>
+                    </div>
+                `;
+            } else {
+                // Add header to indicate context
+                const title = searchSymbol ? `Korelasi untuk ${searchSymbol}` : "Korelasi Terkuat (Global)";
+                const header = `<div style="margin-bottom:10px; font-weight:600; color:var(--text-secondary); font-size:0.9em;">${title}</div>`;
+                container.innerHTML = header;
+
+                // Create a div for the list to append to
+                const listDiv = document.createElement('div');
+                renderStockCorrelations(data.correlations, listDiv);
+                container.appendChild(listDiv);
+            }
+        }
     } catch (error) {
         console.error('Failed to load correlations:', error);
         if (container) {

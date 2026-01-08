@@ -494,8 +494,19 @@ func (s *Server) handleGetMarketRegimes(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err != nil {
+		log.Printf("Error getting market regime for %s: %v", symbol, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	// Safety check if regime is still nil (should be handled by repo now, but good practice)
+	if regime == nil {
+		regime = &database.MarketRegime{
+			StockSymbol: symbol,
+			DetectedAt:  time.Now(),
+			Regime:      "NEUTRAL",
+			Confidence:  0.0,
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -531,11 +542,8 @@ func (s *Server) handleGetDetectedPatterns(w http.ResponseWriter, r *http.Reques
 
 // handleGetStockCorrelations returns correlations for a symbol
 func (s *Server) handleGetStockCorrelations(w http.ResponseWriter, r *http.Request) {
+	// Symbol is optional for global correlations
 	symbol := r.URL.Query().Get("symbol")
-	if symbol == "" {
-		http.Error(w, "Symbol is required", http.StatusBadRequest)
-		return
-	}
 
 	limit := 20
 	if l := r.URL.Query().Get("limit"); l != "" {
