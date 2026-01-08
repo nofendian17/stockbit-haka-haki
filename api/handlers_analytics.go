@@ -14,6 +14,13 @@ import (
 	"stockbit-haka-haki/llm"
 )
 
+// Market hours constants (mirrored from app/signal_tracker.go to avoid import cycle)
+const (
+	marketOpenHour  = 9  // 09:00 WIB - market open
+	marketCloseHour = 16 // 16:00 WIB - market close
+	marketTimeZone  = "Asia/Jakarta"
+)
+
 // handleAccumulationPattern returns accumulation patterns
 func (s *Server) handleAccumulationPattern(w http.ResponseWriter, r *http.Request) {
 	hoursBack := getIntParam(r, "hours", 24, nil, nil)
@@ -413,6 +420,7 @@ func (s *Server) handleSymbolAnalysisStream(w http.ResponseWriter, r *http.Reque
 }
 
 // handleAccumulationSummary returns separate top 20 accumulation and distribution lists
+// Uses market open time (09:00 WIB) as default for more accurate trading hours analysis
 func (s *Server) handleAccumulationSummary(w http.ResponseWriter, r *http.Request) {
 	// Parse query params
 	query := r.URL.Query()
@@ -420,24 +428,33 @@ func (s *Server) handleAccumulationSummary(w http.ResponseWriter, r *http.Reques
 	var startTime time.Time
 	var hoursBack float64
 
-	// Default to Today 00:00:00 WIB (Asia/Jakarta) if no hours parameter is provided
-	loc := time.FixedZone("WIB", 7*60*60)
+	// Use market hours constants (mirrored from app/signal_tracker.go)
+	loc, err := time.LoadLocation(marketTimeZone)
+	if err != nil {
+		loc = time.FixedZone("WIB", 7*60*60)
+	}
 	now := time.Now().In(loc)
-	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
+	marketOpen := time.Date(now.Year(), now.Month(), now.Day(), marketOpenHour, 0, 0, 0, loc) // 09:00 WIB
 
 	if h := query.Get("hours"); h != "" {
 		if parsed, err := strconv.Atoi(h); err == nil {
 			hoursBack = float64(parsed)
 			startTime = time.Now().Add(-time.Duration(parsed) * time.Hour)
 		} else {
-			// Fallback if parsing fails
-			startTime = todayStart
+			// Fallback if parsing fails - use market open time
+			startTime = marketOpen
 			hoursBack = time.Since(startTime).Hours()
 		}
 	} else {
-		startTime = todayStart
+		// Default: use market open time (09:00 WIB) instead of midnight
+		startTime = marketOpen
 		hoursBack = time.Since(startTime).Hours()
 	}
+
+	// Log for debugging time range issues
+	log.Printf("[handleAccumulationSummary] now=%s, startTime=%s, hoursBack=%.2f, marketOpenHour=%d",
+		now.Format("2006-01-02 15:04:05"), startTime.Format("2006-01-02 15:04:05"),
+		hoursBack, marketOpenHour)
 
 	// Get accumulation/distribution summary (now returns 2 separate lists)
 	accumulation, distribution, err := s.repo.GetAccumulationDistributionSummary(startTime)
