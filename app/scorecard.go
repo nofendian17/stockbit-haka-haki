@@ -10,7 +10,7 @@ import (
 
 // Scorecard thresholds
 const (
-	MinScoreForSignal = 45 // Minimum score out of 100 to generate signal
+	MinScoreForSignal = 38 // Minimum score out of 100 to generate signal (lowered from 45)
 )
 
 // SignalScorecard represents a weighted scoring system for signal quality evaluation.
@@ -189,14 +189,16 @@ func (se *ScorecardEvaluator) EvaluateSignal(signal *database.TradingSignalDB) *
 
 func (se *ScorecardEvaluator) scoreVolumeZScore(z float64) int {
 	switch {
-	case z >= 5.0:
-		return 10
 	case z >= 4.0:
-		return 8
+		return 10 // Very high
 	case z >= 3.0:
-		return 6
+		return 9 // High (was 6)
+	case z >= 2.5:
+		return 7 // Moderate-high (NEW)
 	case z >= 2.0:
-		return 3
+		return 5 // Moderate (was 3)
+	case z >= 1.5:
+		return 3 // Slight elevation (NEW)
 	default:
 		return 0
 	}
@@ -215,14 +217,16 @@ func (se *ScorecardEvaluator) scoreOrderFlowImbalance(flow *database.OrderFlowIm
 	buyPct := (flow.BuyVolumeLots / totalVolume) * 100
 
 	switch {
-	case buyPct > 60:
-		return 10
-	case buyPct > 55:
-		return 7
-	case buyPct > 50:
-		return 5
+	case buyPct > 65:
+		return 10 // Very strong
+	case buyPct > 58:
+		return 8 // Strong (was 55→7)
+	case buyPct > 52:
+		return 6 // Good (was 50→5)
+	case buyPct > 48:
+		return 4 // Slight (NEW)
 	case buyPct > 45:
-		return 2
+		return 2 // Minimal
 	default:
 		return 0
 	}
@@ -230,12 +234,14 @@ func (se *ScorecardEvaluator) scoreOrderFlowImbalance(flow *database.OrderFlowIm
 
 func (se *ScorecardEvaluator) scoreVolumeVsAvg(pct float64) int {
 	switch {
-	case pct > 300:
-		return 5
-	case pct > 200:
-		return 3
+	case pct > 250:
+		return 5 // Extreme
+	case pct > 150:
+		return 4 // High (was 200→3)
 	case pct > 100:
-		return 1
+		return 3 // Above average (was 1)
+	case pct > 75:
+		return 2 // Moderate (NEW)
 	default:
 		return 0
 	}
@@ -305,12 +311,14 @@ func (se *ScorecardEvaluator) scoreBaselineSampleSize(size int) int {
 	switch {
 	case size >= 100:
 		return 10
-	case size >= 80:
-		return 7
-	case size >= 50:
-		return 5
-	case size >= 30:
-		return 2
+	case size >= 70:
+		return 8 // was 80→7
+	case size >= 40:
+		return 6 // was 50→5
+	case size >= 25:
+		return 4 // was 30→2
+	case size >= 15:
+		return 2 // NEW
 	default:
 		return 0
 	}
@@ -318,16 +326,18 @@ func (se *ScorecardEvaluator) scoreBaselineSampleSize(size int) int {
 
 func (se *ScorecardEvaluator) scoreStrategyWinRate(winRate float64) int {
 	switch {
-	case winRate >= 65:
-		return 10
-	case winRate >= 55:
-		return 7
-	case winRate >= 45:
-		return 5
-	case winRate >= 30:
-		return 2
+	case winRate >= 60:
+		return 10 // was 65
+	case winRate >= 50:
+		return 8 // was 55→7
+	case winRate >= 42:
+		return 6 // was 45→5
+	case winRate >= 35:
+		return 4 // was 30→2
+	case winRate >= 25:
+		return 2 // NEW
 	default:
-		return -5 // Penalty for very low win rate
+		return -3 // Reduced penalty (was -5)
 	}
 }
 
@@ -355,7 +365,7 @@ func (se *ScorecardEvaluator) scoreTimeOfDay(t time.Time) int {
 
 func (se *ScorecardEvaluator) scorePatternDetected(patterns []database.DetectedPattern, decision string) int {
 	if len(patterns) == 0 {
-		return 0
+		return 3 // Neutral instead of penalty (was 0)
 	}
 
 	for _, p := range patterns {

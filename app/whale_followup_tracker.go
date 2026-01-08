@@ -298,11 +298,12 @@ func (wt *WhaleFollowupTracker) generateAnalysis(symbol, action string, entryPri
 	}
 
 	var analysis string
-	if impact == "POSITIVE" {
+	switch impact {
+	case "POSITIVE":
 		analysis = fmt.Sprintf("Harga %s setelah aktivitas whale %s. Konfirmasi sinyal valid dalam %s.", trendText, action, timeText)
-	} else if impact == "NEGATIVE" {
+	case "NEGATIVE":
 		analysis = fmt.Sprintf("Harga %s berlawanan dengan aktivitas whale %s (False Signal/Reversal) dalam %s.", trendText, action, timeText)
-	} else {
+	default:
 		analysis = fmt.Sprintf("Harga %s cenderung stabil (%s) dalam %s paska alert.", symbol, trendText, timeText)
 	}
 
