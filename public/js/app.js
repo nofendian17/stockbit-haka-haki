@@ -41,7 +41,41 @@ const state = {
     isPageVisible: true,
     activeAnalyticsTab: 'correlations-view',
     pollingIntervalId: null,
-    statsIntervalId: null
+    statsIntervalId: null,
+    // Table-specific state for lazy loading
+    tables: {
+        history: {
+            offset: 0,
+            hasMore: true,
+            isLoading: false,
+            data: [],
+            filters: {}
+        },
+        signals: {
+            offset: 0,
+            hasMore: true,
+            isLoading: false,
+            data: []
+        },
+        performance: {
+            offset: 0,
+            hasMore: true,
+            isLoading: false,
+            data: []
+        },
+        accumulation: {
+            offset: 0,
+            hasMore: true,
+            isLoading: false,
+            data: []
+        },
+        distribution: {
+            offset: 0,
+            hasMore: true,
+            isLoading: false,
+            data: []
+        }
+    }
 };
 
 // OPTIMIZATION: Visibility API - pause polling when tab is hidden
@@ -80,6 +114,7 @@ async function init() {
     setupPatternAnalysis();
     setupInfiniteScroll();
     setupProfitLossHistory();
+    setupAccumulationTables();
 
     // Initialize strategy system
     initStrategySystem();
@@ -108,9 +143,9 @@ async function fetchAlerts(reset = false) {
     const loadingDiv = safeGetElement('loading');
     const loadingMore = safeGetElement('loading-more');
     const noMoreData = safeGetElement('no-more-data');
-    
+
     console.log(`🔍 Fetching alerts... Reset: ${reset}, Offset: ${state.currentOffset}, HasMore: ${state.hasMore}`);
-    
+
     if (reset) {
         if (loadingDiv) loadingDiv.style.display = 'block';
         if (noMoreData) noMoreData.style.display = 'none';
@@ -139,7 +174,7 @@ async function fetchAlerts(reset = false) {
 
         const tbody = safeGetElement('alerts-table-body');
         renderWhaleAlerts(state.alerts, tbody, loadingDiv);
-        
+
         // Show "no more data" if we've reached the end
         if (!state.hasMore && state.alerts.length > 0 && noMoreData) {
             noMoreData.style.display = 'block';
@@ -285,45 +320,57 @@ function highlightActiveFilters() {
 }
 
 /**
- * Setup infinite scroll
+ * Setup infinite scroll for a specific table
+ * @param {Object} config - Configuration object
+ * @param {string} config.tableBodyId - ID of the table body element
+ * @param {Function} config.fetchFunction - Function to fetch more data
+ * @param {string} config.stateKey - Key in state.tables for this table (optional, for tables using state.tables)
+ * @param {Function} config.getHasMore - Function to get hasMore state
+ * @param {Function} config.getIsLoading - Function to get isLoading state
+ * @param {string} config.noMoreDataId - ID of "no more data" indicator (optional)
  */
-function setupInfiniteScroll() {
-    // Find the first table-wrapper in the whale alerts section (first card with alerts-table-body)
-    const alertsTable = document.getElementById('alerts-table-body');
-    const container = alertsTable?.closest('.table-wrapper');
-    
+function setupTableInfiniteScroll(config) {
+    const tableBody = document.getElementById(config.tableBodyId);
+    const container = tableBody?.closest('.table-wrapper');
+
     if (!container) {
-        console.warn('⚠️ Table wrapper not found for infinite scroll');
+        console.warn(`⚠️ Table wrapper not found for ${config.tableBodyId}`);
         return;
     }
-    
-    console.log('✅ Infinite scroll setup on .table-wrapper');
-    
-    if (container) {
-        container.addEventListener('scroll', () => {
-            const { scrollTop, scrollHeight, clientHeight } = container;
-            const noMoreData = safeGetElement('no-more-data');
-            
-            const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-            
-            // Debug log
-            if (distanceFromBottom < CONFIG.SCROLL_THRESHOLD + 50) {
-                console.log(`📊 Scroll position: ${Math.round(distanceFromBottom)}px from bottom`);
+
+    console.log(`✅ Infinite scroll setup for ${config.tableBodyId}`);
+
+    container.addEventListener('scroll', () => {
+        const { scrollTop, scrollHeight, clientHeight } = container;
+        const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+
+        // Check if scrolled near bottom
+        if (distanceFromBottom < CONFIG.SCROLL_THRESHOLD) {
+            const hasMore = config.getHasMore();
+            const isLoading = config.getIsLoading();
+
+            if (hasMore && !isLoading) {
+                console.log(`🔄 Loading more data for ${config.tableBodyId}...`);
+                config.fetchFunction();
+            } else if (!hasMore && config.noMoreDataId) {
+                const noMoreData = safeGetElement(config.noMoreDataId);
+                if (noMoreData) noMoreData.style.display = 'block';
             }
-            
-            // Check if scrolled near bottom
-            if (distanceFromBottom < CONFIG.SCROLL_THRESHOLD) {
-                if (state.hasMore && !state.isLoading) {
-                    console.log('🔄 Loading more data...');
-                    // Load more data
-                    fetchAlerts(false);
-                } else if (!state.hasMore && noMoreData && state.alerts.length > 0) {
-                    // Show "no more data" message
-                    noMoreData.style.display = 'block';
-                }
-            }
-        });
-    }
+        }
+    });
+}
+
+/**
+ * Setup infinite scroll for whale alerts table
+ */
+function setupInfiniteScroll() {
+    setupTableInfiniteScroll({
+        tableBodyId: 'alerts-table-body',
+        fetchFunction: () => fetchAlerts(false),
+        getHasMore: () => state.hasMore,
+        getIsLoading: () => state.isLoading,
+        noMoreDataId: 'no-more-data'
+    });
 }
 
 /**
@@ -355,25 +402,102 @@ function connectWhaleAlertSSE() {
 /**
  * Render accumulation summary
  * @param {Object} data - Summary data
+ * @param {boolean} reset - Reset pagination
  */
-function renderAccumulationSummary(data) {
+function renderAccumulationSummary(data, reset = true) {
     const accumulation = data.accumulation || [];
     const distribution = data.distribution || [];
+
+    // Update state
+    if (reset) {
+        state.tables.accumulation.data = accumulation;
+        state.tables.accumulation.offset = accumulation.length;
+        state.tables.accumulation.hasMore = data.accumulation_has_more !== undefined ? data.accumulation_has_more : accumulation.length >= 50;
+
+        state.tables.distribution.data = distribution;
+        state.tables.distribution.offset = distribution.length;
+        state.tables.distribution.hasMore = data.distribution_has_more !== undefined ? data.distribution_has_more : distribution.length >= 50;
+    } else {
+        state.tables.accumulation.data = state.tables.accumulation.data.concat(accumulation);
+        state.tables.accumulation.offset += accumulation.length;
+        state.tables.accumulation.hasMore = data.accumulation_has_more !== undefined ? data.accumulation_has_more : accumulation.length >= 50;
+
+        state.tables.distribution.data = state.tables.distribution.data.concat(distribution);
+        state.tables.distribution.offset += distribution.length;
+        state.tables.distribution.hasMore = data.distribution_has_more !== undefined ? data.distribution_has_more : distribution.length >= 50;
+    }
 
     // Update counters
     const accCount = safeGetElement('accumulation-count');
     const distCount = safeGetElement('distribution-count');
-    if (accCount) accCount.textContent = accumulation.length;
-    if (distCount) distCount.textContent = distribution.length;
+    if (accCount) accCount.textContent = state.tables.accumulation.data.length;
+    if (distCount) distCount.textContent = state.tables.distribution.data.length;
 
-    // Render tables
+    // Render tables with accumulated data
     const accTbody = safeGetElement('accumulation-table-body');
     const accPlaceholder = safeGetElement('accumulation-placeholder');
-    renderSummaryTable('accumulation', accumulation, accTbody, accPlaceholder);
+    renderSummaryTable('accumulation', state.tables.accumulation.data, accTbody, accPlaceholder);
 
     const distTbody = safeGetElement('distribution-table-body');
     const distPlaceholder = safeGetElement('distribution-placeholder');
-    renderSummaryTable('distribution', distribution, distTbody, distPlaceholder);
+    renderSummaryTable('distribution', state.tables.distribution.data, distTbody, distPlaceholder);
+}
+
+/**
+ * Load more accumulation data
+ */
+async function loadMoreAccumulation() {
+    if (state.tables.accumulation.isLoading || !state.tables.accumulation.hasMore) return;
+
+    state.tables.accumulation.isLoading = true;
+
+    try {
+        const data = await API.fetchAccumulationSummary(50, state.tables.accumulation.offset);
+        renderAccumulationSummary(data, false);
+    } catch (error) {
+        console.error('Failed to load more accumulation:', error);
+    } finally {
+        state.tables.accumulation.isLoading = false;
+    }
+}
+
+/**
+ * Load more distribution data
+ */
+async function loadMoreDistribution() {
+    if (state.tables.distribution.isLoading || !state.tables.distribution.hasMore) return;
+
+    state.tables.distribution.isLoading = true;
+
+    try {
+        const data = await API.fetchAccumulationSummary(50, state.tables.distribution.offset);
+        renderAccumulationSummary(data, false);
+    } catch (error) {
+        console.error('Failed to load more distribution:', error);
+    } finally {
+        state.tables.distribution.isLoading = false;
+    }
+}
+
+/**
+ * Setup accumulation/distribution tables with infinite scroll
+ */
+function setupAccumulationTables() {
+    // Setup infinite scroll for accumulation table
+    setupTableInfiniteScroll({
+        tableBodyId: 'accumulation-table-body',
+        fetchFunction: () => loadMoreAccumulation(),
+        getHasMore: () => state.tables.accumulation.hasMore,
+        getIsLoading: () => state.tables.accumulation.isLoading
+    });
+
+    // Setup infinite scroll for distribution table
+    setupTableInfiniteScroll({
+        tableBodyId: 'distribution-table-body',
+        fetchFunction: () => loadMoreDistribution(),
+        getHasMore: () => state.tables.distribution.hasMore,
+        getIsLoading: () => state.tables.distribution.isLoading
+    });
 }
 
 /**
@@ -716,7 +840,17 @@ function setupAnalyticsTabs() {
             if (target === 'correlations-view') {
                 loadCorrelations();
             } else if (target === 'performance-view') {
-                loadPerformance();
+                loadPerformance(true);
+                // Setup infinite scroll for performance table (only once)
+                if (!targetPanel.dataset.scrollSetup) {
+                    setupTableInfiniteScroll({
+                        tableBodyId: 'daily-performance-body',
+                        fetchFunction: () => loadPerformance(false),
+                        getHasMore: () => state.tables.performance.hasMore,
+                        getIsLoading: () => state.tables.performance.isLoading
+                    });
+                    targetPanel.dataset.scrollSetup = 'true';
+                }
             } else if (target === 'optimization-view') {
                 loadOptimizationData();
             }
@@ -840,11 +974,11 @@ function setupPatternAnalysis() {
 
             const symbolInput = safeGetElement('symbol-input-container');
             const customPromptContainer = safeGetElement('custom-prompt-container');
-            
+
             if (symbolInput) {
                 symbolInput.style.display = state.currentPatternType === 'symbol' ? 'block' : 'none';
             }
-            
+
             if (customPromptContainer) {
                 customPromptContainer.style.display = state.currentPatternType === 'custom' ? 'block' : 'none';
             }
@@ -891,12 +1025,12 @@ function startPatternAnalysis() {
             }
             return;
         }
-        
+
         const symbolsInput = document.getElementById('custom-symbols-input')?.value.trim() || '';
         if (symbolsInput) {
             customSymbols = symbolsInput.split(',').map(s => s.trim().toUpperCase()).filter(s => s);
         }
-        
+
         hoursBack = parseInt(document.getElementById('custom-hours-input')?.value || '24');
         includeData = document.getElementById('custom-data-type')?.value || 'alerts,regimes';
     }
@@ -911,7 +1045,7 @@ function startPatternAnalysis() {
     if (outputDiv) outputDiv.innerHTML = '<div class="stream-loading">🤖 Menganalisis data...</div>';
 
     let streamText = '';
-    
+
     if (state.currentPatternType === 'custom') {
         state.patternSSE = createCustomPromptSSE(customPrompt, customSymbols, hoursBack, includeData, {
             onChunk: (chunk) => {
@@ -1041,7 +1175,7 @@ function startAnalyticsPolling() {
             API.fetchMarketIntelligence(symbol).then(data => {
                 // Render patterns
                 renderPatternFeed(data.patterns);
-                
+
                 // Render baseline data
                 if (data.baseline) {
                     renderMarketIntelligence({ baseline: data.baseline });
@@ -1136,7 +1270,7 @@ function setupProfitLossHistory() {
 
     if (refreshBtn) {
         refreshBtn.addEventListener('click', () => {
-            loadProfitLossHistory();
+            loadProfitLossHistory(true);
             refreshBtn.style.transform = 'rotate(360deg)';
             setTimeout(() => refreshBtn.style.transform = '', 300);
         });
@@ -1144,74 +1278,147 @@ function setupProfitLossHistory() {
 
     // Auto-load on filter change
     if (strategySelect) {
-        strategySelect.addEventListener('change', () => loadProfitLossHistory());
+        strategySelect.addEventListener('change', () => loadProfitLossHistory(true));
     }
     if (statusSelect) {
-        statusSelect.addEventListener('change', () => loadProfitLossHistory());
+        statusSelect.addEventListener('change', () => loadProfitLossHistory(true));
     }
     if (limitSelect) {
-        limitSelect.addEventListener('change', () => loadProfitLossHistory());
+        limitSelect.addEventListener('change', () => loadProfitLossHistory(true));
     }
+
+    // Setup infinite scroll for history table
+    setupTableInfiniteScroll({
+        tableBodyId: 'history-table-body',
+        fetchFunction: () => loadProfitLossHistory(false),
+        getHasMore: () => state.tables.history.hasMore,
+        getIsLoading: () => state.tables.history.isLoading,
+        noMoreDataId: 'history-no-more-data'
+    });
 }
 
 /**
  * Load profit/loss history
+ * @param {boolean} reset - Reset pagination
  */
-async function loadProfitLossHistory() {
+async function loadProfitLossHistory(reset = false) {
+    if (state.tables.history.isLoading) return;
+    if (!reset && !state.tables.history.hasMore) return;
+
     const tbody = safeGetElement('history-table-body');
     const placeholder = safeGetElement('history-placeholder');
     const loading = safeGetElement('history-loading');
+    const loadingMore = safeGetElement('history-loading-more');
+    const noMoreData = safeGetElement('history-no-more-data');
 
     if (!tbody) return;
 
-    // Show loading
-    if (loading) loading.style.display = 'block';
-    if (placeholder) placeholder.style.display = 'none';
+    state.tables.history.isLoading = true;
+
+    // Show appropriate loading indicator
+    if (reset) {
+        if (loading) loading.style.display = 'block';
+        if (placeholder) placeholder.style.display = 'none';
+        if (noMoreData) noMoreData.style.display = 'none';
+        state.tables.history.offset = 0;
+        state.tables.history.data = [];
+    } else {
+        if (loadingMore) loadingMore.style.display = 'flex';
+        if (noMoreData) noMoreData.style.display = 'none';
+    }
 
     try {
         const filters = {
             strategy: document.getElementById('history-strategy')?.value || 'ALL',
             status: document.getElementById('history-status')?.value || '',
-            limit: parseInt(document.getElementById('history-limit')?.value || '100'),
-            symbol: state.currentFilters.search || '' // Use symbol from main search if any
+            limit: 50, // Fixed page size for lazy loading
+            offset: reset ? 0 : state.tables.history.offset,
+            symbol: state.currentFilters.search || ''
         };
 
-        console.log('📊 Loading P&L history with filters:', filters);
+        console.log(`📊 Loading P&L history... Reset: ${reset}, Offset: ${filters.offset}`);
 
         const data = await API.fetchProfitLossHistory(filters);
         const history = data.history || [];
+        const hasMore = data.has_more !== undefined ? data.has_more : history.length >= 50;
 
-        console.log(`✅ Loaded ${history.length} P&L records`);
+        console.log(`✅ Loaded ${history.length} P&L records, HasMore: ${hasMore}`);
 
-        renderProfitLossHistory(history, tbody, placeholder);
+        // Update state
+        if (reset) {
+            state.tables.history.data = history;
+            state.tables.history.offset = history.length;
+        } else {
+            state.tables.history.data = state.tables.history.data.concat(history);
+            state.tables.history.offset += history.length;
+        }
+        state.tables.history.hasMore = hasMore;
+
+        // Render all accumulated data
+        renderProfitLossHistory(state.tables.history.data, tbody, placeholder);
+
+        // Show "no more data" if we've reached the end
+        if (!hasMore && state.tables.history.data.length > 0 && noMoreData) {
+            noMoreData.style.display = 'block';
+        }
     } catch (error) {
         console.error('Failed to load P&L history:', error);
         if (tbody) {
             tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; padding: 2rem; color: var(--accent-sell);">Gagal memuat riwayat P&L</td></tr>';
         }
     } finally {
+        state.tables.history.isLoading = false;
         if (loading) loading.style.display = 'none';
+        if (loadingMore) loadingMore.style.display = 'none';
     }
 }
 
 /**
  * Load daily performance
+ * @param {boolean} reset - Reset pagination
  */
-async function loadPerformance() {
+async function loadPerformance(reset = true) {
+    if (state.tables.performance.isLoading) return;
+    if (!reset && !state.tables.performance.hasMore) return;
+
     const tbody = document.getElementById('daily-performance-body');
-    if (tbody) {
+    if (!tbody) return;
+
+    state.tables.performance.isLoading = true;
+
+    if (reset) {
         tbody.innerHTML = '<tr><td colspan="8" class="text-center" style="padding: 20px;">Memuat data...</td></tr>';
+        state.tables.performance.offset = 0;
+        state.tables.performance.data = [];
     }
 
     try {
-        const data = await API.fetchDailyPerformance();
-        // Backend returns { performance: [...] }
-        renderDailyPerformance(data.performance || []);
+        const offset = reset ? 0 : state.tables.performance.offset;
+        const data = await API.fetchDailyPerformance(50, offset);
+        const performance = data.performance || [];
+        const hasMore = data.has_more !== undefined ? data.has_more : performance.length >= 50;
+
+        console.log(`✅ Loaded ${performance.length} performance records, HasMore: ${hasMore}`);
+
+        // Update state
+        if (reset) {
+            state.tables.performance.data = performance;
+            state.tables.performance.offset = performance.length;
+        } else {
+            state.tables.performance.data = state.tables.performance.data.concat(performance);
+            state.tables.performance.offset += performance.length;
+        }
+        state.tables.performance.hasMore = hasMore;
+
+        // Render all accumulated data
+        renderDailyPerformance(state.tables.performance.data);
     } catch (error) {
         console.error('Failed to load performance:', error);
         if (tbody) {
             tbody.innerHTML = '<tr><td colspan="8" class="text-center" style="padding: 20px; color: var(--accent-sell);">Gagal memuat data</td></tr>';
         }
+    } finally {
+        state.tables.performance.isLoading = false;
     }
 }
 

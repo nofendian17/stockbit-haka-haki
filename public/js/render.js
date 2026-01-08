@@ -340,19 +340,32 @@ export function updateStatsTicker(stats) {
     if (largestValueEl) largestValueEl.innerText = formatCurrency(largestVal);
 
     if (winRateEl) {
-        winRateEl.innerText = formatPercent(winRate);
-        // Color coding for Win Rate
-        if (winRate >= 50) winRateEl.style.color = 'var(--diff-positive)';
-        else if (winRate > 0) winRateEl.style.color = 'var(--accent-gold)';
-        else winRateEl.style.color = ''; // Default styling
+        // Only show win rate if there's actual data
+        if (winRate !== undefined && winRate !== null && !isNaN(winRate)) {
+            winRateEl.innerText = formatPercent(winRate);
+            // Color coding for Win Rate
+            if (winRate >= 50) winRateEl.style.color = 'var(--diff-positive)';
+            else if (winRate > 0) winRateEl.style.color = 'var(--accent-gold)';
+            else winRateEl.style.color = ''; // Default styling
+        } else {
+            winRateEl.innerText = '-'; // Show dash when no data
+            winRateEl.style.color = 'var(--text-secondary)';
+        }
     }
 
     if (avgProfitEl) {
-        avgProfitEl.innerText = (avgProfit > 0 ? '+' : '') + formatPercent(avgProfit);
-        // Color coding for Avg Profit
-        if (avgProfit > 0) avgProfitEl.className = 'value diff-positive';
-        else if (avgProfit < 0) avgProfitEl.className = 'value diff-negative';
-        else avgProfitEl.className = 'value';
+        // Only show avg profit if there's actual data
+        if (avgProfit !== undefined && avgProfit !== null && !isNaN(avgProfit)) {
+            avgProfitEl.innerText = (avgProfit > 0 ? '+' : '') + formatPercent(avgProfit);
+            // Color coding for Avg Profit
+            if (avgProfit > 0) avgProfitEl.className = 'value diff-positive';
+            else if (avgProfit < 0) avgProfitEl.className = 'value diff-negative';
+            else avgProfitEl.className = 'value';
+        } else {
+            avgProfitEl.innerText = '-'; // Show dash when no data
+            avgProfitEl.className = 'value';
+            avgProfitEl.style.color = 'var(--text-secondary)';
+        }
     }
 }
 

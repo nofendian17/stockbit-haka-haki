@@ -124,7 +124,7 @@
           <span id="strategy-connection-status">Connecting...</span>
         </div>
       </div>
-      
+
       <div class="tabs">
         <button class="tab strategy-tab active" data-strategy="ALL">Semua</button>
         <button class="tab strategy-tab" data-strategy="VOLUME_BREAKOUT">🚀 Volume</button>
@@ -254,6 +254,13 @@
           <div class="loading-spinner"></div>
           <p>Loading history...</p>
         </div>
+        <div id="history-loading-more" class="loading-more" style="display: none;">
+          <div class="loading-spinner-small"></div>
+          <p>Loading more...</p>
+        </div>
+        <div id="history-no-more-data" class="no-more-data" style="display: none;">
+          <p>📊 All data loaded</p>
+        </div>
         <div id="history-placeholder" class="placeholder">
           <span class="placeholder-icon">📈</span>
           <p>Select filters and click Refresh to load history</p>
@@ -286,52 +293,52 @@
                   <th class="text-right">Alerts</th>
                   <th class="text-right">Total Value</th>
                 </tr>
-                </thead>
-                <tbody id="accumulation-table-body">
-                  <!-- Rows will be injected here -->
-                </tbody>
-              </table>
-              <div id="accumulation-placeholder" class="placeholder" style="display: none;">
-                <span class="placeholder-icon">📈</span>
-                <p>No accumulation data</p>
-              </div>
-            </div>
-          </div>
-
-          <!-- Distribution Table -->
-          <div>
-            <h3 class="subsection-title">
-              📉 Top 20 Distribusi
-              <span id="distribution-count" class="count-badge">0</span>
-            </h3>
-            <div class="table-wrapper">
-              <table class="data-table" id="distribution-table">
-                <thead>
-                  <tr>
-                    <th>Saham</th>
-                    <th class="text-right">Beli %</th>
-                    <th class="text-right">Jual %</th>
-                    <th class="text-right">Net Value</th>
-                    <th class="text-right">Alerts</th>
-                    <th class="text-right">Total Value</th>
-                  </tr>
-                </thead>
-                <tbody id="distribution-table-body">
-                  <!-- Rows will be injected here -->
-                </tbody>
-              </table>
-              <div id="distribution-placeholder" class="placeholder" style="display: none;">
-                <span class="placeholder-icon">📉</span>
-                <p>No distribution data</p>
-              </div>
+              </thead>
+              <tbody id="accumulation-table-body">
+                <!-- Rows will be injected here -->
+              </tbody>
+            </table>
+            <div id="accumulation-placeholder" class="placeholder" style="display: none;">
+              <span class="placeholder-icon">📈</span>
+              <p>No accumulation data</p>
             </div>
           </div>
         </div>
 
-        <div id="summary-loading" class="loading" style="display: none;">
-          <div class="loading-spinner"></div>
-          <p>Loading summary data...</p>
+        <!-- Distribution Table -->
+        <div>
+          <h3 class="subsection-title">
+            📉 Top 20 Distribusi
+            <span id="distribution-count" class="count-badge">0</span>
+          </h3>
+          <div class="table-wrapper">
+            <table class="data-table" id="distribution-table">
+              <thead>
+                <tr>
+                  <th>Saham</th>
+                  <th class="text-right">Beli %</th>
+                  <th class="text-right">Jual %</th>
+                  <th class="text-right">Net Value</th>
+                  <th class="text-right">Alerts</th>
+                  <th class="text-right">Total Value</th>
+                </tr>
+              </thead>
+              <tbody id="distribution-table-body">
+                <!-- Rows will be injected here -->
+              </tbody>
+            </table>
+            <div id="distribution-placeholder" class="placeholder" style="display: none;">
+              <span class="placeholder-icon">📉</span>
+              <p>No distribution data</p>
+            </div>
+          </div>
         </div>
+      </div>
+
+      <div id="summary-loading" class="loading" style="display: none;">
+        <div class="loading-spinner"></div>
+        <p>Loading summary data...</p>
+      </div>
       </div>
     </section>
 
@@ -429,7 +436,8 @@
       </div>
 
       <div id="optimization-view" class="tab-panel">
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+        <div
+          style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
           <div class="intel-card">
             <div class="card-label">📈 EXPECTED VALUE (EV)</div>
             <div id="ev-list" style="margin-top: 0.5rem;">
@@ -443,7 +451,7 @@
             </div>
           </div>
         </div>
-        
+
         <h4 style="margin-bottom: 0.75rem; color: var(--text-primary);">📊 Strategy Effectiveness by Market Regime</h4>
         <div class="table-wrapper">
           <table class="data-table">
@@ -464,7 +472,7 @@
             </tbody>
           </table>
         </div>
-        
+
         <div style="margin-top: 1rem; text-align: center;">
           <button id="refresh-optimization-btn" class="btn-refresh" onclick="window.loadOptimizationData()">
             🔄 Refresh Data
@@ -494,21 +502,29 @@
       </div>
 
       <div id="symbol-input-container" style="display:none; margin-bottom: 1rem;">
-        <input type="text" id="symbol-input" class="filter-input" placeholder="Enter stock code (e.g., BBCA)" maxlength="4" style="text-transform: uppercase;" />
+        <input type="text" id="symbol-input" class="filter-input" placeholder="Enter stock code (e.g., BBCA)"
+          maxlength="4" style="text-transform: uppercase;" />
       </div>
 
       <!-- Custom Prompt Input -->
       <div id="custom-prompt-container" style="display:none; margin-bottom: 1rem;">
-        <textarea id="custom-prompt-input" class="filter-input" placeholder="Tanyakan apa saja tentang data di database... Contoh: 'Saham mana yang paling banyak akumulasi hari ini?' atau 'Analisis pola BBCA dalam 24 jam terakhir'" rows="4" style="width: 100%; resize: vertical; padding: 0.75rem;"></textarea>
-        
+        <textarea id="custom-prompt-input" class="filter-input"
+          placeholder="Tanyakan apa saja tentang data di database... Contoh: 'Saham mana yang paling banyak akumulasi hari ini?' atau 'Analisis pola BBCA dalam 24 jam terakhir'"
+          rows="4" style="width: 100%; resize: vertical; padding: 0.75rem;"></textarea>
+
         <div style="display: flex; gap: 1rem; margin-top: 0.75rem; flex-wrap: wrap;">
           <div style="flex: 1; min-width: 200px;">
-            <label style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem; color: var(--text-secondary);">Symbols (opsional):</label>
-            <input type="text" id="custom-symbols-input" class="filter-input" placeholder="e.g., BBCA,TLKM,BMRI" style="text-transform: uppercase;" />
+            <label
+              style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem; color: var(--text-secondary);">Symbols
+              (opsional):</label>
+            <input type="text" id="custom-symbols-input" class="filter-input" placeholder="e.g., BBCA,TLKM,BMRI"
+              style="text-transform: uppercase;" />
           </div>
-          
+
           <div style="flex: 1; min-width: 200px;">
-            <label style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem; color: var(--text-secondary);">Include Data:</label>
+            <label
+              style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem; color: var(--text-secondary);">Include
+              Data:</label>
             <select id="custom-data-type" class="filter-select">
               <option value="alerts,regimes">Alerts + Regimes</option>
               <option value="alerts,regimes,patterns">+ Patterns</option>
@@ -519,9 +535,11 @@
               <option value="signals">Signals Only</option>
             </select>
           </div>
-          
+
           <div style="flex: 0 0 150px;">
-            <label style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem; color: var(--text-secondary);">Hours Back:</label>
+            <label
+              style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem; color: var(--text-secondary);">Hours
+              Back:</label>
             <input type="number" id="custom-hours-input" class="filter-input" value="24" min="1" max="168" />
           </div>
         </div>

@@ -69,10 +69,17 @@ export async function fetchStats() {
 
 /**
  * Fetch accumulation/distribution summary
+ * @param {number} limit - Number of records per type (accumulation/distribution)
+ * @param {number} offset - Pagination offset
  * @returns {Promise<Object>} Summary data
  */
-export async function fetchAccumulationSummary() {
-    return apiFetch(API_ENDPOINTS.ACCUMULATION_SUMMARY);
+export async function fetchAccumulationSummary(limit = 50, offset = 0) {
+    const params = new URLSearchParams();
+    params.append('limit', limit);
+    params.append('offset', offset);
+
+    const url = `${API_ENDPOINTS.ACCUMULATION_SUMMARY}?${params.toString()}`;
+    return apiFetch(url);
 }
 
 
@@ -137,11 +144,13 @@ export async function fetchStrategySignals(strategy = 'ALL', lookback = CONFIG.L
  * Fetch signal history
  * @param {string} symbol - Optional symbol filter
  * @param {number} limit - Number of records to fetch
+ * @param {number} offset - Pagination offset
  * @returns {Promise<Object>} Signal history data
  */
-export async function fetchSignalHistory(symbol = '', limit = 50) {
+export async function fetchSignalHistory(symbol = '', limit = 50, offset = 0) {
     const params = new URLSearchParams();
     params.append('limit', limit);
+    params.append('offset', offset);
 
     if (symbol) {
         params.append('symbol', symbol.trim().toUpperCase());
@@ -199,10 +208,17 @@ export async function fetchCorrelations(symbol) {
 
 /**
  * Fetch daily performance metrics
+ * @param {number} limit - Number of records to fetch
+ * @param {number} offset - Pagination offset
  * @returns {Promise<Object>} Performance data
  */
-export async function fetchDailyPerformance() {
-    return apiFetch(API_ENDPOINTS.PERFORMANCE);
+export async function fetchDailyPerformance(limit = 50, offset = 0) {
+    const params = new URLSearchParams();
+    params.append('limit', limit);
+    params.append('offset', offset);
+
+    const url = `${API_ENDPOINTS.PERFORMANCE}?${params.toString()}`;
+    return apiFetch(url);
 }
 
 /**
@@ -270,7 +286,7 @@ export async function fetchDetectedPatterns() {
 
 /**
  * Fetch profit/loss history
- * @param {Object} filters - Filter parameters (strategy, status, limit, symbol)
+ * @param {Object} filters - Filter parameters (strategy, status, limit, symbol, offset)
  * @returns {Promise<Object>} P&L history data
  */
 export async function fetchProfitLossHistory(filters = {}) {
@@ -284,6 +300,9 @@ export async function fetchProfitLossHistory(filters = {}) {
     }
     if (filters.limit) {
         params.append('limit', filters.limit);
+    }
+    if (filters.offset !== undefined) {
+        params.append('offset', filters.offset);
     }
     if (filters.symbol) {
         params.append('symbol', filters.symbol.toUpperCase());

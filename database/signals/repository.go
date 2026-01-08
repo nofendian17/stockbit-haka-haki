@@ -182,9 +182,30 @@ func (r *Repository) GetOpenSignals(limit int) ([]models.TradingSignalDB, error)
 
 // GetSignalPerformanceStats calculates performance statistics
 func (r *Repository) GetSignalPerformanceStats(strategy string, symbol string) (*types.PerformanceStats, error) {
+	// Check if there are any outcomes first
+	query := r.db.Model(&models.SignalOutcome{}).
+		Where("outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN', 'OPEN')")
+
+	if strategy != "" && strategy != "ALL" {
+		query = query.Where("strategy = ?", strategy)
+	}
+	if symbol != "" {
+		query = query.Where("stock_symbol = ?", symbol)
+	}
+
+	var count int64
+	if err := query.Count(&count).Error; err != nil {
+		return nil, fmt.Errorf("GetSignalPerformanceStats count: %w", err)
+	}
+
+	// Return nil if no data exists
+	if count == 0 {
+		return nil, nil
+	}
+
 	var stats types.PerformanceStats
 
-	query := `
+	sqlQuery := `
 		SELECT
 			ts.strategy,
 			ts.stock_symbol,
@@ -212,17 +233,17 @@ func (r *Repository) GetSignalPerformanceStats(strategy string, symbol string) (
 
 	var args []interface{}
 	if strategy != "" && strategy != "ALL" {
-		query += " AND ts.strategy = ?"
+		sqlQuery += " AND ts.strategy = ?"
 		args = append(args, strategy)
 	}
 	if symbol != "" {
-		query += " AND ts.stock_symbol = ?"
+		sqlQuery += " AND ts.stock_symbol = ?"
 		args = append(args, symbol)
 	}
 
-	query += " GROUP BY ts.strategy, ts.stock_symbol"
+	sqlQuery += " GROUP BY ts.strategy, ts.stock_symbol"
 
-	if err := r.db.Raw(query, args...).Scan(&stats).Error; err != nil {
+	if err := r.db.Raw(sqlQuery, args...).Scan(&stats).Error; err != nil {
 		return nil, fmt.Errorf("GetSignalPerformanceStats: %w", err)
 	}
 
@@ -231,6 +252,19 @@ func (r *Repository) GetSignalPerformanceStats(strategy string, symbol string) (
 
 // GetGlobalPerformanceStats calculates global performance statistics across all strategies and symbols
 func (r *Repository) GetGlobalPerformanceStats() (*types.PerformanceStats, error) {
+	// Check if there are any outcomes first
+	var count int64
+	if err := r.db.Model(&models.SignalOutcome{}).
+		Where("outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN', 'OPEN')").
+		Count(&count).Error; err != nil {
+		return nil, fmt.Errorf("GetGlobalPerformanceStats count: %w", err)
+	}
+
+	// Return nil if no data exists
+	if count == 0 {
+		return nil, nil
+	}
+
 	var stats types.PerformanceStats
 
 	query := `
