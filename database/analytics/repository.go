@@ -67,7 +67,8 @@ func (r *Repository) CalculateBaselinesDB(hoursBack int, minTrades int) ([]model
 
 	// Complex aggregation query using Postgres/TimescaleDB functions
 	// We use candle_1min to get precise volume/price data but aggregated by minute first for speed
-	query := `
+	// Note: We use fmt.Sprintf for lookback_hours in SELECT to avoid type inference issues
+	query := fmt.Sprintf(`
 		WITH stats AS (
 			SELECT
 				stock_symbol,
@@ -92,8 +93,8 @@ func (r *Repository) CalculateBaselinesDB(hoursBack int, minTrades int) ([]model
 		SELECT
 			stock_symbol,
 			NOW() as calculated_at,
-			? as lookback_hours,
-			sample_size,
+			%d as lookback_hours,
+			sample_size::bigint,
 			COALESCE(mean_price, 0) as mean_price,
 			COALESCE(std_dev_price, 0) as std_dev_price,
 			COALESCE(median_price, 0) as median_price,
@@ -107,9 +108,9 @@ func (r *Repository) CalculateBaselinesDB(hoursBack int, minTrades int) ([]model
 			COALESCE(mean_value, 0) as mean_value,
 			COALESCE(std_dev_value, 0) as std_dev_value
 		FROM stats
-	`
+	`, hoursBack)
 
-	if err := r.db.Raw(query, hoursBack, minTrades, hoursBack).Scan(&baselines).Error; err != nil {
+	if err := r.db.Raw(query, hoursBack, minTrades).Scan(&baselines).Error; err != nil {
 		return nil, fmt.Errorf("CalculateBaselinesDB: %w", err)
 	}
 
