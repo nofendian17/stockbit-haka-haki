@@ -604,7 +604,7 @@ body {
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 500px), 1fr));
   gap: var(--space-lg);
 }
 
@@ -964,6 +964,86 @@ footer {
     text-align: right;
   }
 
+  /* Summary Grid Tables - Ensure card layout on mobile */
+  .summary-grid .table-wrapper {
+    border: none;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .summary-grid .data-table thead {
+    display: none;
+  }
+
+  .summary-grid .data-table,
+  .summary-grid .data-table tbody,
+  .summary-grid .data-table tr {
+    display: block;
+    width: 100%;
+  }
+
+  .summary-grid .data-table tr {
+    margin-bottom: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 1rem;
+    background: var(--bg-secondary);
+  }
+
+  .summary-grid .data-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.6rem 0;
+    border: none;
+    text-align: right;
+    white-space: normal;
+    min-height: 32px;
+  }
+
+  .summary-grid .data-table td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    letter-spacing: 0.5px;
+    text-align: left;
+    flex-shrink: 0;
+    margin-right: 1rem;
+    min-width: 80px;
+  }
+
+  /* Saham column - Make it prominent */
+  .summary-grid .data-table td.col-symbol {
+    font-size: 1.1rem;
+    font-weight: 700;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 0.5rem;
+  }
+
+  .summary-grid .data-table td.col-symbol::before {
+    font-size: 0.65rem;
+    font-weight: 500;
+  }
+
+  /* Value highlight - Make total value stand out */
+  .summary-grid .data-table td.value-highlight {
+    font-weight: 700;
+    font-size: 1.05rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border-color);
+    margin-top: 0.5rem;
+  }
+
+  /* Better spacing for percentage values */
+  .summary-grid .data-table td .diff-positive,
+  .summary-grid .data-table td .diff-negative {
+    font-size: 0.95rem;
+  }
+
+
   /* Tabs Mobile */
   .tabs {
     overflow-x: auto;
@@ -1034,7 +1114,20 @@ footer {
   /* Summary Grid Mobile */
   .summary-grid {
     grid-template-columns: 1fr;
-    gap: var(--space-md);
+    gap: var(--space-lg);
+  }
+
+  /* Subsection titles on mobile */
+  .subsection-title {
+    font-size: 1rem;
+    margin-bottom: var(--space-md);
+    padding: 0.5rem 0;
+    border-bottom: 2px solid var(--border-color);
+  }
+
+  .count-badge {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.6rem;
   }
 
   /* Buttons Mobile - Better Touch Targets */
@@ -1121,6 +1214,29 @@ footer {
     max-height: 100vh;
     border-radius: 0;
     margin: 0;
+  }
+
+  /* Summary Grid - Compact for small screens */
+  .summary-grid .data-table td {
+    padding: 0.5rem 0;
+    font-size: 0.85rem;
+  }
+
+  .summary-grid .data-table td::before {
+    font-size: 0.65rem;
+    min-width: 70px;
+  }
+
+  .summary-grid .data-table td.col-symbol {
+    font-size: 1rem;
+  }
+
+  .summary-grid .data-table tr {
+    padding: 0.75rem;
+  }
+
+  .subsection-title {
+    font-size: 0.95rem;
   }
 }
 
