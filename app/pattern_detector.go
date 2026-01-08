@@ -112,9 +112,10 @@ func (pd *PatternDetector) detectPatterns() {
 				}
 
 				if p.PatternDirection != nil {
-					if *p.PatternDirection == "BULLISH" {
+					switch *p.PatternDirection {
+					case "BULLISH":
 						signal.Decision = "BUY"
-					} else if *p.PatternDirection == "BEARISH" {
+					case "BEARISH":
 						signal.Decision = "SELL"
 						// Skip SELL generation for Indonesia market if strictly following rules,
 						// but PatternDetector can detect them. SignalTracker will filter if needed.
