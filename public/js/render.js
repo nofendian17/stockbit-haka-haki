@@ -1,9 +1,9 @@
 /**
  * DOM Rendering Functions
- * Handles all UI rendering logic
+ * Handles all UI rendering logic with TailwindCSS classes
  */
 
-import { formatCurrency, formatNumber, formatTime, getTimeAgo, formatStrategyName, parseTimestamp, formatPercent, getRegimeColor, getRegimeLabel } from './utils.js';
+import { formatCurrency, formatNumber, formatTime, getTimeAgo, formatStrategyName, parseTimestamp, formatPercent, getRegimeClass, getRegimeLabel } from './utils.js';
 
 /**
  * Render whale alerts table
@@ -41,7 +41,7 @@ export function renderWhaleAlerts(alerts, tbody, loadingDiv) {
  */
 function createWhaleAlertRow(alert) {
     const row = document.createElement('tr');
-    row.className = 'clickable-row';
+    row.className = 'cursor-pointer hover:bg-bgHover transition-colors border-b border-borderColor last:border-0';
     row.onclick = () => {
         if (window.openFollowupModal) {
             window.openFollowupModal(alert.id, alert.stock_symbol, alert.trigger_price || 0);
@@ -49,9 +49,9 @@ function createWhaleAlertRow(alert) {
     };
 
     // Badge styling
-    let badgeClass = 'unknown';
-    if (alert.action === 'BUY') badgeClass = 'buy';
-    if (alert.action === 'SELL') badgeClass = 'sell';
+    let badgeClass = 'bg-gray-700 text-gray-300';
+    if (alert.action === 'BUY') badgeClass = 'bg-accentSuccess/20 text-accentSuccess border border-accentSuccess/20';
+    if (alert.action === 'SELL') badgeClass = 'bg-accentDanger/20 text-accentDanger border border-accentDanger/20';
     const actionText = alert.action === 'BUY' ? 'BELI' : alert.action === 'SELL' ? 'JUAL' : alert.action;
 
     // Data extraction
@@ -65,8 +65,8 @@ function createWhaleAlertRow(alert) {
     if (avgPrice > 0 && price > 0) {
         const pct = ((price - avgPrice) / avgPrice) * 100;
         const sign = pct >= 0 ? '+' : '';
-        const type = pct >= 0 ? 'diff-positive' : 'diff-negative';
-        priceDiff = `<span class="${type}" title="vs Avg: ${formatNumber(avgPrice)}">(${sign}${pct.toFixed(1)}%)</span>`;
+        const type = pct >= 0 ? 'text-accentSuccess' : 'text-accentDanger';
+        priceDiff = `<span class="${type} text-xs ml-1" title="vs Avg: ${formatNumber(avgPrice)}">(${sign}${pct.toFixed(1)}%)</span>`;
     }
 
     // Anomaly detection
@@ -80,21 +80,24 @@ function createWhaleAlertRow(alert) {
 
     // Message
     const messageHtml = alert.message ?
-        `<div style="font-size: 0.7rem; color: #555; margin-top: 4px; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${alert.message}">${alert.message}</div>` : '';
+        `<div class="text-[10px] text-textMuted max-w-[200px] truncate" title="${alert.message}">${alert.message}</div>` : '';
 
     // Alert type badge
     const alertType = alert.alert_type || 'SINGLE_TRADE';
     const alertTypeBadge = alertType !== 'SINGLE_TRADE' ?
-        `<span style="font-size:0.65em; padding:2px 4px; background:#333; color:#fff; border-radius:3px; margin-left:4px;">${alertType}</span>` : '';
+        `<span class="text-[9px] px-1 py-0 bg-bgHover text-textPrimary rounded ml-1 border border-borderColor">${alertType}</span>` : '';
 
     // Symbol cell
     const symbolCellHtml = `
-        <td data-label="Saham" class="col-symbol">
-            <div style="display: flex; align-items: center; gap: 4px;">
-                <strong class="clickable-symbol" onclick="event.stopPropagation(); if(window.openCandleModal) window.openCandleModal('${alert.stock_symbol}')">${alert.stock_symbol}</strong>
+        <td data-label="Saham" class="table-cell">
+            <div class="flex items-center gap-1">
+                <strong class="cursor-pointer hover:text-accentInfo transition-colors text-xs" onclick="event.stopPropagation(); if(window.openCandleModal) window.openCandleModal('${alert.stock_symbol}')">${alert.stock_symbol}</strong>
                 ${alertTypeBadge}
             </div>
-            <span class="${confidenceClass}" style="font-size:0.7em;" title="Skor Keyakinan">${confidenceIcon} ${confidenceLabel}</span>
+            <div class="${confidenceClass} text-[10px] flex items-center gap-1" title="Skor Keyakinan">
+                <span>${confidenceIcon}</span>
+                <span>${confidenceLabel}</span>
+            </div>
             ${messageHtml}
         </td>
     `;
@@ -110,21 +113,18 @@ function createWhaleAlertRow(alert) {
     })() : 'Waktu tidak valid';
 
     row.innerHTML = `
-        <td data-label="Waktu" class="col-time" title="${detectedTime}">${formatTime(alert.detected_at)}</td>
+        <td data-label="Waktu" class="table-cell text-textMuted whitespace-nowrap" title="${detectedTime}">${formatTime(alert.detected_at)}</td>
         ${symbolCellHtml}
-        <td data-label="Aksi"><span class="badge ${badgeClass}">${actionText}</span></td>
-        <td data-label="Harga" class="col-price">${formatNumber(price)} ${priceDiff}</td>
-        <td data-label="Nilai" class="text-right value-highlight" title="Total Nilai: Rp ${formatNumber(val)}">${formatCurrency(val)}</td>
-        <td data-label="Volume" class="text-right" title="${formatNumber(volume)} lot">${formatNumber(volume)} Lot</td>
-        <td data-label="Details">
-            <div style="display: flex; flex-direction: column; gap: 2px;">
-                <span style="font-size:0.85em; color:var(--text-secondary);">${alert.market_board || 'RG'}</span>
+        <td data-label="Aksi" class="table-cell"><span class="px-2 py-0.5 rounded text-xs font-bold ${badgeClass}">${actionText}</span></td>
+        <td data-label="Harga" class="table-cell whitespace-nowrap font-medium">${formatNumber(price)} ${priceDiff}</td>
+        <td data-label="Nilai" class="table-cell text-right font-bold text-textPrimary whitespace-nowrap" title="Total Nilai: Rp ${formatNumber(val)}">${formatCurrency(val)}</td>
+        <td data-label="Volume" class="table-cell text-right text-textSecondary whitespace-nowrap" title="${formatNumber(volume)} lot">${formatNumber(volume)}</td>
+        <td data-label="Details" class="table-cell">
+            <div class="flex flex-col gap-1">
+                <span class="text-xs text-textSecondary">${alert.market_board || 'RG'}</span>
                 ${anomalyHtml}
-                ${!anomalyHtml ? `<span style="font-size:0.75em; color:#aaa;">${alertType === 'ACCUMULATION' ? 'Akumulasi' : 'Transaksi Besar'}</span>` : ''}
-                ${!anomalyHtml ? `<span style="font-size:0.75em; color:#aaa;">${alertType === 'ACCUMULATION' ? 'Akumulasi' : 'Transaksi Besar'}</span>` : ''}
-                ${zScore > 0 ? `<span style="font-size:0.7em; color:#888;" title="Statistical Anomaly Score">Z: ${zScore.toFixed(2)}</span>` : ''}
-                ${alert.adaptive_threshold ? `<span style="font-size:0.65em; color:var(--text-secondary);" title="Threshold: ${alert.adaptive_threshold.toFixed(2)} | Volatility: ${alert.volatility_pct ? alert.volatility_pct.toFixed(2) : 0}%">T: ${alert.adaptive_threshold.toFixed(1)} ${alert.volatility_pct > 1.5 ? '⚠️' : ''}</span>` : ''}
-                <span style="font-size: 0.65em; color: var(--accent-blue); margin-top: 2px;">Klik info ↗</span>
+                ${zScore > 0 ? `<span class="text-[10px] text-textMuted" title="Statistical Anomaly Score">Z: ${zScore.toFixed(2)}</span>` : ''}
+                ${alert.adaptive_threshold ? `<span class="text-[10px] text-textMuted" title="Threshold: ${alert.adaptive_threshold.toFixed(2)} | Vol: ${alert.volatility_pct?.toFixed(2) || 0}%">T: ${alert.adaptive_threshold.toFixed(1)}${alert.volatility_pct > 1.5 ? '⚠️' : ''}</span>` : ''}
             </div>
         </td>
     `;
@@ -141,9 +141,9 @@ function createWhaleAlertRow(alert) {
 function generateAnomalyBadge(zScore, volumeVsAvg) {
     if (zScore >= 3.0) {
         const anomalyLevel = zScore >= 5.0 ? '🔴 Ekstrem' : zScore >= 4.0 ? '🟠 Tinggi' : '🟡 Sedang';
-        return `<span class="table-anomaly" title="Skor Anomali: ${zScore.toFixed(2)} | Volume: ${volumeVsAvg.toFixed(0)}% vs Rata-rata">${anomalyLevel}</span>`;
+        return `<span class="text-[10px] font-bold uppercase tracking-wider text-purple-400 bg-purple-900/30 px-1.5 py-0.5 rounded border border-purple-500/30 inline-block w-fit" title="Skor Anomali: ${zScore.toFixed(2)} | Volume: ${volumeVsAvg.toFixed(2)}% vs Rata-rata">${anomalyLevel}</span>`;
     } else if (volumeVsAvg >= 500) {
-        return `<span class="table-anomaly" title="Lonjakan Volume: ${volumeVsAvg.toFixed(0)}% vs Rata-rata">📊 Lonjakan Vol</span>`;
+        return `<span class="text-[10px] font-bold uppercase tracking-wider text-accentInfo bg-accentInfo/10 px-1.5 py-0.5 rounded border border-accentInfo/30 inline-block w-fit" title="Lonjakan Volume: ${volumeVsAvg.toFixed(0)}% vs Rata-rata">📊 Lonjakan Vol</span>`;
     }
     return '';
 }
@@ -154,18 +154,18 @@ function generateAnomalyBadge(zScore, volumeVsAvg) {
  * @returns {Object} {confidenceClass, confidenceIcon, confidenceLabel}
  */
 function getConfidenceDisplay(confidence) {
-    let confidenceClass = 'confidence-low';
+    let confidenceClass = 'text-textMuted';
     let confidenceIcon = '⚪';
     let confidenceLabel = `Yakin ${confidence.toFixed(0)}%`;
 
     if (confidence >= 85) {
-        confidenceClass = 'confidence-extreme';
+        confidenceClass = 'text-accentDanger font-bold';
         confidenceIcon = '🔴';
     } else if (confidence >= 70) {
-        confidenceClass = 'confidence-high';
+        confidenceClass = 'text-accentWarning font-semibold';
         confidenceIcon = '🟠';
     } else if (confidence >= 50) {
-        confidenceClass = 'confidence-medium';
+        confidenceClass = 'text-yellow-400';
         confidenceIcon = '🟡';
     }
 
@@ -184,7 +184,7 @@ export function renderRunningPositions(positions, tbody, placeholder) {
     tbody.innerHTML = '';
 
     if (positions.length === 0) {
-        if (placeholder) placeholder.style.display = 'block';
+        if (placeholder) placeholder.style.display = 'flex'; // Changed to flex to support centering classes if used
         return;
     }
 
@@ -203,10 +203,11 @@ export function renderRunningPositions(positions, tbody, placeholder) {
  */
 function createPositionRow(pos) {
     const row = document.createElement('tr');
+    row.className = 'hover:bg-bgHover transition-colors border-b border-borderColor last:border-0';
 
     // P&L calculation
     const profitLoss = pos.profit_loss_pct || 0;
-    const profitClass = profitLoss >= 0 ? 'diff-positive' : 'diff-negative';
+    const profitClass = profitLoss >= 0 ? 'text-accentSuccess' : 'text-accentDanger';
     const profitSign = profitLoss >= 0 ? '+' : '';
 
     // Holding time
@@ -230,7 +231,7 @@ function createPositionRow(pos) {
         minute: '2-digit'
     }) : '-';
 
-    // MAE/MFE - Show 0.00% when values exist but are zero, show '-' only when null/undefined
+    // MAE/MFE
     const mae = pos.max_adverse_excursion;
     const mfe = pos.max_favorable_excursion;
     const maeText = (mae !== null && mae !== undefined) ? `${mae.toFixed(2)}%` : '-';
@@ -239,34 +240,18 @@ function createPositionRow(pos) {
     const strategyText = formatStrategyName(pos.strategy || 'TRACKING');
 
     row.innerHTML = `
-        <td><strong>${pos.stock_symbol}</strong></td>
-        <td style="font-size: 0.85em;">${strategyText}</td>
-        <td style="font-size: 0.85em;">${entryTime}</td>
-        <td class="text-right">${formatNumber(pos.entry_price)}</td>
-        <td class="text-right">
-            <span class="${profitClass}" style="font-weight: 600; font-size: 1.1em;">
+        <td data-label="Saham" class="table-cell"><strong>${pos.stock_symbol}</strong></td>
+        <td data-label="Strategi" class="table-cell text-xs">${strategyText}</td>
+        <td data-label="Entry Time" class="table-cell text-xs text-textSecondary whitespace-nowrap">${entryTime}</td>
+        <td data-label="Entry Price" class="table-cell text-right font-medium">${formatNumber(pos.entry_price)}</td>
+        <td data-label="P&L %" class="table-cell text-right">
+            <span class="${profitClass} font-bold text-base">
                 ${profitSign}${profitLoss.toFixed(2)}%
             </span>
         </td>
-        <td class="text-right" style="font-size: 0.9em;">${holdingText}</td>
-        <td class="text-right" style="font-size: 0.85em;">
-            <span class="diff-negative">${maeText}</span> /
-            <span class="diff-positive">${mfeText}</span>
-        </td>
-        <td>
-            <span class="badge" style="background: var(--accent-blue); color: white;">
-                ${pos.outcome_status}
-            </span>
-        </td>
+        <td data-label="Status" class="table-cell text-right"><span class="px-2 py-0.5 bg-bgSecondary rounded text-xs text-center inline-block min-w-[60px]">${pos.outcome_status}</span></td>
     `;
-
-    row.addEventListener('mouseenter', () => {
-        row.style.backgroundColor = 'rgba(59, 130, 246, 0.05)';
-    });
-    row.addEventListener('mouseleave', () => {
-        row.style.backgroundColor = '';
-    });
-
+    
     return row;
 }
 
@@ -291,23 +276,21 @@ export function renderSummaryTable(type, data, tbody, placeholder) {
 
     data.forEach(item => {
         const row = document.createElement('tr');
+        row.className = 'border-b border-borderColor last:border-0 hover:bg-bgHover transition-colors';
 
-        const netValueClass = item.net_value >= 0 ? 'diff-positive' : 'diff-negative';
+        const netValueClass = item.net_value >= 0 ? 'text-accentSuccess' : 'text-accentDanger';
         const netValueSign = item.net_value >= 0 ? '+' : '';
 
         row.innerHTML = `
-            <td data-label="Saham" class="col-symbol">${item.stock_symbol}</td>
-            <td data-label="BUY %" class="text-right">
-                <span class="diff-positive" style="font-weight: 600;">${item.buy_percentage.toFixed(1)}%</span>
+            <td data-label="Saham" class="table-cell font-bold">${item.stock_symbol}</td>
+            ${type === 'accumulation' ? 
+                `<td data-label="Beli %" class="table-cell text-right font-semibold text-accentSuccess">${item.buy_percentage.toFixed(1)}%</td>` :
+                `<td data-label="Jual %" class="table-cell text-right font-semibold text-accentDanger">${item.sell_percentage.toFixed(1)}%</td>`
+            }
+            <td data-label="Net Value" class="table-cell text-right">
+                <span class="${netValueClass} font-semibold">${netValueSign}${formatCurrency(Math.abs(item.net_value))}</span>
             </td>
-            <td data-label="SELL %" class="text-right">
-                <span class="diff-negative" style="font-weight: 600;">${item.sell_percentage.toFixed(1)}%</span>
-            </td>
-            <td data-label="Net Value" class="text-right">
-                <span class="${netValueClass}" style="font-weight: 600;">${netValueSign}${formatCurrency(Math.abs(item.net_value))}</span>
-            </td>
-            <td data-label="Alerts" class="text-right">${item.total_count}</td>
-            <td data-label="Total Value" class="text-right value-highlight">${formatCurrency(item.total_value)}</td>
+            <td data-label="Total Value" class="table-cell text-right font-bold text-textPrimary">${formatCurrency(item.total_value)}</td>
         `;
 
         tbody.appendChild(row);
@@ -322,49 +305,36 @@ export function updateStatsTicker(stats) {
     if (!stats) return;
 
     const totalTrades = stats.total_whale_trades || 0;
-    const buyVol = stats.buy_volume_lots || 0;
-    const sellVol = stats.sell_volume_lots || 0;
-    const largestVal = stats.largest_trade_value || 0;
     const winRate = stats.win_rate || 0;
     const avgProfit = stats.avg_profit_pct || 0;
 
     const totalAlertsEl = document.getElementById('total-alerts');
-    const totalVolumeEl = document.getElementById('total-volume');
-    const largestValueEl = document.getElementById('largest-value');
     const winRateEl = document.getElementById('global-win-rate');
     const avgProfitEl = document.getElementById('global-avg-profit');
 
     if (totalAlertsEl) totalAlertsEl.innerText = formatNumber(totalTrades);
-    // totalVolumeEl and largestValueEl removed in new UI design
-    if (totalVolumeEl) totalVolumeEl.innerText = formatNumber(buyVol + sellVol) + " Lot";
-    if (largestValueEl) largestValueEl.innerText = formatCurrency(largestVal);
 
     if (winRateEl) {
-        // Only show win rate if there's actual data
         if (winRate !== undefined && winRate !== null && !isNaN(winRate)) {
             winRateEl.innerText = formatPercent(winRate);
-            // Color coding for Win Rate
-            if (winRate >= 50) winRateEl.style.color = 'var(--diff-positive)';
-            else if (winRate > 0) winRateEl.style.color = 'var(--accent-gold)';
-            else winRateEl.style.color = ''; // Default styling
+            if (winRate >= 50) winRateEl.className = 'text-base font-bold text-accentSuccess';
+            else if (winRate > 0) winRateEl.className = 'text-base font-bold text-accentWarning';
+            else winRateEl.className = 'text-base font-bold text-textSecondary';
         } else {
-            winRateEl.innerText = '-'; // Show dash when no data
-            winRateEl.style.color = 'var(--text-secondary)';
+            winRateEl.innerText = '-';
+            winRateEl.className = 'text-base font-bold text-textSecondary';
         }
     }
 
     if (avgProfitEl) {
-        // Only show avg profit if there's actual data
         if (avgProfit !== undefined && avgProfit !== null && !isNaN(avgProfit)) {
             avgProfitEl.innerText = (avgProfit > 0 ? '+' : '') + formatPercent(avgProfit);
-            // Color coding for Avg Profit
-            if (avgProfit > 0) avgProfitEl.className = 'value diff-positive';
-            else if (avgProfit < 0) avgProfitEl.className = 'value diff-negative';
-            else avgProfitEl.className = 'value';
+            if (avgProfit > 0) avgProfitEl.className = 'text-base font-bold text-accentSuccess';
+            else if (avgProfit < 0) avgProfitEl.className = 'text-base font-bold text-accentDanger';
+            else avgProfitEl.className = 'text-base font-bold text-textPrimary';
         } else {
-            avgProfitEl.innerText = '-'; // Show dash when no data
-            avgProfitEl.className = 'value';
-            avgProfitEl.style.color = 'var(--text-secondary)';
+            avgProfitEl.innerText = '-';
+            avgProfitEl.className = 'text-base font-bold text-textSecondary';
         }
     }
 }
@@ -381,62 +351,69 @@ export function renderStockCorrelations(correlations, container) {
 
     if (!correlations || correlations.length === 0) {
         container.innerHTML = `
-            <div class="placeholder">
-                <span class="placeholder-icon">🔗</span>
+            <div class="text-center p-8 text-textSecondary">
+                <span class="text-3xl block mb-2 opacity-50">��</span>
                 <p>Tidak ada data korelasi ditemukan</p>
             </div>`;
         return;
     }
 
+    const grid = document.createElement('div');
+    grid.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4';
+
     correlations.forEach(corr => {
         const card = document.createElement('div');
-        card.className = 'correlation-card';
+        card.className = 'bg-bgCard border border-borderColor rounded-lg p-4 hover:border-bgHover transition-colors shadow-sm';
 
         const coefficient = corr.correlation_coefficient || 0;
-        let colorClass = 'neutral';
+        let colorClass = 'text-textSecondary';
+        let barColor = 'bg-gray-500';
         let strengthText = 'Netral';
 
         if (coefficient > 0.7) {
-            colorClass = 'positive-strong';
-            strengthText = 'Sangat Kuat (Positif)';
+            colorClass = 'text-accentSuccess font-bold';
+            barColor = 'bg-accentSuccess';
+            strengthText = 'Sangat Kuat (+)';
         } else if (coefficient > 0.4) {
-            colorClass = 'positive';
-            strengthText = 'Kuat (Positif)';
+            colorClass = 'text-accentSuccess';
+            barColor = 'bg-accentSuccess/80';
+            strengthText = 'Kuat (+)';
         } else if (coefficient < -0.7) {
-            colorClass = 'negative-strong';
-            strengthText = 'Sangat Kuat (Negatif)';
+            colorClass = 'text-accentDanger font-bold';
+            barColor = 'bg-accentDanger';
+            strengthText = 'Sangat Kuat (-)';
         } else if (coefficient < -0.4) {
-            colorClass = 'negative';
-            strengthText = 'Kuat (Negatif)';
+            colorClass = 'text-accentDanger';
+            barColor = 'bg-accentDanger/80';
+            strengthText = 'Kuat (-)';
         }
 
-        // Format Period
         const period = corr.period === '1hour' ? '1 Jam' : corr.period;
 
         card.innerHTML = `
-            <div class="corr-header">
-                <div class="pair">
-                    <span class="symbol">${corr.stock_a}</span>
-                    <span class="separator">↔</span>
-                    <span class="symbol">${corr.stock_b}</span>
+            <div class="flex justify-between items-center mb-3">
+                <div class="flex items-center gap-2 font-mono text-sm">
+                    <span class="font-bold">${corr.stock_a}</span>
+                    <span class="text-textMuted">↔</span>
+                    <span class="font-bold">${corr.stock_b}</span>
                 </div>
-                <div class="corr-value ${colorClass}">
+                <div class="${colorClass} text-lg">
                     ${coefficient.toFixed(2)}
                 </div>
             </div>
-            <div class="corr-body">
-                <div class="strength-bar">
-                    <div class="bar-fill ${colorClass}" style="width: ${Math.abs(coefficient) * 100}%"></div>
-                </div>
-                <div class="corr-meta">
-                    <span class="strength-label">${strengthText}</span>
-                    <span class="period-label">Period: ${period}</span>
-                </div>
+            <div class="w-full h-1.5 bg-bgSecondary rounded-full overflow-hidden mb-2">
+                <div class="h-full ${barColor} transition-all" style="width: ${Math.abs(coefficient) * 100}%"></div>
+            </div>
+            <div class="flex justify-between text-xs text-textSecondary">
+                <span>${strengthText}</span>
+                <span>Period: ${period}</span>
             </div>
         `;
 
-        container.appendChild(card);
+        grid.appendChild(card);
     });
+
+    container.appendChild(grid);
 }
 
 /**
@@ -470,10 +447,11 @@ export function renderProfitLossHistory(history, tbody, placeholder) {
  */
 function createHistoryRow(record) {
     const row = document.createElement('tr');
+    row.className = 'border-b border-borderColor last:border-0 hover:bg-bgHover transition-colors';
 
     // P&L calculation
     const profitLoss = record.profit_loss_pct || 0;
-    const profitClass = profitLoss > 0 ? 'diff-positive' : profitLoss < 0 ? 'diff-negative' : '';
+    const profitClass = profitLoss > 0 ? 'text-accentSuccess' : profitLoss < 0 ? 'text-accentDanger' : 'text-textPrimary';
     const profitSign = profitLoss > 0 ? '+' : '';
 
     // Entry time
@@ -484,113 +462,47 @@ function createHistoryRow(record) {
         minute: '2-digit'
     }) : '-';
 
-    // Exit time
-    const exitTime = record.exit_time ? new Date(record.exit_time).toLocaleString('id-ID', {
-        day: '2-digit',
-        month: 'short',
-        hour: '2-digit',
-        minute: '2-digit'
-    }) : '-';
-
-    // Exit price
-    const exitPrice = record.exit_price ? formatNumber(record.exit_price) : '-';
-
-    // MAE/MFE
-    const mae = record.max_adverse_excursion;
-    const mfe = record.max_favorable_excursion;
-    const maeText = (mae !== null && mae !== undefined) ? `${mae.toFixed(2)}%` : '-';
-    const mfeText = (mfe !== null && mfe !== undefined) ? `${mfe.toFixed(2)}%` : '-';
-
     // Status badge
     let statusBadge = '';
     const status = record.outcome_status || 'UNKNOWN';
     if (status === 'WIN') {
-        statusBadge = '<span class="badge" style="background: var(--diff-positive); color: white;">WIN</span>';
+        statusBadge = '<span class="badge bg-accentSuccess/20 text-accentSuccess border border-accentSuccess/20">WIN</span>';
     } else if (status === 'LOSS') {
-        statusBadge = '<span class="badge" style="background: var(--diff-negative); color: white;">LOSS</span>';
+        statusBadge = '<span class="badge bg-accentDanger/20 text-accentDanger border border-accentDanger/20">LOSS</span>';
     } else if (status === 'BREAKEVEN') {
-        statusBadge = '<span class="badge" style="background: var(--text-secondary); color: white;">BREAKEVEN</span>';
+        statusBadge = '<span class="badge bg-gray-700 text-gray-300">BREAKEVEN</span>';
     } else if (status === 'OPEN') {
-        statusBadge = '<span class="badge" style="background: var(--accent-blue); color: white;">OPEN</span>';
-    } else if (status === 'SKIPPED') {
-        statusBadge = '<span class="badge" style="background: var(--accent-gold); color: white;">SKIPPED</span>';
+        statusBadge = '<span class="badge bg-accentInfo/20 text-accentInfo border border-accentInfo/20">OPEN</span>';
     } else {
-        statusBadge = `<span class="badge" style="background: #666; color: white;">${status}</span>`;
+        statusBadge = `<span class="badge bg-gray-700 text-gray-300">${status}</span>`;
     }
 
-    // Exit reason with enhanced formatting
+    // Exit reason mapping
     const exitReason = record.exit_reason || '-';
     let exitReasonText = exitReason;
 
-    // Map standard exit reasons
-    if (exitReason === 'TAKE_PROFIT' || exitReason.includes('TAKE_PROFIT')) {
-        exitReasonText = '🎯 Take Profit';
-    } else if (exitReason === 'STOP_LOSS') {
-        exitReasonText = '🛑 Stop Loss';
-    } else if (exitReason === 'TIME_BASED') {
-        exitReasonText = '⏰ Time Exit';
-    } else if (exitReason === 'REVERSE_SIGNAL') {
-        exitReasonText = '🔄 Reverse Signal';
-    } else if (exitReason === 'MARKET_CLOSE') {
-        exitReasonText = '🔚 Market Close';
-    }
-    // Handle skipped reasons with better formatting
-    else if (exitReason.includes('cooldown')) {
-        exitReasonText = '⏸️ Cooldown';
-    } else if (exitReason.includes('too soon')) {
-        exitReasonText = '⏱️ Too Soon';
-    } else if (exitReason.includes('already has')) {
-        exitReasonText = '🔒 Position Exists';
-    } else if (exitReason.includes('Only BUY')) {
-        exitReasonText = '❌ SELL Not Supported';
-    } else if (exitReason.includes('Signal too soon')) {
-        exitReasonText = '⏱️ Signal Too Soon';
-    }
-    // For any other text, truncate if too long
-    else if (exitReasonText.length > 30) {
-        exitReasonText = `<span title="${exitReason}">${exitReason.substring(0, 27)}...</span>`;
-    }
+    if (exitReason === 'TAKE_PROFIT') exitReasonText = '🎯 Take Profit';
+    else if (exitReason === 'STOP_LOSS') exitReasonText = '🛑 Stop Loss';
+    else if (exitReason === 'TIME_BASED') exitReasonText = '⏰ Time Exit';
+    else if (exitReason === 'MARKET_CLOSE') exitReasonText = '🔚 Market Close';
 
-    // Strategy
     const strategyText = formatStrategyName(record.strategy || 'N/A');
 
-    // Holding duration
-    const holdingDuration = record.holding_duration_display || '-';
-
     row.innerHTML = `
-        <td><strong>${record.stock_symbol}</strong></td>
-        <td style="font-size: 0.85em;">${strategyText}</td>
-        <td style="font-size: 0.85em;">${entryTime}</td>
-        <td class="text-right">${formatNumber(record.entry_price)}</td>
-        <td style="font-size: 0.85em;">${exitTime}</td>
-        <td class="text-right">${exitPrice}</td>
-        <td class="text-right">
-            <span class="${profitClass}" style="font-weight: 600; font-size: 1.1em;">
+        <td data-label="Saham" class="table-cell font-bold">${record.stock_symbol}</td>
+        <td data-label="Strategi" class="table-cell text-xs text-textSecondary">${strategyText}</td>
+        <td data-label="Entry Time" class="table-cell text-xs whitespace-nowrap">${entryTime}</td>
+        <td data-label="Entry Price" class="table-cell text-right text-sm">${formatNumber(record.entry_price)}</td>
+        <td data-label="Exit Price" class="table-cell text-right text-sm">${record.exit_price ? formatNumber(record.exit_price) : '-'}</td>
+        <td data-label="P&L" class="table-cell text-right">
+            <span class="${profitClass} font-bold">
                 ${profitSign}${profitLoss.toFixed(2)}%
             </span>
         </td>
-        <td class="text-right" style="font-size: 0.9em;">${holdingDuration}</td>
-        <td class="text-right" style="font-size: 0.85em;">
-            <span class="diff-negative">${maeText}</span> /
-            <span class="diff-positive">${mfeText}</span>
-        </td>
-        <td>${statusBadge}</td>
-        <td style="font-size: 0.85em;">${exitReasonText}</td>
+        <td data-label="Duration" class="table-cell text-right text-xs">${record.holding_duration_display || '-'}</td>
+        <td data-label="Status" class="table-cell">${statusBadge}</td>
+        <td data-label="Reason" class="table-cell text-xs text-textMuted">${exitReasonText}</td>
     `;
-
-    // Hover effect based on P&L
-    row.addEventListener('mouseenter', () => {
-        if (profitLoss > 0) {
-            row.style.backgroundColor = 'rgba(14, 203, 129, 0.05)';
-        } else if (profitLoss < 0) {
-            row.style.backgroundColor = 'rgba(246, 70, 93, 0.05)';
-        } else {
-            row.style.backgroundColor = 'rgba(59, 130, 246, 0.05)';
-        }
-    });
-    row.addEventListener('mouseleave', () => {
-        row.style.backgroundColor = '';
-    });
 
     return row;
 }
@@ -600,67 +512,67 @@ function createHistoryRow(record) {
  * @param {Object} data - Market intelligence data
  */
 export function renderMarketIntelligence(data) {
-    // 1. Render Market Regime
-    const regimeCard = document.getElementById('regime-card');
-    const regimeEl = document.getElementById('intel-regime');
-    const regimeDescEl = document.getElementById('intel-regime-desc');
-    const headerRegimeBadge = document.getElementById('market-regime');
+    if (!data) return;
 
-    // Default values
-    let regime = 'UNKNOWN';
-    let confidence = 0;
+    // 1. Handle Regime Data
+    // Check if data is a regime object itself or contains one
+    let regimeData = null;
+    if (data.regime && typeof data.regime === 'string') {
+        regimeData = data;
+    } else if (data.regime && typeof data.regime === 'object' && data.regime.regime) {
+        regimeData = data.regime;
+    }
 
-    // Check if we have regime data (it might be in data.regime or directly in data if passed that way)
-    const regimeData = data.regime || data;
+    if (regimeData) {
+        const regimeEl = document.getElementById('intel-regime');
+        const regimeDescEl = document.getElementById('intel-regime-desc');
+        const headerRegimeBadge = document.getElementById('market-regime');
 
-    if (regimeData && regimeData.regime) {
-        regime = regimeData.regime;
-        confidence = regimeData.confidence || 0;
+        const regime = regimeData.regime;
+        const confidence = regimeData.confidence || 0;
 
-        // Update card
         if (regimeEl) {
             regimeEl.textContent = getRegimeLabel(regime);
-            regimeEl.className = `regime-display ${regime.toLowerCase()}`;
-            regimeEl.style.color = getRegimeColor(regime);
+            const colorClass = getRegimeClass(regime);
+            regimeEl.className = `text-2xl font-bold mb-2 ${colorClass}`;
         }
 
         if (regimeDescEl) {
             const confPct = (confidence * 100).toFixed(0);
-            regimeDescEl.innerHTML = `Confidence: <strong>${confPct}%</strong><br>Volatility: ${(regimeData.volatility || 0).toFixed(2)}`;
+            regimeDescEl.innerHTML = `Confidence: <strong class="text-textPrimary">${confPct}%</strong> | Volatility: <span class="text-textPrimary">${(regimeData.volatility || 0).toFixed(2)}</span>`;
         }
 
-        // Update header badge
         if (headerRegimeBadge) {
             headerRegimeBadge.textContent = getRegimeLabel(regime);
             headerRegimeBadge.style.display = 'inline-block';
-            headerRegimeBadge.style.backgroundColor = getRegimeColor(regime);
-            headerRegimeBadge.style.color = '#fff'; // Assuming white text for badges
+            
+            if (regime === 'BULLISH' || regime === 'TRENDING_UP') {
+                headerRegimeBadge.className = 'hidden md:inline-block px-3 py-1 bg-accentSuccess/20 text-accentSuccess border border-accentSuccess/30 rounded text-xs font-bold tracking-wide';
+            } else if (regime === 'BEARISH' || regime === 'TRENDING_DOWN') {
+                headerRegimeBadge.className = 'hidden md:inline-block px-3 py-1 bg-accentDanger/20 text-accentDanger border border-accentDanger/30 rounded text-xs font-bold tracking-wide';
+            } else {
+                headerRegimeBadge.className = 'hidden md:inline-block px-3 py-1 bg-bgCard border border-borderColor rounded text-xs font-bold tracking-wide text-textSecondary';
+            }
         }
-    } else {
-        // Fallback if no data
-        if (regimeEl) regimeEl.textContent = 'STABIL';
-        if (regimeDescEl) regimeDescEl.textContent = 'Menunggu data pasar...';
-        if (headerRegimeBadge) headerRegimeBadge.style.display = 'none';
     }
 
-    // 2. Render Statistical Baseline
-    // Check both possible locations for baseline data
-    const baseline = data.baseline || data;
-    const avgVolEl = document.getElementById('b-avg-vol');
-    const stdDevEl = document.getElementById('b-std-dev');
+    // 2. Handle Baseline Data
+    let baseline = null;
+    if (data.mean_volume_lots !== undefined || data.mean_volume !== undefined) {
+        baseline = data;
+    } else if (data.baseline && (data.baseline.mean_volume_lots !== undefined || data.baseline.mean_volume !== undefined)) {
+        baseline = data.baseline;
+    }
 
-    if (baseline && (baseline.mean_volume_lots || baseline.mean_volume || baseline.mean_price)) {
-        // Use mean_volume_lots if available, otherwise mean_volume
+    if (baseline) {
+        const avgVolEl = document.getElementById('b-avg-vol');
+        const stdDevEl = document.getElementById('b-std-dev');
+
         const meanVol = baseline.mean_volume_lots || baseline.mean_volume || 0;
-        // Display standard deviation of price if available
         const stdDev = baseline.std_dev_price || baseline.std_dev_volume || 0;
 
         if (avgVolEl) avgVolEl.textContent = formatNumber(meanVol);
         if (stdDevEl) stdDevEl.textContent = stdDev > 0 ? stdDev.toFixed(2) : '-';
-    } else {
-        // Show placeholders if no baseline data
-        if (avgVolEl) avgVolEl.textContent = '-';
-        if (stdDevEl) stdDevEl.textContent = '-';
     }
 }
 
@@ -674,17 +586,30 @@ export function renderOrderFlow(data) {
     const buyLabel = document.getElementById('buy-pressure-pct');
     const sellLabel = document.getElementById('sell-pressure-pct');
 
-    if (!data || (!data.buy_volume_lots && !data.buy_volume)) {
-        // Reset to 50/50 if no data
+    if (!data) return;
+
+    let buyVol = 0;
+    let sellVol = 0;
+
+    // Handle list of flows (aggregate them)
+    if (data.flows && Array.isArray(data.flows)) {
+        data.flows.forEach(flow => {
+            buyVol += flow.buy_volume_lots || 0;
+            sellVol += flow.sell_volume_lots || 0;
+        });
+    } else {
+        // Handle pre-aggregated object
+        buyVol = data.buy_volume_lots || data.buy_volume || 0;
+        sellVol = data.sell_volume_lots || data.sell_volume || 0;
+    }
+
+    if (buyVol === 0 && sellVol === 0) {
         if (buyFill) buyFill.style.width = '50%';
         if (sellFill) sellFill.style.width = '50%';
         if (buyLabel) buyLabel.textContent = '50% BELI';
         if (sellLabel) sellLabel.textContent = '50% JUAL';
         return;
     }
-
-    const buyVol = data.buy_volume_lots || data.buy_volume || 0;
-    const sellVol = data.sell_volume_lots || data.sell_volume || 0;
     const total = buyVol + sellVol;
 
     let buyPct = 50;
@@ -713,32 +638,32 @@ export function renderPatternFeed(patterns) {
     list.innerHTML = '';
 
     if (!patterns || !Array.isArray(patterns) || patterns.length === 0) {
-        if (patterns && !Array.isArray(patterns)) {
-            console.error('renderPatternFeed received non-array:', patterns);
-        }
-        list.innerHTML = '<div class="placeholder-small">Menunggu pola...</div>';
+        list.innerHTML = '<div class="text-sm text-textSecondary italic p-4 text-center">Menunggu pola...</div>';
         return;
     }
 
     patterns.slice(0, 10).forEach(p => {
         const item = document.createElement('div');
-        item.className = 'pattern-item';
+        item.className = 'flex justify-between items-center p-3 border-b border-borderColor last:border-0 hover:bg-bgHover transition-colors rounded';
 
         // Type badge color
-        let typeColor = '#666';
-        if (p.pattern_type === 'DOUBLE_BOTTOM' || p.pattern_type === 'BULLISH_FLAG') typeColor = 'var(--diff-positive)';
-        else if (p.pattern_type === 'DOUBLE_TOP' || p.pattern_type === 'BEARISH_FLAG') typeColor = 'var(--diff-negative)';
+        let typeClass = 'text-textMuted';
+        const pType = p.pattern_type || '';
+        if (pType.includes('BULLISH') || pType.includes('BOTTOM')) typeClass = 'text-accentSuccess';
+        else if (pType.includes('BEARISH') || pType.includes('TOP')) typeClass = 'text-accentDanger';
 
         const timeAgo = getTimeAgo(p.detected_at);
 
         item.innerHTML = `
-            <div class="pattern-header-row">
-                <span class="p-symbol">${p.stock_symbol}</span>
-                <span class="p-time">${timeAgo}</span>
+            <div class="flex flex-col gap-0.5">
+                <div class="flex items-center gap-2">
+                    <span class="font-bold text-sm">${p.stock_symbol}</span>
+                    <span class="text-xs ${typeClass} font-semibold uppercase">${pType.replace(/_/g, ' ')}</span>
+                </div>
+                <span class="text-[10px] text-textSecondary">${timeAgo}</span>
             </div>
-            <div class="pattern-detail">
-                <span class="p-type" style="color: ${typeColor}">${p.pattern_type.replace('_', ' ')}</span>
-                <span class="p-conf">Conf: ${(p.confidence * 100).toFixed(0)}%</span>
+            <div class="text-xs font-bold bg-bgSecondary px-2 py-1 rounded border border-borderColor">
+                ${(p.confidence * 100).toFixed(0)}%
             </div>
         `;
         list.appendChild(item);
@@ -756,43 +681,37 @@ export function renderDailyPerformance(data) {
     tbody.innerHTML = '';
 
     if (!data || data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center" style="padding: 20px;">Belum ada data performa harian</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center p-8 text-textSecondary">Belum ada data performa harian</td></tr>';
         return;
     }
 
     data.forEach(row => {
         const tr = document.createElement('tr');
+        tr.className = 'border-b border-borderColor last:border-0 hover:bg-bgHover transition-colors';
 
-        // Win rate color
         const wr = row.win_rate || 0;
-        const wrClass = wr >= 50 ? 'diff-positive' : wr > 0 ? 'diff-negative' : ''; // Yellow/Gold for low winrate maybe? Let's stick to positive/negative for now or custom class
+        const wrClass = wr >= 50 ? 'text-accentSuccess' : wr > 0 ? 'text-accentWarning' : 'text-textMuted';
 
-        // Profit
         const profit = row.total_profit_pct || 0;
-        const profitClass = profit >= 0 ? 'diff-positive' : 'diff-negative';
+        const profitClass = profit >= 0 ? 'text-accentSuccess' : 'text-accentDanger';
         const profitSign = profit >= 0 ? '+' : '';
 
-        // Day
         const day = new Date(row.day).toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' });
 
         tr.innerHTML = `
-            <td><strong>${row.stock_symbol}</strong></td>
-            <td>${day}</td>
-            <td><span class="badge" style="background:#333; font-size:0.7em;">${formatStrategyName(row.strategy)}</span></td>
-            <td class="text-right ${wrClass}">${wr.toFixed(1)}% <span style="font-size:0.7em; color:#888;">(${row.wins}/${row.total_signals})</span></td>
-            <td class="text-right">
-                <span class="${profitClass}"><strong>${profitSign}${profit.toFixed(2)}%</strong></span>
-                <div style="font-size:0.7em; color:#888;">@ ${formatNumber(row.avg_entry_price)}</div>
+            <td data-label="Saham" class="table-cell font-bold">${row.stock_symbol}</td>
+            <td data-label="Hari" class="table-cell">${day}</td>
+            <td data-label="Strategi" class="table-cell"><span class="px-2 py-0.5 bg-bgSecondary border border-borderColor rounded text-[10px] uppercase">${formatStrategyName(row.strategy)}</span></td>
+            <td data-label="Win Rate" class="table-cell text-right ${wrClass} font-bold">${wr.toFixed(1)}% <span class="text-[10px] font-normal text-textMuted">(${row.wins}/${row.total_signals})</span></td>
+            <td data-label="Profit" class="table-cell text-right">
+                <span class="${profitClass} font-bold text-sm block">${profitSign}${profit.toFixed(2)}%</span>
+                <span class="text-[10px] text-textMuted">@ ${formatNumber(row.avg_entry_price)}</span>
             </td>
-            <td class="text-right">
-                <div class="diff-positive" style="font-size:0.85em;">Win: +${(row.avg_win_pct || 0).toFixed(2)}%</div>
-                <div class="diff-negative" style="font-size:0.85em;">Loss: ${(row.avg_loss_pct || 0).toFixed(2)}%</div>
+            <td data-label="Avg Win/Loss" class="table-cell text-right">
+                <div class="text-accentSuccess text-xs font-medium">Win: +${(row.avg_win_pct || 0).toFixed(2)}%</div>
+                <div class="text-accentDanger text-xs font-medium">Loss: ${(row.avg_loss_pct || 0).toFixed(2)}%</div>
             </td>
-            <td class="text-right">
-                <div class="diff-positive" style="font-size:0.85em;">Best: +${(row.best_trade_pct || 0).toFixed(2)}%</div>
-                <div class="diff-negative" style="font-size:0.85em;">Worst: ${(row.worst_trade_pct || 0).toFixed(2)}%</div>
-            </td>
-            <td class="text-right">${(row.avg_holding_minutes || 0).toFixed(0)}m</td>
+            <td data-label="Avg Hold" class="table-cell text-right text-sm">${(row.avg_holding_minutes || 0).toFixed(0)}m</td>
         `;
         tbody.appendChild(tr);
     });

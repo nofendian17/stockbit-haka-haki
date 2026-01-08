@@ -56,13 +56,13 @@ func (bc *BaselineCalculator) calculateBaselines() {
 	// Try multiple lookback periods to handle fresh deployments
 	lookbackPeriods := []struct {
 		duration  time.Duration
-		hours     int
+		minutes   int
 		minTrades int
 	}{
-		{24 * time.Hour, 24, 2},  // Primary: 24 hours with 2 trades minimum (lowered from 3)
-		{2 * time.Hour, 2, 2},    // Fallback 1: 2 hours with 2 trades
-		{30 * time.Minute, 0, 1}, // Fallback 2: 30 minutes with 1 trade minimum
-		{15 * time.Minute, 0, 1}, // Fallback 3: 15 minutes with 1 trade minimum (new)
+		{24 * time.Hour, 24 * 60, 2}, // Primary: 24 hours with 2 trades minimum (lowered from 3)
+		{2 * time.Hour, 2 * 60, 2},   // Fallback 1: 2 hours with 2 trades
+		{30 * time.Minute, 30, 1},    // Fallback 2: 30 minutes with 1 trade minimum
+		{15 * time.Minute, 15, 1},    // Fallback 3: 15 minutes with 1 trade minimum (new)
 	}
 
 	calculated := 0
@@ -76,7 +76,7 @@ func (bc *BaselineCalculator) calculateBaselines() {
 		log.Printf("📊 Aggregating baselines for lookback %v...", period.duration)
 
 		// Calculate baselines directly in database
-		baselines, err := bc.repo.CalculateBaselinesDB(period.hours, period.minTrades)
+		baselines, err := bc.repo.CalculateBaselinesDB(period.minutes, period.minTrades)
 		if err != nil {
 			log.Printf("⚠️  Failed to calculate baselines for %v lookback: %v", period.duration, err)
 			continue

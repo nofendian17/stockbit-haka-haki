@@ -15,14 +15,14 @@ const (
 
 	// Exit Level Multipliers (based on ATR)
 	StopLossATRMultiplier     = 1.5 // Initial stop loss = ATR × 1.5
-	TrailingStopATRMultiplier = 1.0 // Trailing stop offset = ATR × 1.0
-	TakeProfit1ATRMultiplier  = 2.0 // First take profit = ATR × 2.0
-	TakeProfit2ATRMultiplier  = 3.0 // Final take profit = ATR × 3.0
+	TrailingStopATRMultiplier = 1.5 // Trailing stop offset = ATR × 1.5
+	TakeProfit1ATRMultiplier  = 3.0 // First take profit = ATR × 3.0
+	TakeProfit2ATRMultiplier  = 5.0 // Final take profit = ATR × 5.0
 
 	// Fallback values when ATR cannot be calculated
 	FallbackStopLossPct    = 2.0 // -2% default stop loss
-	FallbackTakeProfit1Pct = 3.0 // +3% default TP1
-	FallbackTakeProfit2Pct = 5.0 // +5% default TP2
+	FallbackTakeProfit1Pct = 4.0 // +4% default TP1
+	FallbackTakeProfit2Pct = 8.0 // +8% default TP2
 )
 
 // ExitLevels contains calculated exit levels for a position
@@ -156,9 +156,9 @@ func (esc *ExitStrategyCalculator) GetExitLevels(symbol string, entryPrice float
 
 		// Apply reasonable boundaries
 		levels.InitialStopPct = clamp(levels.InitialStopPct, 0.5, 5.0)   // 0.5% - 5% max
-		levels.TrailingStopPct = clamp(levels.TrailingStopPct, 0.3, 3.0) // 0.3% - 3% max
-		levels.TakeProfit1Pct = clamp(levels.TakeProfit1Pct, 1.0, 8.0)   // 1% - 8% max
-		levels.TakeProfit2Pct = clamp(levels.TakeProfit2Pct, 2.0, 12.0)  // 2% - 12% max
+		levels.TrailingStopPct = clamp(levels.TrailingStopPct, 0.5, 4.0) // 0.5% - 4% max
+		levels.TakeProfit1Pct = clamp(levels.TakeProfit1Pct, 1.5, 12.0)  // 1.5% - 12% max
+		levels.TakeProfit2Pct = clamp(levels.TakeProfit2Pct, 3.0, 20.0)  // 3% - 20% max
 	}
 
 	// Calculate absolute price levels

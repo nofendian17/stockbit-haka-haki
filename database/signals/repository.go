@@ -534,10 +534,17 @@ func (r *Repository) GetStrategySignals(lookbackMinutes int, minConfidence float
 				volZ = -100
 			}
 
+			// Calculate % change from mean
+			var priceChangePct float64
+			if baseline.MeanPrice > 0 {
+				priceChangePct = (alert.TriggerPrice - baseline.MeanPrice) / baseline.MeanPrice * 100
+			}
+
 			zscores = &types.ZScoreData{
 				PriceZScore:  priceZ,
 				VolumeZScore: volZ,
 				SampleCount:  int64(baseline.SampleSize),
+				PriceChange:  priceChangePct,
 			}
 		} else {
 			// Skip if insufficient data

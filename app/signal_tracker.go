@@ -589,7 +589,7 @@ func (st *SignalTracker) updateSignalOutcome(signal *database.TradingSignalDB, o
 	}
 
 	// Auto-exit in pre-closing session (14:50-15:00) if profitable
-	if !shouldExit && currentSession == "PRE_CLOSING" && profitLossPct > 0.5 {
+	if !shouldExit && currentSession == "PRE_CLOSING" && profitLossPct > 1.0 {
 		shouldExit = true
 		exitReason = "PRE_CLOSE_PROFIT_TAKING"
 		log.Printf("⏰ Pre-close profit taking for signal %d (%s): %.2f%%",
@@ -605,7 +605,7 @@ func (st *SignalTracker) updateSignalOutcome(signal *database.TradingSignalDB, o
 		}
 
 		// Take profit if sell pressure high and we have gains
-		if sellPressure > 60 && profitLossPct >= exitLevels.TakeProfit1Pct*0.5 {
+		if sellPressure > 65 && profitLossPct >= exitLevels.TakeProfit1Pct*0.75 {
 			shouldExit = true
 			exitReason = "TAKE_PROFIT_MOMENTUM_REVERSAL"
 		}

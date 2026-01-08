@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 
 <head>
   <meta charset="UTF-8" />
@@ -8,870 +8,840 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=12" />
+  <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            bgPrimary: '#0f1419',
+            bgSecondary: '#16181d',
+            bgCard: '#1a1d23',
+            bgHover: '#22252b',
+            borderColor: '#2f3339',
+            textPrimary: '#e7e9ea',
+            textSecondary: '#8b949e',
+            textMuted: '#6e7681',
+            accentSuccess: '#0ecb81',
+            accentDanger: '#f6465d',
+            accentWarning: '#ffa500',
+            accentInfo: '#3b82f6',
+          }
+        }
+      }
+    }
+  </script>
+  <style type="text/tailwindcss">
+    @layer components {
+      .btn-primary {
+        @apply px-3 py-1.5 bg-accentInfo text-white rounded-lg hover:bg-blue-600 transition-colors duration-200 font-semibold text-xs flex items-center gap-2 justify-center;
+      }
+      .btn-secondary {
+        @apply px-3 py-1.5 bg-bgHover text-textPrimary border border-borderColor rounded-lg hover:bg-borderColor transition-colors duration-200 font-semibold text-xs flex items-center gap-2 justify-center;
+      }
+      .input-base {
+        @apply bg-bgCard border border-borderColor text-textPrimary px-2 py-1.5 rounded-lg font-sans text-xs focus:outline-none focus:border-accentInfo focus:ring-1 focus:ring-accentInfo transition-all duration-200;
+      }
+      .card-base {
+        @apply bg-bgCard border border-borderColor rounded-xl p-3 mb-2 overflow-hidden shadow-sm;
+      }
+      .table-header {
+        @apply px-2 py-1.5 text-left font-semibold text-[10px] text-textMuted uppercase tracking-wider bg-bgSecondary sticky top-0 z-10 border-b border-borderColor whitespace-nowrap;
+      }
+      .table-cell {
+        @apply px-2 py-1 text-[11px] text-textPrimary border-t border-borderColor whitespace-nowrap;
+      }
+      .badge {
+        @apply px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide inline-block;
+      }
+      
+      /* Utility for toggling visibility */
+      .show {
+        display: block !important;
+      }
+    }
+
+    /* Mobile Responsive Table */
+    @media (max-width: 768px) {
+        table, thead, tbody, th, td, tr {
+            display: block;
+        }
+
+        thead tr {
+            position: absolute;
+            top: -9999px;
+            left: -9999px;
+        }
+
+        tr {
+            @apply border border-borderColor rounded-lg mb-1.5 bg-bgCard;
+        }
+
+        td {
+            /* Changed: Flex layout with label on left, value on right. Removed absolute positioning mess. */
+            @apply border-none relative flex justify-between items-center py-0.5 px-3 text-[11px];
+            min-height: 24px; /* Ensure touch target size */
+        }
+        
+        td.table-cell {
+             @apply border-b border-borderColor last:border-0;
+        }
+
+        td:before {
+            content: attr(data-label);
+            /* Changed: Static position, taking natural width */
+            @apply text-[10px] font-bold text-textSecondary uppercase tracking-wider text-left pr-4;
+            /* Prevent label from shrinking too much */
+            flex-shrink: 0;
+            max-width: 40%;
+            white-space: normal; /* Allow label wrapping if needed */
+        }
+        
+        /* Value styling */
+        td > * {
+            @apply text-right block w-full; /* Ensure value takes available space and aligns right */
+            margin-left: auto; /* Push to right */
+        }
+        
+        /* Reset specific tweaks */
+        td.text-right {
+            text-align: right; 
+        }
+    }
+    
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      @apply bg-bgSecondary;
+    }
+    ::-webkit-scrollbar-thumb {
+      @apply bg-borderColor rounded hover:bg-textMuted transition-colors;
+    }
+
+    body {
+        @apply bg-bgPrimary text-textPrimary font-sans antialiased;
+    }
+  </style>
+    <style>
+        .c-tab.active {
+            color: rgb(56, 189, 248); /* text-accentInfo */
+            border-bottom-color: rgb(56, 189, 248);
+        }
+    </style>
 </head>
 
 <body>
   <!-- Navbar -->
-  <nav class="navbar">
-    <div class="nav-container">
-      <div class="nav-brand">
-        <span class="brand-icon">🐋</span>
-        <span class="brand-text">Radar Bandar</span>
-      </div>
-      <div class="nav-stats">
-        <div class="stat-card">
-          <span class="stat-label">Alerts</span>
-          <span class="stat-value" id="total-alerts">0</span>
+  <nav class="bg-bgSecondary border-b border-borderColor sticky top-0 z-50 backdrop-blur-md bg-opacity-90">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        <!-- Logo -->
+        <div class="flex-shrink-0 flex items-center gap-2">
+          <span class="text-2xl">🐋</span>
+          <span class="font-bold text-lg tracking-tight hidden sm:block">Radar Bandar</span>
         </div>
-        <div class="stat-card">
-          <span class="stat-label">Win Rate</span>
-          <span class="stat-value success" id="global-win-rate">0%</span>
+
+        <!-- Stats -->
+        <div class="hidden md:flex flex-1 justify-center gap-8">
+          <div class="flex flex-col items-center">
+            <span class="text-xs font-semibold text-textMuted uppercase tracking-wider">Alerts</span>
+            <span class="text-base font-bold text-textPrimary" id="total-alerts">0</span>
+          </div>
+          <div class="flex flex-col items-center">
+            <span class="text-xs font-semibold text-textMuted uppercase tracking-wider">Win Rate</span>
+            <span class="text-base font-bold text-accentSuccess" id="global-win-rate">0%</span>
+          </div>
+          <div class="flex flex-col items-center">
+            <span class="text-xs font-semibold text-textMuted uppercase tracking-wider">Avg Profit</span>
+            <span class="text-base font-bold text-accentSuccess" id="global-avg-profit">0%</span>
+          </div>
         </div>
-        <div class="stat-card">
-          <span class="stat-label">Avg Profit</span>
-          <span class="stat-value success" id="global-avg-profit">0%</span>
-        </div>
-      </div>
-      <div class="nav-actions">
-        <span id="market-regime" class="regime-badge" style="display:none;">RANGING</span>
-        <button id="webhook-config-btn" class="icon-btn" title="Webhook Config">🔔</button>
-        <button id="help-btn" class="icon-btn" title="Help">❓</button>
-        <div class="status-live">
-          <span class="pulse-dot"></span>
-          <span>Live</span>
+
+        <!-- Actions -->
+        <div class="flex items-center gap-3">
+          <span id="market-regime" class="hidden md:inline-block px-3 py-1 bg-bgCard border border-borderColor rounded text-xs font-bold tracking-wide" style="display:none;">RANGING</span>
+          <button id="webhook-config-btn" class="p-2 rounded-lg border border-borderColor hover:bg-bgHover transition-colors text-lg" title="Webhook Config">🔔</button>
+          <button id="help-btn" class="p-2 rounded-lg border border-borderColor hover:bg-bgHover transition-colors text-lg" title="Help">❓</button>
+          <div class="flex items-center gap-2 px-3 py-1.5 bg-accentSuccess/10 border border-accentSuccess/20 rounded-lg text-accentSuccess text-sm font-semibold">
+            <span class="w-1.5 h-1.5 bg-accentSuccess rounded-full animate-pulse"></span>
+            <span>Live</span>
+          </div>
         </div>
       </div>
     </div>
   </nav>
 
   <!-- Main Content -->
-  <main class="container">
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    
     <!-- Filters -->
-    <section class="filters-section">
-      <div class="filter-group">
-        <input type="text" id="search" class="filter-input" placeholder="🔍 Cari Kode Saham..." />
-        <select id="filter-action" class="filter-select">
+    <section class="mb-8">
+      <div class="flex flex-wrap gap-3 items-center bg-bgCard p-4 rounded-xl border border-borderColor shadow-sm">
+        <input type="text" id="search" class="input-base flex-1 min-w-[200px]" placeholder="🔍 Cari Kode Saham..." />
+        
+        <select id="filter-action" class="input-base cursor-pointer">
           <option value="ALL">Semua Aksi</option>
           <option value="BUY">🟢 Beli</option>
           <option value="SELL">🔴 Jual</option>
         </select>
-        <select id="filter-amount" class="filter-select">
+        
+        <select id="filter-amount" class="input-base cursor-pointer">
           <option value="0">Semua Nilai</option>
           <option value="100000000">> 100 Jt</option>
           <option value="500000000">> 500 Jt</option>
           <option value="1000000000">> 1 M</option>
           <option value="5000000000">> 5 M</option>
         </select>
-        <select id="filter-board" class="filter-select">
+        
+        <select id="filter-board" class="input-base cursor-pointer">
           <option value="ALL">Semua Board</option>
           <option value="RG">Regular</option>
           <option value="TN">Tunai</option>
           <option value="NG">Negosiasi</option>
         </select>
-        <button id="clear-filters-btn" class="btn-clear" style="display: none;">✖ Clear</button>
-        <button id="refresh-btn" class="btn-refresh">🔄 Refresh</button>
+
+        <button id="clear-filters-btn" class="px-4 py-2 bg-accentDanger/10 text-accentDanger border border-accentDanger/30 rounded-lg hover:bg-accentDanger/20 transition-colors font-semibold text-sm hidden">✖ Clear</button>
+        <button id="refresh-btn" class="btn-secondary">
+            <span>🔄</span> Refresh
+        </button>
       </div>
     </section>
 
-    <!-- Whale Alerts Table -->
-    <section class="card">
-      <div class="card-header">
-        <h2 class="card-title">🐋 Alert Bandar</h2>
-        <p class="card-subtitle">Real-time whale transactions</p>
-      </div>
-      <div class="table-wrapper">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Waktu</th>
-              <th>Saham</th>
-              <th>Aksi</th>
-              <th>Harga</th>
-              <th class="text-right">Value</th>
-              <th>Volume</th>
-              <th>Detail</th>
-            </tr>
-          </thead>
-          <tbody id="alerts-table-body">
-            <!-- Rows injected here -->
-          </tbody>
-        </table>
-        <div id="loading" class="loading">
-          <div class="loading-spinner"></div>
-          <p>Loading alerts...</p>
-        </div>
-        <div id="loading-more" class="loading-more" style="display: none;">
-          <div class="loading-spinner-small"></div>
-          <p>Loading more...</p>
-        </div>
-        <div id="no-more-data" class="no-more-data" style="display: none;">
-          <p>📊 All data loaded</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- Strategy Signals -->
-    <section class="card">
-      <div class="card-header">
-        <div>
-          <h2 class="card-title">🎯 Strategi Trading</h2>
-          <p class="card-subtitle">AI-powered trading signals</p>
-        </div>
-        <div class="status-badge">
-          <span id="strategy-live-indicator" class="pulse-dot"></span>
-          <span id="strategy-connection-status">Connecting...</span>
-        </div>
-      </div>
-
-      <div class="tabs">
-        <button class="tab strategy-tab active" data-strategy="ALL">Semua</button>
-        <button class="tab strategy-tab" data-strategy="VOLUME_BREAKOUT">🚀 Volume</button>
-        <button class="tab strategy-tab" data-strategy="MEAN_REVERSION">↩️ Mean Rev</button>
-        <button class="tab strategy-tab" data-strategy="FAKEOUT_FILTER">🛡️ Fakeout</button>
-        <button class="tab strategy-tab" data-strategy="HISTORY">📜 History</button>
-      </div>
-
-      <div class="table-wrapper">
-        <table class="data-table" id="signals-table">
-          <thead>
-            <tr>
-              <th>Waktu</th>
-              <th>Saham</th>
-              <th>Strategi</th>
-              <th>Aksi</th>
-              <th>Harga</th>
-              <th class="text-right">Change</th>
-              <th>Confidence</th>
-              <th>Result</th>
-              <th>Reason</th>
-            </tr>
-          </thead>
-          <tbody id="signals-table-body">
-            <!-- Rows will be injected here -->
-          </tbody>
-        </table>
-        <div id="signals-loading" class="loading" style="display: none;">
-          <div class="loading-spinner"></div>
-          <p>Loading signals...</p>
-        </div>
-        <div id="signals-placeholder" class="placeholder">
-          <span class="placeholder-icon">📡</span>
-          <p>Waiting for trading signals...</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- Running Positions -->
-    <section class="card">
-      <div class="card-header">
-        <h2 class="card-title">💼 Posisi Aktif</h2>
-        <p class="card-subtitle">Active trading positions</p>
-      </div>
-      <div class="table-wrapper">
-        <table class="data-table" id="positions-table">
-          <thead>
-            <tr>
-              <th>Saham</th>
-              <th>Strategi</th>
-              <th>Entry Time</th>
-              <th class="text-right">Entry Price</th>
-              <th class="text-right">P&L %</th>
-              <th class="text-right">Hold Time</th>
-              <th class="text-right">MAE/MFE</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody id="positions-table-body">
-            <!-- Rows will be injected here -->
-          </tbody>
-        </table>
-        <div id="positions-loading" class="loading" style="display: none;">
-          <div class="loading-spinner"></div>
-          <p>Loading positions...</p>
-        </div>
-        <div id="positions-placeholder" class="placeholder">
-          <span class="placeholder-icon">💼</span>
-          <p>No active positions</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- P&L History -->
-    <section class="card">
-      <div class="card-header">
-        <h2 class="card-title">📈 Riwayat P&L</h2>
-        <p class="card-subtitle">Trading history with outcomes</p>
-      </div>
-
-      <!-- History Filters -->
-      <div class="filter-group history-filters">
-        <select id="history-strategy" class="filter-select">
-          <option value="ALL">All Strategies</option>
-          <option value="VOLUME_BREAKOUT">Volume Breakout</option>
-          <option value="MEAN_REVERSION">Mean Reversion</option>
-          <option value="FAKEOUT_FILTER">Fakeout Filter</option>
-        </select>
-        <select id="history-status" class="filter-select">
-          <option value="">All Status</option>
-          <option value="WIN">🟢 WIN</option>
-          <option value="LOSS">🔴 LOSS</option>
-          <option value="BREAKEVEN">⚪ BREAKEVEN</option>
-          <option value="OPEN">🔵 OPEN</option>
-        </select>
-        <select id="history-limit" class="filter-select">
-          <option value="50">50 Records</option>
-          <option value="100" selected>100 Records</option>
-          <option value="200">200 Records</option>
-          <option value="500">500 Records</option>
-        </select>
-        <button id="history-refresh-btn" class="btn-refresh">🔄 Refresh</button>
-      </div>
-
-      <div class="table-wrapper">
-        <table class="data-table" id="history-table">
-          <thead>
-            <tr>
-              <th>Saham</th>
-              <th>Strategi</th>
-              <th>Entry</th>
-              <th class="text-right">Entry Price</th>
-              <th>Exit</th>
-              <th class="text-right">Exit Price</th>
-              <th class="text-right">P&L %</th>
-              <th class="text-right">Duration</th>
-              <th>MAE/MFE</th>
-              <th>Status</th>
-              <th>Exit Reason</th>
-            </tr>
-          </thead>
-          <tbody id="history-table-body">
-            <!-- Rows will be injected here -->
-          </tbody>
-        </table>
-        <div id="history-loading" class="loading" style="display: none;">
-          <div class="loading-spinner"></div>
-          <p>Loading history...</p>
-        </div>
-        <div id="history-loading-more" class="loading-more" style="display: none;">
-          <div class="loading-spinner-small"></div>
-          <p>Loading more...</p>
-        </div>
-        <div id="history-no-more-data" class="no-more-data" style="display: none;">
-          <p>📊 All data loaded</p>
-        </div>
-        <div id="history-placeholder" class="placeholder">
-          <span class="placeholder-icon">📈</span>
-          <p>Select filters and click Refresh to load history</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- Accumulation/Distribution Summary -->
-    <section class="card">
-      <div class="card-header">
-        <h2 class="card-title">📊 Aktivitas Bandar (24h)</h2>
-        <p class="card-subtitle">Top whale activities</p>
-      </div>
-
-      <div class="summary-grid">
-        <!-- Accumulation Table -->
-        <div>
-          <h3 class="subsection-title">
-            📈 Top 20 Akumulasi
-            <span id="accumulation-count" class="count-badge">0</span>
-          </h3>
-          <div class="table-wrapper">
-            <table class="data-table" id="accumulation-table">
-              <thead>
-                <tr>
-                  <th>Saham</th>
-                  <th class="text-right">Beli %</th>
-                  <th class="text-right">Jual %</th>
-                  <th class="text-right">Net Value</th>
-                  <th class="text-right">Alerts</th>
-                  <th class="text-right">Total Value</th>
-                </tr>
-              </thead>
-              <tbody id="accumulation-table-body">
-                <!-- Rows will be injected here -->
-              </tbody>
-            </table>
-            <div id="accumulation-placeholder" class="placeholder" style="display: none;">
-              <span class="placeholder-icon">📈</span>
-              <p>No accumulation data</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Distribution Table -->
-        <div>
-          <h3 class="subsection-title">
-            📉 Top 20 Distribusi
-            <span id="distribution-count" class="count-badge">0</span>
-          </h3>
-          <div class="table-wrapper">
-            <table class="data-table" id="distribution-table">
-              <thead>
-                <tr>
-                  <th>Saham</th>
-                  <th class="text-right">Beli %</th>
-                  <th class="text-right">Jual %</th>
-                  <th class="text-right">Net Value</th>
-                  <th class="text-right">Alerts</th>
-                  <th class="text-right">Total Value</th>
-                </tr>
-              </thead>
-              <tbody id="distribution-table-body">
-                <!-- Rows will be injected here -->
-              </tbody>
-            </table>
-            <div id="distribution-placeholder" class="placeholder" style="display: none;">
-              <span class="placeholder-icon">📉</span>
-              <p>No distribution data</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div id="summary-loading" class="loading" style="display: none;">
-        <div class="loading-spinner"></div>
-        <p>Loading summary data...</p>
-      </div>
-      </div>
-    </section>
-
-    <!-- Market Intelligence -->
-    <section class="card">
-      <div class="card-header">
-        <h2 class="card-title">🧠 Market Intelligence</h2>
-        <p class="card-subtitle">Real-time market conditions and statistics</p>
-      </div>
-
-      <div class="intel-grid">
-        <div class="intel-card" id="regime-card">
-          <div class="card-label">KONDISI PASAR</div>
-          <div class="regime-display" id="intel-regime">STABIL</div>
-          <div class="regime-meta" id="intel-regime-desc">Menganalisis kondisi pasar...</div>
-        </div>
-
-        <div class="intel-card" id="baseline-card">
-          <div class="card-label">STATISTIK DASAR</div>
-          <div class="baseline-stats">
-            <div class="stat-row">
-              <span>Rata-rata Vol:</span>
-              <strong id="b-avg-vol">-</strong>
-            </div>
-            <div class="stat-row">
-              <span>Std Dev:</span>
-              <strong id="b-std-dev">-</strong>
-            </div>
-          </div>
-        </div>
-
-        <div class="intel-card" id="orderflow-card">
-          <div class="card-label">TEKANAN JUAL/BELI</div>
-          <div class="pressure-bar-container">
-            <div class="pressure-bar">
-              <div id="buy-pressure-fill" class="pressure-fill buy" style="width: 50%"></div>
-              <div id="sell-pressure-fill" class="pressure-fill sell" style="width: 50%"></div>
-            </div>
-            <div class="pressure-labels">
-              <span id="buy-pressure-pct">50% BELI</span>
-              <span id="sell-pressure-pct">50% JUAL</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="pattern-feed">
-        <h4>Pola Terkini</h4>
-        <div id="pattern-list" class="pattern-scroll">
-          <div class="placeholder-small">Menunggu pola...</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Analytics Hub -->
-    <section class="card">
-      <div class="card-header">
-        <h2 class="card-title">📈 Analytics Hub</h2>
-        <p class="card-subtitle">Correlations and performance metrics</p>
-      </div>
-
-      <div class="tabs">
-        <button class="tab s-tab active" data-target="correlations-view">Korelasi</button>
-        <button class="tab s-tab" data-target="performance-view">Performance</button>
-        <button class="tab s-tab" data-target="optimization-view">Optimasi</button>
-      </div>
-
-      <div id="correlations-view" class="tab-panel active">
-        <div id="correlation-container" class="placeholder">
-          <span class="placeholder-icon">📊</span>
-          <p>Search for stock code to see correlations</p>
-        </div>
-      </div>
-
-      <div id="performance-view" class="tab-panel">
-        <div class="table-wrapper">
-          <table class="data-table" id="daily-performance-table">
-            <thead>
-              <tr>
-                <th>Saham</th>
-                <th>Hari</th>
-                <th>Strategi</th>
-                <th class="text-right">Win Rate</th>
-                <th class="text-right">Profit & Entry</th>
-                <th class="text-right">Avg Win/Loss</th>
-                <th class="text-right">Best/Worst</th>
-                <th class="text-right">Hold Time</th>
-              </tr>
-            </thead>
-            <tbody id="daily-performance-body">
-              <!-- Rows injected here -->
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div id="optimization-view" class="tab-panel">
-        <div
-          style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
-          <div class="intel-card">
-            <div class="card-label">📈 EXPECTED VALUE (EV)</div>
-            <div id="ev-list" style="margin-top: 0.5rem;">
-              <div class="placeholder-small">Loading data...</div>
-            </div>
-          </div>
-          <div class="intel-card">
-            <div class="card-label">🎯 OPTIMAL CONFIDENCE THRESHOLD</div>
-            <div id="threshold-list" style="margin-top: 0.5rem;">
-              <div class="placeholder-small">Loading data...</div>
-            </div>
-          </div>
-        </div>
-
-        <h4 style="margin-bottom: 0.75rem; color: var(--text-primary);">📊 Strategy Effectiveness by Market Regime</h4>
-        <div class="table-wrapper">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Strategi</th>
-                <th>Regime</th>
-                <th class="text-right">Signals</th>
-                <th class="text-right">Win Rate</th>
-                <th class="text-right">Avg Profit</th>
-                <th class="text-right">EV</th>
-              </tr>
-            </thead>
-            <tbody id="effectiveness-body">
-              <tr>
-                <td colspan="6" class="text-center">Loading data...</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div style="margin-top: 1rem; text-align: center;">
-          <button id="refresh-optimization-btn" class="btn-refresh" onclick="window.loadOptimizationData()">
-            🔄 Refresh Data
-          </button>
-        </div>
-      </div>
-    </section>
-
-    <!-- AI Pattern Analysis -->
-    <section class="card">
-      <div class="card-header">
-        <div>
-          <h2 class="card-title">🤖 AI Pattern Analysis</h2>
-          <p class="card-subtitle">Real-time AI-powered pattern detection</p>
-        </div>
-        <div class="status-badge">
-          <span id="llm-status">Ready</span>
-        </div>
-      </div>
-
-      <div class="tabs">
-        <button class="tab tab-btn active" data-type="accumulation">📈 Akumulasi</button>
-        <button class="tab tab-btn" data-type="anomalies">⚡ Anomali</button>
-        <button class="tab tab-btn" data-type="timing">⏰ Timing</button>
-        <button class="tab tab-btn" data-type="symbol">🎯 Symbol</button>
-        <button class="tab tab-btn" data-type="custom">✍️ Custom</button>
-      </div>
-
-      <div id="symbol-input-container" style="display:none; margin-bottom: 1rem;">
-        <input type="text" id="symbol-input" class="filter-input" placeholder="Enter stock code (e.g., BBCA)"
-          maxlength="4" style="text-transform: uppercase;" />
-      </div>
-
-      <!-- Custom Prompt Input -->
-      <div id="custom-prompt-container" style="display:none; margin-bottom: 1rem;">
-        <textarea id="custom-prompt-input" class="filter-input"
-          placeholder="Tanyakan apa saja tentang data di database... Contoh: 'Saham mana yang paling banyak akumulasi hari ini?' atau 'Analisis pola BBCA dalam 24 jam terakhir'"
-          rows="4" style="width: 100%; resize: vertical; padding: 0.75rem;"></textarea>
-
-        <div style="display: flex; gap: 1rem; margin-top: 0.75rem; flex-wrap: wrap;">
-          <div style="flex: 1; min-width: 200px;">
-            <label
-              style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem; color: var(--text-secondary);">Symbols
-              (opsional):</label>
-            <input type="text" id="custom-symbols-input" class="filter-input" placeholder="e.g., BBCA,TLKM,BMRI"
-              style="text-transform: uppercase;" />
-          </div>
-
-          <div style="flex: 1; min-width: 200px;">
-            <label
-              style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem; color: var(--text-secondary);">Include
-              Data:</label>
-            <select id="custom-data-type" class="filter-select">
-              <option value="alerts,regimes">Alerts + Regimes</option>
-              <option value="alerts,regimes,patterns">+ Patterns</option>
-              <option value="alerts,regimes,patterns,signals">+ Signals</option>
-              <option value="alerts">Alerts Only</option>
-              <option value="regimes">Regimes Only</option>
-              <option value="patterns">Patterns Only</option>
-              <option value="signals">Signals Only</option>
-            </select>
-          </div>
-
-          <div style="flex: 0 0 150px;">
-            <label
-              style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem; color: var(--text-secondary);">Hours
-              Back:</label>
-            <input type="number" id="custom-hours-input" class="filter-input" value="24" min="1" max="168" />
-          </div>
-        </div>
-      </div>
-
-      <div id="llm-stream-output" class="placeholder">
-        <span class="placeholder-icon">🧠</span>
-        <p>Click "Start Analysis" to begin AI real-time analysis</p>
-      </div>
-
-      <div style="display: flex; gap: 0.75rem; margin-top: 1rem;">
-        <button id="start-analysis-btn" class="btn-primary">▶ Start Analysis</button>
-        <button id="stop-analysis-btn" class="btn-secondary" style="display:none;">⏹ Stop</button>
-      </div>
-    </section>
-
-  </main>
-
-  <!-- Help Modal -->
-  <div id="help-modal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2>🎯 Panduan Whale Radar</h2>
-        <button class="modal-close" id="modal-close">&times;</button>
-      </div>
-      <div class="modal-body">
-        <section class="help-section">
-          <h3>📖 Apa itu Whale Radar?</h3>
-          <p>Dashboard real-time yang memantau transaksi saham besar ("whale" / ikan paus) di pasar modal Indonesia.
-            Sistem ini mendeteksi aktivitas fund besar yang bisa menjadi indikator pergerakan harga.</p>
-        </section>
-
-        <section class="help-section">
-          <h3>🐋 Whale Alerts Feed</h3>
-          <p>Menampilkan transaksi besar secara real-time dengan fitur filter:</p>
-          <ul>
-            <li><strong>Symbol</strong>: Cari kode saham tertentu (contoh: BBCA, TLKM)</li>
-            <li><strong>Action</strong>: Filter BUY (akumulasi) atau SELL (distribusi)</li>
-            <li><strong>Min Value</strong>: Filter berdasarkan nilai transaksi minimum</li>
-            <li><strong>Board Type</strong>: RG (Regular), TN (Tunai), NG (Negosiasi)</li>
-          </ul>
-          <p><strong>Informasi yang ditampilkan:</strong> Waktu, kode saham, aksi, harga, total nilai, volume lot, dan
-            anomali (jika ada).</p>
-        </section>
-
-        <section class="help-section">
-          <h3>🎯 Trading Strategies & AI Analysis</h3>
-          <p>Sinyal trading berbasis AI dengan 3 strategi utama:</p>
-          <div class="strategy-guide" style="font-size: 0.9em;">
-            <div style="margin-bottom: 8px;">
-              <strong>🚀 Volume Breakout (Trend Following)</strong><br>
-              <span style="color: var(--text-secondary);">Kapan: Market Trending UP / Bullish.</span><br>
-              Deteksi lonjakan harga (>2%) dengan volume masif (Z > 3.0).
-            </div>
-            <div style="margin-bottom: 8px;">
-              <strong>↩️ Mean Reversion (Contrarian)</strong><br>
-              <span style="color: var(--text-secondary);">Kapan: Market Ranging / Overbought / Oversold.</span><br>
-              Identifikasi harga ekstrem (Z < -4.0) yang berpotensi memantul. </div>
+    <!-- Grid Layout for Desktop -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        <!-- Whale Alerts Table -->
+        <section class="card-base lg:col-span-2">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 gap-2">
                 <div>
-                  <strong>🛡️ Fakeout Filter (Defense)</strong><br>
-                  <span style="color: var(--text-secondary);">Kapan: Selalu aktif.</span><br>
-                  Mendeteksi "jebakan" harga naik tapi volume lemah (Hati-hati!).
+                    <h2 class="text-sm font-bold mb-0.5">🐋 Alert Bandar</h2>
+                    <p class="text-[10px] text-textSecondary">Real-time whale transactions</p>
+                </div>
+            </div>
+            
+            <div class="border border-borderColor rounded-lg overflow-hidden flex flex-col h-[500px]">
+                <div class="overflow-auto flex-1 table-wrapper">
+                    <table class="w-full text-left border-collapse min-w-full">
+                        <thead class="bg-bgSecondary sticky top-0 left-0 right-0 z-10 w-full table-header-group">
+                            <tr>
+                                <th class="table-header">Waktu</th>
+                                <th class="table-header">Saham</th>
+                                <th class="table-header">Aksi</th>
+                                <th class="table-header">Harga</th>
+                                <th class="table-header text-right">Value</th>
+                                <th class="table-header text-right">Volume</th>
+                                <th class="table-header">Detail</th>
+                            </tr>
+                        </thead>
+                        <tbody id="alerts-table-body" class="divide-y divide-borderColor">
+                            <!-- Rows injected here -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div id="loading" class="p-8 text-center text-textSecondary bg-bgCard border-t border-borderColor">
+                    <div class="animate-spin h-8 w-8 border-4 border-borderColor border-t-accentInfo rounded-full mx-auto mb-4"></div>
+                    <p>Loading alerts...</p>
+                </div>
+                <div id="loading-more" class="p-4 text-center text-textSecondary text-sm border-t border-borderColor hidden bg-bgCard">
+                    <div class="inline-block animate-spin h-4 w-4 border-2 border-borderColor border-t-accentInfo rounded-full mr-2"></div>
+                    <span>Loading more...</span>
+                </div>
+                <div id="no-more-data" class="p-4 text-center text-textMuted text-sm italic border-t border-borderColor hidden bg-bgCard">
+                    <p>📊 All data loaded</p>
                 </div>
             </div>
         </section>
 
-        <section class="help-section">
-          <h3>📈 Posisi Trading Aktif</h3>
-          <p>Sistem manajemen posisi otomatis (Paper Trading):</p>
-          <ul>
-            <li><strong>Entry</strong>: Otomatis saat sinyal BUY valid muncul</li>
-            <li><strong>Exit Stop Loss</strong>: Hard stop di -2.0% (Proteksi Modal)</li>
-            <li><strong>Exit Take Profit</strong>: Dinamis (trailing) atau Max 5.0%</li>
-            <li><strong>Time Limit</strong>: <em>Unlimited</em> selama jam trading (Profit Run)</li>
-            <li><strong>Market Close</strong>: Semua posisi ditutup otomatis pukul 16:00 WIB</li>
-          </ul>
-        </section>
-
-        <section class="help-section">
-          <h3>📊 Akumulasi vs Distribusi</h3>
-          <p>Menampilkan Top 20 saham dengan aktivitas tertinggi dalam 24 jam terakhir:</p>
-          <ul>
-            <li><strong>Akumulasi</strong>: Saham dengan pembelian besar (potensi naik)</li>
-            <li><strong>Distribusi</strong>: Saham dengan penjualan besar (potensi turun)</li>
-          </ul>
-          <p>Data mencakup persentase BUY/SELL, net value, dan total alerts per saham.</p>
-        </section>
-
-        <section class="help-section">
-          <h3>🤖 AI Pattern Analysis</h3>
-          <p>Analisis pola real-time menggunakan AI dengan 4 jenis analisis:</p>
-          <ul>
-            <li><strong>Akumulasi</strong>: Deteksi pola pembelian masif</li>
-            <li><strong>Anomali</strong>: Identifikasi aktivitas tidak normal</li>
-            <li><strong>Timing</strong>: Analisis waktu trading optimal</li>
-            <li><strong>Symbol</strong>: Analisis mendalam untuk saham tertentu</li>
-          </ul>
-        </section>
-
-        <section class="help-section">
-          <h3>🧮 Rumus & Perhitungan</h3>
-          <p>Transparansi logika deteksi sistem:</p>
-
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
-            <div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;">
-              <h4 style="margin: 0 0 5px 0; font-size: 0.9em; color: var(--accent-blue);">Z-Score (Anomali)</h4>
-              <code
-                style="display: block; margin-bottom: 5px; font-size: 0.8em; color: var(--text-primary); background: transparent;">Z = (Vol - Avg) / StdDev</code>
-              <ul style="font-size: 0.8em; margin: 0; padding-left: 15px; color: var(--text-secondary);">
-                <li><strong>3.0+</strong>: Signifikan (99.7%)</li>
-                <li><strong>4.0+</strong>: Sangat Langka</li>
-                <li><strong>5.0+</strong>: Extreme / Black Swan</li>
-              </ul>
+        <!-- Strategy Signals -->
+        <section class="card-base">
+            <div class="flex justify-between items-start mb-3">
+                <div>
+                    <h2 class="text-sm font-bold mb-0.5">🎯 Strategi Trading</h2>
+                    <p class="text-[10px] text-textSecondary">AI-powered trading signals</p>
+                </div>
+                <div class="flex items-center gap-1 px-2 py-1 bg-bgSecondary border border-borderColor rounded text-[10px] font-semibold">
+                    <span id="strategy-live-indicator" class="w-1.5 h-1.5 rounded-full bg-accentSuccess animate-pulse"></span>
+                    <span id="strategy-connection-status">Connecting...</span>
+                </div>
             </div>
-            <div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;">
-              <h4 style="margin: 0 0 5px 0; font-size: 0.9em; color: var(--accent-gold);">Confidence Level</h4>
-              <code
-                style="display: block; margin-bottom: 5px; font-size: 0.8em; color: var(--text-primary); background: transparent;">70% + Basis Z + Vol Bonus</code>
-              <ul style="font-size: 0.8em; margin: 0; padding-left: 15px; color: var(--text-secondary);">
-                <li><strong>>85%</strong>: High Conviction</li>
-                <li><strong>70-85%</strong>: Valid Signal</li>
-                <li><strong>
-                    <70%< /strong>: Butuh Konfirmasi</li>
-              </ul>
+
+            <div class="flex gap-2 mb-3 overflow-x-auto pb-1 border-b border-borderColor scrollbar-hide">
+                <button class="px-2 py-1 text-xs font-semibold rounded hover:bg-bgHover text-textSecondary hover:text-textPrimary transition-colors strategy-tab active border-b-2 border-accentInfo" data-strategy="ALL">Semua</button>
+                <button class="px-2 py-1 text-xs font-semibold rounded hover:bg-bgHover text-textSecondary hover:text-textPrimary transition-colors strategy-tab" data-strategy="VOLUME_BREAKOUT">🚀 Volume</button>
+                <button class="px-2 py-1 text-xs font-semibold rounded hover:bg-bgHover text-textSecondary hover:text-textPrimary transition-colors strategy-tab" data-strategy="MEAN_REVERSION">↩️ Mean Rev</button>
+                <button class="px-2 py-1 text-xs font-semibold rounded hover:bg-bgHover text-textSecondary hover:text-textPrimary transition-colors strategy-tab" data-strategy="FAKEOUT_FILTER">🛡️ Fakeout</button>
+                <button class="px-2 py-1 text-xs font-semibold rounded hover:bg-bgHover text-textSecondary hover:text-textPrimary transition-colors strategy-tab" data-strategy="HISTORY">📜 History</button>
             </div>
-          </div>
+
+            <div class="border border-borderColor rounded-lg overflow-hidden flex flex-col h-[400px]">
+                <div class="overflow-auto flex-1 table-wrapper">
+                    <table class="w-full text-left min-w-full" id="signals-table">
+                        <thead class="bg-bgSecondary sticky top-0 z-10 w-full table-header-group">
+                            <tr>
+                                <th class="table-header">Waktu</th>
+                                <th class="table-header">Saham</th>
+                                <th class="table-header">Strategi</th>
+                                <th class="table-header">Aksi</th>
+                                <th class="table-header">Harga</th>
+                                <th class="table-header">Change</th>
+                                <th class="table-header">Result</th>
+                            </tr>
+                        </thead>
+                        <tbody id="signals-table-body" class="divide-y divide-borderColor">
+                            <!-- Rows will be injected here -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="signals-loading" class="p-8 text-center text-textSecondary hidden border-t border-borderColor bg-bgCard">
+                    <div class="animate-spin h-8 w-8 border-4 border-borderColor border-t-accentInfo rounded-full mx-auto mb-4"></div>
+                    <p>Loading signals...</p>
+                </div>
+                <div id="signals-placeholder" class="p-12 text-center text-textSecondary flex flex-col items-center justify-center h-full">
+                    <span class="text-4xl block mb-3 opacity-50">📡</span>
+                    <p>Waiting for trading signals...</p>
+                </div>
+            </div>
         </section>
 
-        <section class="help-section">
-          <h3>📚 Glosarium Bandar</h3>
-          <dl style="font-size: 0.9em; display: grid; grid-template-columns: auto 1fr; gap: 8px 15px;">
-            <dt style="color: var(--accent-green); font-weight: 600;">HAKA</dt>
-            <dd style="margin: 0;"><em>Hajar Kanan</em>. Pembelian agresif langsung di harga Offer (Ask).</dd>
-
-            <dt style="color: var(--accent-red); font-weight: 600;">HAKI</dt>
-            <dd style="margin: 0;"><em>Hajar Kiri</em>. Penjualan agresif langsung di harga Bid.</dd>
-
-            <dt style="color: var(--accent-purple); font-weight: 600;">MTC</dt>
-            <dd style="margin: 0;"><em>Marking The Close</em>. Aksi menaikkan harga di menit akhir (Pre-Closing).</dd>
-
-            <dt style="color: var(--text-primary); font-weight: 600;">Regime</dt>
-            <dd style="margin: 0;">Status pasar. <strong>Trending</strong> (Satu arah), <strong>Ranging</strong>
-              (Sideways), <strong>Volatile</strong> (Liar).</dd>
-          </dl>
+        <!-- Running Positions -->
+        <section class="card-base">
+            <div class="flex justify-between items-start mb-3">
+                <div>
+                    <h2 class="text-sm font-bold mb-0.5">💼 Posisi Aktif</h2>
+                    <p class="text-[10px] text-textSecondary">Active trading positions</p>
+                </div>
+            </div>
+            <div class="border border-borderColor rounded-lg overflow-hidden flex flex-col h-[400px]">
+                <div class="overflow-auto flex-1 table-wrapper">
+                    <table class="w-full text-left min-w-full" id="positions-table">
+                        <thead class="bg-bgSecondary sticky top-0 z-10 w-full table-header-group">
+                            <tr>
+                                <th class="table-header">Saham</th>
+                                <th class="table-header">Strategi</th>
+                                <th class="table-header">Entry Time</th>
+                                <th class="table-header text-right">Entry Price</th>
+                                <th class="table-header text-right">P&L %</th>
+                                <th class="table-header">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="positions-table-body" class="divide-y divide-borderColor">
+                            <!-- Rows will be injected here -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="positions-loading" class="p-8 text-center text-textSecondary hidden border-t border-borderColor bg-bgCard">
+                    <div class="animate-spin h-8 w-8 border-4 border-borderColor border-t-accentInfo rounded-full mx-auto mb-4"></div>
+                    <p>Loading positions...</p>
+                </div>
+                <div id="positions-placeholder" class="p-12 text-center text-textSecondary flex flex-col items-center justify-center h-full">
+                    <span class="text-4xl block mb-3 opacity-50">💼</span>
+                    <p>No active positions</p>
+                </div>
+            </div>
         </section>
 
-        <section class="help-section">
-          <h3>💡 Tips Penggunaan</h3>
-          <ul>
-            <li><strong>Hover Alasan</strong>: Arahkan kursor ke kolom "Alasan" untuk baca analisis AI lengkap</li>
-            <li><strong>Scalper</strong>: Fokus ke Whale Alerts Feed + filter RG board</li>
-            <li><strong>Swing Trader</strong>: Gunakan Trading Strategies + Akumulasi/Distribusi</li>
-            <li><strong>Research</strong>: Manfaatkan AI Pattern Analysis tab Symbol</li>
-            <li><strong>Monitor Posisi</strong>: Cek tab "Active Positions" untuk performa strategi real-time</li>
-          </ul>
+        <!-- Position History -->
+        <section class="card-base lg:col-span-2">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 gap-2">
+                <div>
+                    <h2 class="text-sm font-bold mb-0.5">📜 Riwayat Trading</h2>
+                    <p class="text-[10px] text-textSecondary">Completed trade history</p>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <select id="history-strategy" class="bg-bgSecondary border border-borderColor text-textPrimary text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:border-accentInfo">
+                        <option value="ALL">Semua Strategi</option>
+                        <option value="VOLUME_BREAKOUT">Volume Breakout</option>
+                        <option value="MEAN_REVERSION">Mean Reversion</option>
+                        <option value="FAKEOUT_FILTER">Fakeout Filter</option>
+                    </select>
+                    <select id="history-status" class="bg-bgSecondary border border-borderColor text-textPrimary text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:border-accentInfo">
+                        <option value="ALL">Semua Status</option>
+                        <option value="WIN">Win</option>
+                        <option value="LOSS">Loss</option>
+                    </select>
+                    <button id="history-refresh-btn" class="p-1.5 rounded-lg border border-borderColor hover:bg-bgHover transition-transform">
+                        🔄
+                    </button>
+                    <!-- Missing limit select, but maybe it's fine without it for now unless specific logic needs it -->
+                    <select id="history-limit" class="hidden">
+                        <option value="20">20</option>
+                    </select>
+                </div>
+            </div>
+            <div class="border border-borderColor rounded-lg overflow-hidden flex flex-col h-[400px]">
+                <div class="overflow-auto flex-1 table-wrapper">
+                    <table class="w-full text-left min-w-full" id="history-table">
+                        <thead class="bg-bgSecondary sticky top-0 z-10 w-full table-header-group">
+                            <tr>
+                                <th class="table-header">Saham</th>
+                                <th class="table-header">Strategi</th>
+                                <th class="table-header">Outcome</th>
+                                <th class="table-header text-right">Entry</th>
+                                <th class="table-header text-right">Exit</th>
+                                <th class="table-header text-right">P&L</th>
+                                <th class="table-header text-right">Duration</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-table-body" class="divide-y divide-borderColor">
+                            <!-- Rows will be injected here -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="history-loading" class="p-8 text-center text-textSecondary hidden border-t border-borderColor bg-bgCard">
+                    <div class="animate-spin h-8 w-8 border-4 border-borderColor border-t-accentInfo rounded-full mx-auto mb-4"></div>
+                    <p>Loading history...</p>
+                </div>
+                <!-- Loading More Indicator -->
+                 <div id="history-loading-more" class="p-4 text-center text-textSecondary text-sm border-t border-borderColor hidden bg-bgCard">
+                    <div class="inline-block animate-spin h-4 w-4 border-2 border-borderColor border-t-accentInfo rounded-full mr-2"></div>
+                    <span>Loading more...</span>
+                </div>
+                <div id="history-no-more-data" class="p-4 text-center text-textMuted text-sm italic border-t border-borderColor hidden bg-bgCard">
+                    <p>📊 End of history</p>
+                </div>
+                 <div id="history-placeholder" class="p-12 text-center text-textSecondary flex flex-col items-center justify-center h-full">
+                    <span class="text-4xl block mb-3 opacity-50">📜</span>
+                    <p>No trading history</p>
+                </div>
+            </div>
         </section>
 
-        <section class="help-section">
-          <h3>🎨 Code Warna</h3>
-          <div class="color-guide">
-            <div class="color-item">
-              <span class="badge buy">BUY</span>
-              <span>Akumulasi / Pembelian besar</span>
+        <!-- Accumulation/Distribution Summary -->
+        <section class="card-base lg:col-span-2">
+            <div class="flex justify-between items-start mb-3">
+                <div>
+                    <h2 class="text-sm font-bold mb-0.5">📊 Aktivitas Bandar (24h)</h2>
+                    <p class="text-[10px] text-textSecondary">Top whale activities</p>
+                </div>
             </div>
-            <div class="color-item">
-              <span class="badge sell">SELL</span>
-              <span>Distribusi / Penjualan besar</span>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Accumulation Table -->
+                <div>
+                    <h3 class="flex items-center gap-2 text-sm font-semibold mb-2">
+                        📈 Top 20 Akumulasi
+                        <span id="accumulation-count" class="px-1.5 py-0.5 bg-bgSecondary border border-borderColor rounded text-[10px]">0</span>
+                    </h3>
+                    <div class="border border-borderColor rounded-lg overflow-hidden h-[400px] overflow-auto flex flex-col">
+                        <div class="overflow-auto flex-1 table-wrapper">
+                             <table class="w-full text-left min-w-full" id="accumulation-table">
+                                <thead class="bg-bgSecondary sticky top-0 z-10 w-full table-header-group">
+                                    <tr>
+                                        <th class="table-header">Saham</th>
+                                        <th class="table-header text-right">Beli %</th>
+                                        <th class="table-header text-right">Net Value</th>
+                                        <th class="table-header text-right">Total Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="accumulation-table-body" class="divide-y divide-borderColor">
+                                    <!-- Rows will be injected here -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="accumulation-placeholder" class="p-8 text-center text-textSecondary hidden border-t border-borderColor bg-bgCard">
+                            <span class="text-3xl block mb-2 opacity-50">📈</span>
+                            <p>No accumulation data</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Distribution Table -->
+                <div>
+                    <h3 class="flex items-center gap-2 text-sm font-semibold mb-2">
+                        📉 Top 20 Distribusi
+                        <span id="distribution-count" class="px-1.5 py-0.5 bg-bgSecondary border border-borderColor rounded text-[10px]">0</span>
+                    </h3>
+                    <div class="border border-borderColor rounded-lg overflow-hidden h-[400px] overflow-auto flex flex-col">
+                        <div class="overflow-auto flex-1 table-wrapper">
+                           <table class="w-full text-left min-w-full" id="distribution-table">
+                                <thead class="bg-bgSecondary sticky top-0 z-10 w-full table-header-group">
+                                    <tr>
+                                        <th class="table-header">Saham</th>
+                                        <th class="table-header text-right">Jual %</th>
+                                        <th class="table-header text-right">Net Value</th>
+                                        <th class="table-header text-right">Total Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="distribution-table-body" class="divide-y divide-borderColor">
+                                    <!-- Rows will be injected here -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="distribution-placeholder" class="p-8 text-center text-textSecondary hidden border-t border-borderColor bg-bgCard">
+                            <span class="text-3xl block mb-2 opacity-50">📉</span>
+                            <p>No distribution data</p>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="color-item">
-              <span class="table-anomaly">ANOMALY</span>
-              <span>Pola tidak normal terdeteksi</span>
-            </div>
-          </div>
         </section>
-      </div>
-      <div class="modal-footer">
-        <button class="btn-primary" id="modal-got-it">Mengerti!</button>
+        
+        <!-- Market Intelligence -->
+        <section class="card-base lg:col-span-2">
+             <div class="flex justify-between items-start mb-3">
+                <div>
+                    <h2 class="text-sm font-bold mb-0.5">🧠 Market Intelligence</h2>
+                    <p class="text-[10px] text-textSecondary">Real-time market conditions and statistics</p>
+                </div>
+             </div>
+
+             <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                 <!-- Regime Card -->
+                 <div class="bg-bgSecondary border border-borderColor rounded-xl p-6 flex flex-col items-center text-center">
+                    <div class="text-xs uppercase tracking-wider text-textMuted font-bold mb-2">KONDISI PASAR</div>
+                    <div class="text-2xl font-bold text-accentInfo mb-2" id="intel-regime">STABIL</div>
+                    <div class="text-sm text-textSecondary" id="intel-regime-desc">Menganalisis kondisi pasar...</div>
+                 </div>
+
+                 <!-- Baseline Stats -->
+                 <div class="bg-bgSecondary border border-borderColor rounded-xl p-6 flex flex-col justify-center">
+                    <div class="text-xs uppercase tracking-wider text-textMuted font-bold mb-4 text-center">STATISTIK DASAR</div>
+                    <div class="space-y-3 text-sm">
+                        <div class="flex justify-between items-center border-b border-borderColor pb-2">
+                            <span class="text-textSecondary">Rata-rata Vol:</span>
+                            <strong id="b-avg-vol" class="text-textPrimary">-</strong>
+                        </div>
+                        <div class="flex justify-between items-center pt-1">
+                            <span class="text-textSecondary">Std Dev:</span>
+                            <strong id="b-std-dev" class="text-textPrimary">-</strong>
+                        </div>
+                    </div>
+                 </div>
+
+                 <!-- Pressure Bar -->
+                 <div class="bg-bgSecondary border border-borderColor rounded-xl p-6 flex flex-col justify-center">
+                    <div class="text-xs uppercase tracking-wider text-textMuted font-bold mb-4 text-center">TEKANAN JUAL/BELI</div>
+                    <div class="relative h-6 bg-bgCard rounded-full overflow-hidden mb-3">
+                        <div class="absolute inset-0 flex">
+                            <div id="buy-pressure-fill" class="h-full bg-accentSuccess transition-all duration-500" style="width: 50%"></div>
+                            <div id="sell-pressure-fill" class="h-full bg-accentDanger transition-all duration-500" style="width: 50%"></div>
+                        </div>
+                    </div>
+                    <div class="flex justify-between text-xs font-bold">
+                        <span id="buy-pressure-pct" class="text-accentSuccess">50% BELI</span>
+                        <span id="sell-pressure-pct" class="text-accentDanger">50% JUAL</span>
+                    </div>
+                 </div>
+             </div>
+
+             <div class="bg-bgSecondary border border-borderColor rounded-xl p-6">
+                 <h4 class="font-bold text-sm mb-4 text-textMuted uppercase tracking-wider">Pola Terkini</h4>
+                 <div id="pattern-list" class="space-y-2 max-h-[200px] overflow-y-auto pr-2">
+                    <div class="text-sm text-textSecondary italic p-4 text-center bg-bgCard rounded border border-borderColor border-dashed">Menunggu pola...</div>
+                 </div>
+             </div>
+        </section>
+
+        <!-- AI Analysis -->
+        <section class="card-base lg:col-span-2">
+            <div class="flex justify-between items-start mb-3">
+                <div>
+                    <h2 class="text-sm font-bold mb-0.5">🤖 AI Pattern Analysis</h2>
+                    <p class="text-[10px] text-textSecondary">Real-time AI-powered pattern detection</p>
+                </div>
+                <div class="px-2 py-0.5 bg-accentInfo/10 text-accentInfo border border-accentInfo/20 rounded text-[10px] font-bold uppercase" id="llm-status">Ready</div>
+            </div>
+
+            <div class="flex gap-2 mb-3 overflow-x-auto pb-1 border-b border-borderColor scrollbar-hide">
+                <button class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-bgHover text-textPrimary hover:bg-accentInfo hover:text-white transition-colors tab-btn active whitespace-nowrap" data-type="accumulation">📈 Akumulasi</button>
+                <button class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-bgHover text-textPrimary hover:bg-accentInfo hover:text-white transition-colors tab-btn whitespace-nowrap" data-type="anomalies">⚡ Anomali</button>
+                <button class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-bgHover text-textPrimary hover:bg-accentInfo hover:text-white transition-colors tab-btn whitespace-nowrap" data-type="timing">⏰ Timing</button>
+                <button class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-bgHover text-textPrimary hover:bg-accentInfo hover:text-white transition-colors tab-btn whitespace-nowrap" data-type="symbol">🎯 Symbol</button>
+                <button class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-bgHover text-textPrimary hover:bg-accentInfo hover:text-white transition-colors tab-btn whitespace-nowrap" data-type="custom">✍️ Custom</button>
+            </div>
+            
+            <div id="symbol-input-container" class="mb-4 hidden">
+                <input type="text" id="symbol-input" class="input-base w-full max-w-sm uppercase" placeholder="Enter stock code (e.g., BBCA)" maxlength="4" />
+            </div>
+
+             <!-- Custom Prompt Input -->
+            <div id="custom-prompt-container" class="mb-4 hidden space-y-4">
+                <textarea id="custom-prompt-input" class="input-base w-full resize-y h-32"
+                placeholder="Tanyakan apa saja tentang data di database... Contoh: 'Saham mana yang paling banyak akumulasi hari ini?' atau 'Analisis pola BBCA dalam 24 jam terakhir'"></textarea>
+
+                <div class="flex flex-wrap gap-4">
+                    <div class="flex-1 min-w-[200px]">
+                        <label class="block text-xs text-textSecondary mb-1">Symbols (opsional):</label>
+                        <input type="text" id="custom-symbols-input" class="input-base w-full uppercase" placeholder="e.g., BBCA,TLKM,BMRI" />
+                    </div>
+
+                    <div class="flex-1 min-w-[200px]">
+                        <label class="block text-xs text-textSecondary mb-1">Include Data:</label>
+                        <select id="custom-data-type" class="input-base w-full cursor-pointer">
+                            <option value="alerts,regimes">Alerts + Regimes</option>
+                            <option value="alerts,regimes,patterns">+ Patterns</option>
+                            <option value="alerts,regimes,patterns,signals">+ Signals</option>
+                            <option value="alerts">Alerts Only</option>
+                            <option value="regimes">Regimes Only</option>
+                            <option value="patterns">Patterns Only</option>
+                            <option value="signals">Signals Only</option>
+                        </select>
+                    </div>
+
+                    <div class="w-[100px]">
+                        <label class="block text-xs text-textSecondary mb-1">Hours Back:</label>
+                        <input type="number" id="custom-hours-input" class="input-base w-full" value="24" min="1" max="168" />
+                    </div>
+                </div>
+            </div>
+
+            <div id="llm-stream-output" class="p-8 text-center text-textSecondary border border-borderColor border-dashed rounded-lg bg-bgSecondary/30 min-h-[200px] flex flex-col items-center justify-center prose prose-invert max-w-none">
+                <div class="flex flex-col items-center">
+                    <span class="text-4xl mb-4 opacity-70">🧠</span>
+                    <p class="font-medium">Click "Start Analysis" to begin AI real-time analysis</p>
+                </div>
+            </div>
+
+            <div class="mt-4 flex gap-3">
+                <button id="start-analysis-btn" class="btn-primary">
+                    <span>▶</span> Start Analysis
+                </button>
+                <button id="stop-analysis-btn" class="btn-secondary hidden">
+                    <span>⏹</span> Stop
+                </button>
+            </div>
+        </section>
+
+    </div>
+  </main>
+
+  <!-- Help Modal -->
+  <div id="help-modal" class="fixed inset-0 z-[100] hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+        <!-- Overlay -->
+        <div class="fixed inset-0 bg-black/75 transition-opacity" aria-hidden="true" id="help-modal-overlay"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        
+        <!-- Modal Content -->
+        <div class="inline-block align-bottom bg-bgCard rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full border border-borderColor">
+            <div class="bg-bgCard px-6 pt-6 pb-4">
+                <div class="flex justify-between items-center mb-6 border-b border-borderColor pb-4">
+                    <h3 class="text-xl font-bold text-textPrimary" id="modal-title">🎯 Panduan Whale Radar</h3>
+                    <button class="modal-close text-textSecondary hover:text-textPrimary focus:outline-none text-2xl" id="modal-close">&times;</button>
+                </div>
+                
+                <div class="modal-body text-sm text-textSecondary space-y-6 max-h-[60vh] overflow-y-auto pr-2">
+                    <section class="space-y-2">
+                        <h3 class="text-base font-bold text-textPrimary">📖 Apa itu Whale Radar?</h3>
+                        <p>Dashboard real-time yang memantau transaksi saham besar ("whale" / ikan paus) di pasar modal Indonesia.
+                          Sistem ini mendeteksi aktivitas fund besar yang bisa menjadi indikator pergerakan harga.</p>
+                    </section>
+            
+                    <section class="space-y-2">
+                        <h3 class="text-base font-bold text-textPrimary">🐋 Whale Alerts Feed</h3>
+                        <p>Menampilkan transaksi besar secara real-time dengan fitur filter:</p>
+                        <ul class="list-disc pl-5 space-y-1">
+                          <li><strong class="text-textPrimary">Symbol</strong>: Cari kode saham tertentu (contoh: BBCA, TLKM)</li>
+                          <li><strong class="text-textPrimary">Action</strong>: Filter BUY (akumulasi) atau SELL (distribusi)</li>
+                          <li><strong class="text-textPrimary">Min Value</strong>: Filter berdasarkan nilai transaksi minimum</li>
+                          <li><strong class="text-textPrimary">Board Type</strong>: RG (Regular), TN (Tunai), NG (Negosiasi)</li>
+                        </ul>
+                    </section>
+
+                    <section class="space-y-2">
+                        <h3 class="text-base font-bold text-textPrimary">🎨 Code Warna</h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div class="flex items-center gap-2 p-2 bg-bgSecondary rounded border border-borderColor">
+                            <span class="badge bg-green-900/40 text-accentSuccess">BUY</span>
+                            <span class="text-xs">Akumulasi / Pembelian besar</span>
+                          </div>
+                          <div class="flex items-center gap-2 p-2 bg-bgSecondary rounded border border-borderColor">
+                            <span class="badge bg-red-900/40 text-accentDanger">SELL</span>
+                            <span class="text-xs">Distribusi / Penjualan besar</span>
+                          </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+            <div class="bg-bgSecondary px-6 py-4 flex flex-row-reverse border-t border-borderColor">
+                <button type="button" class="btn-primary" id="modal-got-it">Mengerti!</button>
+            </div>
+        </div>
+    </div>
+  </div>
+
+  <!-- Webhook Modal -->
+  <div id="webhook-modal" class="fixed inset-0 z-[100] hidden" aria-labelledby="webhook-modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-black/75 transition-opacity" aria-hidden="true"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        
+        <div class="inline-block align-bottom bg-bgCard rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full border border-borderColor">
+            <div class="bg-bgCard px-6 pt-6 pb-4">
+                <div class="flex justify-between items-center mb-6 border-b border-borderColor pb-4">
+                    <h3 class="text-xl font-bold text-textPrimary">🔔 Konfigurasi Webhook</h3>
+                    <button class="text-textSecondary hover:text-textPrimary focus:outline-none text-2xl" id="webhook-modal-close">&times;</button>
+                </div>
+
+                <div class="space-y-6">
+                    <!-- List Section -->
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center">
+                            <h4 class="text-sm font-bold text-textSecondary uppercase tracking-wider">Active Webhooks</h4>
+                            <button id="add-webhook-btn" class="btn-primary text-xs py-1.5 px-3">
+                                ➕ Add New
+                            </button>
+                        </div>
+                        
+                        <div class="border border-borderColor rounded-lg overflow-hidden">
+                            <table class="w-full text-left">
+                                <thead class="bg-bgSecondary">
+                                    <tr>
+                                        <th class="px-4 py-2 text-xs font-semibold text-textMuted uppercase">Name</th>
+                                        <th class="px-4 py-2 text-xs font-semibold text-textMuted uppercase">URL</th>
+                                        <th class="px-4 py-2 text-xs font-semibold text-textMuted uppercase">Status</th>
+                                        <th class="px-4 py-2 text-xs font-semibold text-textMuted uppercase text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="webhook-list-body" class="divide-y divide-borderColor text-sm">
+                                    <!-- Rows injected via JS -->
+                                </tbody>
+                            </table>
+                            <div id="webhook-loading" class="p-4 text-center text-textSecondary hidden">
+                                <div class="inline-block animate-spin h-4 w-4 border-2 border-borderColor border-t-accentInfo rounded-full mr-2"></div>
+                                Loading...
+                            </div>
+                            <div id="webhook-placeholder" class="p-8 text-center text-textMuted text-sm">
+                                No webhooks configured
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Form Section -->
+                    <div id="webhook-form-section" class="hidden bg-bgSecondary/50 p-4 rounded-lg border border-borderColor border-dashed">
+                        <h4 class="text-sm font-bold text-textPrimary mb-4" id="webhook-form-title">Add New Webhook</h4>
+                        <form id="webhook-form" class="space-y-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs text-textSecondary mb-1">Name</label>
+                                    <input type="text" id="webhook-name" class="input-base w-full" placeholder="e.g. Discord Alerts" required>
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="block text-xs text-textSecondary mb-1">Webhook URL</label>
+                                    <input type="url" id="webhook-url" class="input-base w-full" placeholder="https://discord.com/api/webhooks/..." required>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center gap-2">
+                                <input type="checkbox" id="webhook-enabled" class="rounded bg-bgCard border-borderColor text-accentInfo focus:ring-accentInfo" checked>
+                                <label for="webhook-enabled" class="text-sm text-textPrimary">Enable this webhook</label>
+                            </div>
+
+                            <div class="flex gap-2 justify-end pt-2">
+                                <button type="button" id="cancel-webhook-btn" class="btn-secondary text-xs">Cancel</button>
+                                <button type="submit" id="save-webhook-btn" class="btn-primary text-xs">Save Webhook</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="bg-bgSecondary/30 p-3 rounded text-xs text-textSecondary">
+                        <p class="mb-1 font-bold">🔔 How it works:</p>
+                        <p>Webhooks allow you to receive real-time notifications for whale alerts and strategy signals directly to your Discord, Slack, or Telegram.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+  </div>
+
+  <!-- Candle Details Modal -->
+  <div id="candle-modal" class="fixed inset-0 z-[100] hidden" aria-labelledby="candle-modal-title" role="dialog" aria-modal="true">
+    <div class="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity" aria-hidden="true" id="candle-modal-overlay"></div>
+    
+    <div class="fixed inset-0 z-10 overflow-y-auto">
+      <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+        <div class="relative transform overflow-hidden rounded-lg bg-bgCard border border-borderColor text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-4xl" onclick="event.stopPropagation()">
+            <!-- Header -->
+            <div class="flex items-center justify-between p-4 border-b border-borderColor bg-bgSecondary/30">
+                <h3 id="candle-modal-title" class="text-lg font-bold text-textPrimary">📉 Market Details</h3>
+                <button type="button" id="candle-modal-close" class="text-textSecondary hover:text-textPrimary transition-colors rounded p-1 hover:bg-white/5">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="p-6">
+                <!-- Timeframe Tabs -->
+                <div class="flex flex-wrap gap-2 mb-6 border-b border-borderColor">
+                    <button class="c-tab px-4 py-2 text-sm font-medium text-textSecondary hover:text-textPrimary border-b-2 border-transparent transition-colors active" data-timeframe="5m">5 Min</button>
+                    <button class="c-tab px-4 py-2 text-sm font-medium text-textSecondary hover:text-textPrimary border-b-2 border-transparent transition-colors" data-timeframe="15m">15 Min</button>
+                    <button class="c-tab px-4 py-2 text-sm font-medium text-textSecondary hover:text-textPrimary border-b-2 border-transparent transition-colors" data-timeframe="1h">1 Hour</button>
+                    <button class="c-tab px-4 py-2 text-sm font-medium text-textSecondary hover:text-textPrimary border-b-2 border-transparent transition-colors" data-timeframe="1d">Daily</button>
+                </div>
+
+                <!-- Candle Table -->
+                <div class="overflow-x-auto table-wrapper max-h-[500px] border border-borderColor rounded-lg">
+                    <table class="min-w-full divide-y divide-borderColor">
+                        <thead class="bg-bgSecondary sticky top-0 z-10">
+                            <tr>
+                                <th scope="col" class="py-3 px-4 text-left text-xs font-medium text-textSecondary uppercase tracking-wider">Time</th>
+                                <th scope="col" class="py-3 px-4 text-right text-xs font-medium text-textSecondary uppercase tracking-wider">Open</th>
+                                <th scope="col" class="py-3 px-4 text-right text-xs font-medium text-textSecondary uppercase tracking-wider">High</th>
+                                <th scope="col" class="py-3 px-4 text-right text-xs font-medium text-textSecondary uppercase tracking-wider">Low</th>
+                                <th scope="col" class="py-3 px-4 text-right text-xs font-medium text-textSecondary uppercase tracking-wider">Close</th>
+                                <th scope="col" class="py-3 px-4 text-right text-xs font-medium text-textSecondary uppercase tracking-wider">Volume</th>
+                            </tr>
+                        </thead>
+                        <tbody id="candle-list-body" class="bg-bgCard divide-y divide-borderColor text-sm text-textPrimary">
+                            <!-- JS injected rows -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- Candle Viewer Modal -->
-  <div id="candle-modal" class="modal">
-    <div class="modal-content" style="max-width: 900px;">
-      <div class="modal-header">
-        <h2 id="candle-modal-title">📉 Market Details: SYMBOL</h2>
-        <button class="modal-close" id="candle-modal-close">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="candle-tabs">
-          <button class="c-tab active" data-timeframe="5m">5m</button>
-          <button class="c-tab" data-timeframe="15m">15m</button>
-          <button class="c-tab" data-timeframe="1h">1h</button>
-          <button class="c-tab" data-timeframe="1d">1d</button>
-        </div>
-        <div class="candle-viewport">
-          <!-- Simple Candle List -->
-          <div class="mini-table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Waktu</th>
-                  <th class="text-right">Buka</th>
-                  <th class="text-right">Tinggi</th>
-                  <th class="text-right">Rendah</th>
-                  <th class="text-right">Tutup</th>
-                  <th class="text-right">Vol</th>
-                </tr>
-              </thead>
-              <tbody id="candle-list-body">
-                <!-- Rows injected here -->
-              </tbody>
-            </table>
-          </div>
+  <!-- Followup Analysis Modal -->
+  <div id="followup-modal" class="fixed inset-0 z-[100] hidden" aria-labelledby="followup-modal-title" role="dialog" aria-modal="true">
+    <div class="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity" aria-hidden="true"></div>
+
+    <div class="fixed inset-0 z-10 overflow-y-auto">
+      <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+        <div class="relative transform overflow-hidden rounded-lg bg-bgCard border border-borderColor text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-2xl" onclick="event.stopPropagation()">
+            <!-- Header -->
+            <div class="flex items-center justify-between p-4 border-b border-borderColor bg-bgSecondary/30">
+                <div>
+                    <h3 class="text-lg font-bold text-textPrimary">🐋 Whale Followup Analysis</h3>
+                    <div class="flex items-center gap-2 text-sm text-textSecondary mt-1">
+                        <span id="followup-symbol" class="font-bold text-accentInfo text-base">CODE</span>
+                        <span class="text-xs">•</span>
+                        <span>Trigger: <span id="followup-trigger-price" class="font-mono text-textPrimary">Rp 0</span></span>
+                    </div>
+                </div>
+                <button type="button" id="followup-close" class="text-textSecondary hover:text-textPrimary transition-colors rounded p-1 hover:bg-white/5">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            
+            <div id="followup-data" class="p-6 max-h-[70vh] overflow-y-auto w-full">
+                 <!-- Content injected by JS -->
+                 <div class="flex justify-center p-8">
+                    <div class="animate-spin h-8 w-8 border-4 border-borderColor border-t-accentInfo rounded-full"></div>
+                 </div>
+            </div>
         </div>
       </div>
     </div>
   </div>
 
-  <div id="followup-modal" class="modal">
-    <div class="modal-content" style="max-width: 600px;">
-      <div class="modal-header">
-        <h2>🐳 Analisis Pergerakan Bandar - <span id="followup-symbol">N/A</span></h2>
-        <button class="modal-close" id="followup-close">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="followup-info" style="margin-bottom: 15px;">
-          <div style="font-size: 0.9em; color: var(--text-secondary);">
-            <strong>Harga Trigger:</strong> <span id="followup-trigger-price">N/A</span>
-          </div>
-        </div>
-        <div id="followup-data">
-          <div class="placeholder">
-            <span class="placeholder-icon">⏳</span>
-            <p>Memuat data analisis...</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-
-  <!-- Webhook Configuration Modal -->
-  <div id="webhook-modal" class="modal">
-    <div class="modal-content" style="max-width: 800px;">
-      <div class="modal-header">
-        <h2>🔔 Konfigurasi Webhook</h2>
-        <button class="modal-close" id="webhook-modal-close">&times;</button>
-      </div>
-      <div class="modal-body">
-        <!-- Webhook List -->
-        <div class="webhook-list-section">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-            <h3 style="margin: 0;">Daftar Webhook</h3>
-            <button id="add-webhook-btn" class="btn-primary" style="padding: 0.5rem 1rem;">
-              <span class="btn-icon">➕</span> Tambah Webhook
-            </button>
-          </div>
-
-          <div class="table-container" style="max-height: 300px; overflow-y: auto;">
-            <table>
-              <thead>
-                <tr>
-                  <th>Nama</th>
-                  <th>URL</th>
-                  <th>Status</th>
-                  <th style="text-align: right;">Aksi</th>
-                </tr>
-              </thead>
-              <tbody id="webhook-list-body">
-                <!-- Rows will be injected here -->
-              </tbody>
-            </table>
-            <div id="webhook-loading" class="loading" style="display: none;">
-              <div class="loading-spinner"></div>
-              <p>Memuat webhooks...</p>
-            </div>
-            <div id="webhook-placeholder" class="placeholder">
-              <span class="placeholder-icon">🔔</span>
-              <p>Belum ada webhook terkonfigurasi</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Webhook Form (hidden by default) -->
-        <div id="webhook-form-section"
-          style="display: none; margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--border-color);">
-          <h3 id="webhook-form-title">Tambah Webhook Baru</h3>
-          <form id="webhook-form">
-            <div class="control-group" style="margin-bottom: 1rem;">
-              <label for="webhook-name" class="control-label">
-                <span class="label-icon">📝</span>
-                Nama Webhook
-              </label>
-              <input type="text" id="webhook-name" placeholder="Contoh: Telegram Bot" required />
-            </div>
-
-            <div class="control-group" style="margin-bottom: 1rem;">
-              <label for="webhook-url" class="control-label">
-                <span class="label-icon">🔗</span>
-                URL Webhook
-              </label>
-              <input type="url" id="webhook-url" placeholder="https://example.com/webhook" required />
-            </div>
-
-            <div class="control-group" style="margin-bottom: 1.5rem;">
-              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                <input type="checkbox" id="webhook-enabled" checked />
-                <span>Aktifkan webhook ini</span>
-              </label>
-            </div>
-
-            <div style="display: flex; gap: 1rem;">
-              <button type="submit" id="save-webhook-btn" class="btn-primary">
-                <span class="btn-icon">💾</span> Simpan
-              </button>
-              <button type="button" id="cancel-webhook-btn" class="btn-secondary">
-                <span class="btn-icon">✖️</span> Batal
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-  </div>
-
-
-  <footer>
+  <footer class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-center text-textSecondary text-sm border-t border-borderColor mt-8">
     <p>Whale Analysis System &copy; 2025</p>
   </footer>
 
-  <script src="js/mobile-helper.js"></script>
-  <script type="module" src="js/app.js?v=2"></script>
-
+  <script type="module" src="js/app.js?v=7"></script>
+</body>
 </html>

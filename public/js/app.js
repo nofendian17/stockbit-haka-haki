@@ -7,7 +7,7 @@ import { CONFIG } from './config.js';
 import { debounce, safeGetElement } from './utils.js';
 import * as API from './api.js';
 import { renderWhaleAlerts, renderRunningPositions, renderSummaryTable, updateStatsTicker, renderStockCorrelations, renderProfitLossHistory, renderMarketIntelligence, renderOrderFlow, renderPatternFeed, renderDailyPerformance } from './render.js';
-import { createWhaleAlertSSE, createPatternAnalysisSSE, createCustomPromptSSE } from './sse-handler.js';
+import { createWhaleAlertSSE, createPatternAnalysisSSE, createCustomPromptSSE } from './sse-handler.js?v=2';
 import { initStrategySystem } from './strategy-manager.js';
 import { initWebhookManagement } from './webhook-config.js';
 
@@ -309,12 +309,14 @@ function updateFilters() {
 function highlightActiveFilters() {
     ['filter-action', 'filter-amount', 'filter-board'].forEach(id => {
         const element = document.getElementById(id);
-        if (element && element.value !== 'ALL' && element.value !== '0') {
-            element.style.borderColor = '#0ECB81';
-            element.style.boxShadow = '0 0 0 2px rgba(14, 203, 129, 0.2)';
-        } else if (element) {
-            element.style.borderColor = '';
-            element.style.boxShadow = '';
+        if (element) {
+            if (element.value !== 'ALL' && element.value !== '0') {
+                element.classList.add('border-accentInfo', 'ring-1', 'ring-accentInfo');
+                element.classList.remove('border-borderColor');
+            } else {
+                element.classList.remove('border-accentInfo', 'ring-1', 'ring-accentInfo');
+                element.classList.add('border-borderColor');
+            }
         }
     });
 }
@@ -536,9 +538,9 @@ function setupHelpModal() {
 
     if (!helpBtn || !modal) return;
 
-    const closeModal = () => modal.classList.remove('show');
+    const closeModal = () => modal.classList.add('hidden');
 
-    helpBtn.addEventListener('click', () => modal.classList.add('show'));
+    helpBtn.addEventListener('click', () => modal.classList.remove('hidden'));
     if (modalClose) modalClose.addEventListener('click', closeModal);
     if (modalGotIt) modalGotIt.addEventListener('click', closeModal);
 
@@ -547,7 +549,7 @@ function setupHelpModal() {
     });
 
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && modal.classList.contains('show')) {
+        if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
             closeModal();
         }
     });
@@ -562,13 +564,13 @@ function setupCandleModal() {
 
     if (closeBtn) {
         closeBtn.addEventListener('click', () => {
-            if (modal) modal.classList.remove('show');
+            if (modal) modal.classList.add('hidden');
         });
     }
 
     if (modal) {
         modal.addEventListener('click', (e) => {
-            if (e.target === modal) modal.classList.remove('show');
+            if (e.target === modal) modal.classList.add('hidden');
         });
     }
 
@@ -604,7 +606,7 @@ function setupCandleModal() {
         modal.dataset.currentSymbol = symbol;
 
         // Show modal
-        modal.classList.add('show');
+        modal.classList.remove('hidden');
 
         // Reset to default timeframe
         const tabs = document.querySelectorAll('.c-tab');
@@ -627,14 +629,14 @@ async function fetchAndDisplayCandles(symbol, timeframe) {
     if (!tbody) return;
 
     // Show loading
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-secondary);">Loading candles...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center p-8 text-textSecondary">Loading candles...</td></tr>';
 
     try {
         const data = await API.fetchCandles(symbol, timeframe);
         displayCandles(data.candles || []);
     } catch (error) {
         console.error('Failed to fetch candles:', error);
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--accent-sell);">Failed to load candle data</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center p-8 text-accentDanger">Failed to load candle data</td></tr>';
     }
 }
 
@@ -647,17 +649,18 @@ function displayCandles(candles) {
     if (!tbody) return;
 
     if (candles.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-secondary);">No candle data available</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center p-8 text-textSecondary">No candle data available</td></tr>';
         return;
     }
 
     tbody.innerHTML = '';
     candles.forEach(candle => {
         const row = document.createElement('tr');
+        row.className = 'hover:bg-bgHover transition-colors border-b border-borderColor last:border-0';
 
         // Determine candle color (green for bullish, red for bearish)
         const isBullish = candle.close >= candle.open;
-        const priceClass = isBullish ? 'diff-positive' : 'diff-negative';
+        const priceClass = isBullish ? 'text-accentSuccess' : 'text-accentDanger';
 
         // Format time with proper error handling - use 'time' field from API
         let time = 'N/A';
@@ -682,21 +685,13 @@ function displayCandles(candles) {
         const tradeInfo = candle.trade_count ? ` (${candle.trade_count} trades)` : '';
 
         row.innerHTML = `
-            <td style="font-size: 0.85em;" title="Trade Count: ${candle.trade_count || 0}">${time}</td>
-            <td class="text-right">${(candle.open || 0).toLocaleString('id-ID')}</td>
-            <td class="text-right diff-positive">${(candle.high || 0).toLocaleString('id-ID')}</td>
-            <td class="text-right diff-negative">${(candle.low || 0).toLocaleString('id-ID')}</td>
-            <td class="text-right ${priceClass}" style="font-weight: 600;">${(candle.close || 0).toLocaleString('id-ID')}</td>
-            <td class="text-right" style="font-size: 0.85em;" title="Total Value: Rp ${(candle.total_value || 0).toLocaleString('id-ID')}">${(candle.volume || 0).toLocaleString('id-ID')}</td>
+            <td class="px-4 py-2 text-sm text-textMuted" title="Trade Count: ${candle.trade_count || 0}">${time}</td>
+            <td class="px-4 py-2 text-right text-textPrimary">${(candle.open || 0).toLocaleString('id-ID')}</td>
+            <td class="px-4 py-2 text-right text-accentSuccess">${(candle.high || 0).toLocaleString('id-ID')}</td>
+            <td class="px-4 py-2 text-right text-accentDanger">${(candle.low || 0).toLocaleString('id-ID')}</td>
+            <td class="px-4 py-2 text-right ${priceClass} font-bold">${(candle.close || 0).toLocaleString('id-ID')}</td>
+            <td class="px-4 py-2 text-right text-sm" title="Total Value: Rp ${(candle.total_value || 0).toLocaleString('id-ID')}">${(candle.volume || 0).toLocaleString('id-ID')}</td>
         `;
-
-        // Add hover effect
-        row.addEventListener('mouseenter', () => {
-            row.style.backgroundColor = isBullish ? 'rgba(14, 203, 129, 0.05)' : 'rgba(246, 70, 93, 0.05)';
-        });
-        row.addEventListener('mouseleave', () => {
-            row.style.backgroundColor = '';
-        });
 
         tbody.appendChild(row);
     });
@@ -712,13 +707,13 @@ function setupFollowupModal() {
 
     if (closeBtn) {
         closeBtn.addEventListener('click', () => {
-            if (modal) modal.classList.remove('show');
+            if (modal) modal.classList.add('hidden');
         });
     }
 
     if (modal) {
         modal.addEventListener('click', (e) => {
-            if (e.target === modal) modal.classList.remove('show');
+            if (e.target === modal) modal.classList.add('hidden');
         });
     }
 
@@ -739,7 +734,7 @@ function setupFollowupModal() {
         if (triggerEl) triggerEl.textContent = triggerPrice ? `Rp ${triggerPrice}` : 'N/A';
 
         // Show modal
-        modal.classList.add('show');
+        modal.classList.remove('hidden');
 
         // Fetch followup data
         try {
@@ -749,7 +744,7 @@ function setupFollowupModal() {
             console.error('Failed to fetch followup:', error);
             const container = safeGetElement('followup-data');
             if (container) {
-                container.innerHTML = '<div class="placeholder"><p style="color: var(--accent-sell);">Gagal memuat data followup</p></div>';
+                container.innerHTML = '<div class="p-8 text-center text-accentDanger">Gagal memuat data followup</div>';
             }
         }
     };
@@ -780,35 +775,55 @@ function displayFollowupData(data) {
 
     // Create followup content
     const priceChange = data.price_change_pct || 0;
-    const priceChangeClass = priceChange >= 0 ? 'diff-positive' : 'diff-negative';
+    const priceChangeClass = priceChange >= 0 ? 'text-accentSuccess' : 'text-accentDanger';
     const priceChangeSign = priceChange >= 0 ? '+' : '';
 
-    const timeDiff = data.time_since_alert || 'N/A';
+    // Calculate time elapsed since alert
+    let timeDiff = 'N/A';
+    if (data.alert_time) {
+        try {
+            const alertTime = new Date(data.alert_time);
+            const now = new Date();
+            const diffMs = now - alertTime;
+            const diffMins = Math.floor(diffMs / 60000);
+            
+            if (diffMins < 60) {
+                timeDiff = `${diffMins}m`;
+            } else {
+                const diffHours = Math.floor(diffMins / 60);
+                const remainingMins = diffMins % 60;
+                timeDiff = `${diffHours}h ${remainingMins}m`;
+            }
+        } catch (e) {
+            console.error('Error calculating time diff:', e);
+        }
+    }
+
     const currentPrice = data.current_price || 0;
     const alertPrice = data.alert_price || 0;
 
     const html = `
-        <div class="followup-stats">
-            <div class="f-stat">
-                <span>Harga Alert:</span> 
-                <strong>Rp ${alertPrice.toLocaleString('id-ID')}</strong>
+        <div class="grid grid-cols-2 gap-4 mb-4">
+            <div class="bg-bgCard p-3 rounded border border-borderColor">
+                <span class="text-xs text-textSecondary block">Harga Alert</span> 
+                <strong class="text-textPrimary">Rp ${alertPrice.toLocaleString('id-ID')}</strong>
             </div>
-            <div class="f-stat">
-                <span>Harga Sekarang:</span> 
-                <strong>Rp ${currentPrice.toLocaleString('id-ID')}</strong>
+            <div class="bg-bgCard p-3 rounded border border-borderColor">
+                <span class="text-xs text-textSecondary block">Harga Sekarang</span> 
+                <strong class="text-textPrimary">Rp ${currentPrice.toLocaleString('id-ID')}</strong>
             </div>
-            <div class="f-stat">
-                <span>Perubahan:</span> 
+            <div class="bg-bgCard p-3 rounded border border-borderColor">
+                <span class="text-xs text-textSecondary block">Perubahan</span> 
                 <strong class="${priceChangeClass}">${priceChangeSign}${priceChange.toFixed(2)}%</strong>
             </div>
-            <div class="f-stat">
-                <span>Waktu Berlalu:</span> 
-                <strong>${timeDiff}</strong>
+            <div class="bg-bgCard p-3 rounded border border-borderColor">
+                <span class="text-xs text-textSecondary block">Waktu Berlalu</span> 
+                <strong class="text-textPrimary">${timeDiff}</strong>
             </div>
         </div>
-        <div class="followup-analysis">
-            <h4>📊 Analisis Pergerakan</h4>
-            <p>${data.analysis || 'Data analisis tidak tersedia'}</p>
+        <div class="bg-bgCard p-4 rounded border border-borderColor">
+            <h4 class="text-sm font-bold text-textPrimary mb-2">📊 Analisis Pergerakan</h4>
+            <p class="text-sm text-textSecondary">${data.analysis || 'Data analisis tidak tersedia'}</p>
         </div>
     `;
 
@@ -869,9 +884,9 @@ async function loadOptimizationData() {
     const effectivenessBody = safeGetElement('effectiveness-body');
 
     // Show loading states
-    if (evList) evList.innerHTML = '<div class="placeholder-small">Memuat data...</div>';
-    if (thresholdList) thresholdList.innerHTML = '<div class="placeholder-small">Memuat data...</div>';
-    if (effectivenessBody) effectivenessBody.innerHTML = '<tr><td colspan="6" class="text-center">Memuat data...</td></tr>';
+    if (evList) evList.innerHTML = '<div class="p-4 text-center text-textMuted text-xs">Memuat data...</div>';
+    if (thresholdList) thresholdList.innerHTML = '<div class="p-4 text-center text-textMuted text-xs">Memuat data...</div>';
+    if (effectivenessBody) effectivenessBody.innerHTML = '<tr><td colspan="6" class="text-center p-4 text-textSecondary">Memuat data...</td></tr>';
 
     try {
         // Fetch all optimization data in parallel
@@ -885,18 +900,18 @@ async function loadOptimizationData() {
         if (evList) {
             const evs = evData.expected_values || [];
             if (evs.length === 0) {
-                evList.innerHTML = '<div class="placeholder-small">Belum ada data historis</div>';
+                evList.innerHTML = '<div class="p-4 text-center text-textMuted text-xs">Belum ada data historis</div>';
             } else {
                 evList.innerHTML = evs.map(ev => {
-                    const evClass = ev.expected_value > 0 ? 'diff-positive' : (ev.expected_value < 0 ? 'diff-negative' : '');
-                    const recClass = ev.recommendation === 'STRONG' ? 'diff-positive' :
-                        (ev.recommendation === 'AVOID' ? 'diff-negative' : '');
+                    const evClass = ev.expected_value > 0 ? 'text-accentSuccess' : (ev.expected_value < 0 ? 'text-accentDanger' : '');
+                    const recClass = ev.recommendation === 'STRONG' ? 'text-accentSuccess font-bold' :
+                        (ev.recommendation === 'AVOID' ? 'text-accentDanger font-bold' : 'text-textSecondary');
                     return `
-                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid var(--border-color);">
-                            <span style="font-weight: 600;">${ev.strategy}</span>
-                            <div style="text-align: right;">
-                                <span class="${evClass}" style="font-weight: 600;">${ev.expected_value > 0 ? '+' : ''}${ev.expected_value.toFixed(4)}</span>
-                                <span class="${recClass}" style="font-size: 0.75em; margin-left: 0.5rem; padding: 2px 6px; background: rgba(255,255,255,0.1); border-radius: 4px;">${ev.recommendation}</span>
+                        <div class="flex justify-between items-center py-2 border-b border-borderColor last:border-0">
+                            <span class="font-semibold text-textPrimary text-sm">${ev.strategy}</span>
+                            <div class="text-right">
+                                <span class="${evClass} font-semibold text-sm mr-2">${ev.expected_value > 0 ? '+' : ''}${ev.expected_value.toFixed(4)}</span>
+                                <span class="${recClass} text-xs px-1.5 py-0.5 bg-bgSecondary rounded">${ev.recommendation}</span>
                             </div>
                         </div>
                     `;
@@ -908,14 +923,14 @@ async function loadOptimizationData() {
         if (thresholdList) {
             const thresholds = thresholdData.thresholds || [];
             if (thresholds.length === 0) {
-                thresholdList.innerHTML = '<div class="placeholder-small">Belum ada data historis</div>';
+                thresholdList.innerHTML = '<div class="p-4 text-center text-textMuted text-xs">Belum ada data historis</div>';
             } else {
                 thresholdList.innerHTML = thresholds.map(t => `
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid var(--border-color);">
-                        <span style="font-weight: 600;">${t.strategy}</span>
-                        <div style="text-align: right;">
-                            <span style="color: var(--accent-gold); font-weight: 600;">${(t.recommended_min_conf * 100).toFixed(0)}%</span>
-                            <span style="font-size: 0.75em; color: var(--text-secondary); margin-left: 0.5rem;">(${t.sample_size} sinyal)</span>
+                    <div class="flex justify-between items-center py-2 border-b border-borderColor last:border-0">
+                        <span class="font-semibold text-textPrimary text-sm">${t.strategy}</span>
+                        <div class="text-right">
+                            <span class="text-accentWarning font-semibold text-sm">${(t.recommended_min_conf * 100).toFixed(0)}%</span>
+                            <span class="text-xs text-textSecondary ml-2">(${t.sample_size} sinyal)</span>
                         </div>
                     </div>
                 `).join('');
@@ -926,19 +941,19 @@ async function loadOptimizationData() {
         if (effectivenessBody) {
             const effs = effectivenessData.effectiveness || [];
             if (effs.length === 0) {
-                effectivenessBody.innerHTML = '<tr><td colspan="6" class="text-center">Belum ada data historis</td></tr>';
+                effectivenessBody.innerHTML = '<tr><td colspan="6" class="text-center p-4 text-textSecondary">Belum ada data historis</td></tr>';
             } else {
                 effectivenessBody.innerHTML = effs.map(e => {
-                    const wrClass = e.win_rate >= 50 ? 'diff-positive' : (e.win_rate < 40 ? 'diff-negative' : '');
-                    const evClass = e.expected_value > 0 ? 'diff-positive' : (e.expected_value < 0 ? 'diff-negative' : '');
+                    const wrClass = e.win_rate >= 50 ? 'text-accentSuccess' : (e.win_rate < 40 ? 'text-accentDanger' : 'text-textSecondary');
+                    const evClass = e.expected_value > 0 ? 'text-accentSuccess' : (e.expected_value < 0 ? 'text-accentDanger' : '');
                     return `
-                        <tr>
-                            <td><strong>${e.strategy}</strong></td>
-                            <td>${e.market_regime}</td>
-                            <td class="text-right">${e.total_signals}</td>
-                            <td class="text-right ${wrClass}">${e.win_rate.toFixed(1)}%</td>
-                            <td class="text-right">${e.avg_profit_pct.toFixed(2)}%</td>
-                            <td class="text-right ${evClass}">${e.expected_value > 0 ? '+' : ''}${e.expected_value.toFixed(4)}</td>
+                        <tr class="hover:bg-bgHover transition-colors border-b border-borderColor last:border-0">
+                            <td class="p-3"><strong>${e.strategy}</strong></td>
+                            <td class="p-3">${e.market_regime}</td>
+                            <td class="p-3 text-right">${e.total_signals}</td>
+                            <td class="p-3 text-right ${wrClass}">${e.win_rate.toFixed(1)}%</td>
+                            <td class="p-3 text-right text-textPrimary">${e.avg_profit_pct.toFixed(2)}%</td>
+                            <td class="p-3 text-right ${evClass}">${e.expected_value > 0 ? '+' : ''}${e.expected_value.toFixed(4)}</td>
                         </tr>
                     `;
                 }).join('');
@@ -948,9 +963,9 @@ async function loadOptimizationData() {
         console.log('✅ Strategy optimization data loaded successfully');
     } catch (error) {
         console.error('Failed to load optimization data:', error);
-        if (evList) evList.innerHTML = '<div class="placeholder-small" style="color: var(--accent-sell);">Gagal memuat data</div>';
-        if (thresholdList) thresholdList.innerHTML = '<div class="placeholder-small" style="color: var(--accent-sell);">Gagal memuat data</div>';
-        if (effectivenessBody) effectivenessBody.innerHTML = '<tr><td colspan="6" class="text-center" style="color: var(--accent-sell);">Gagal memuat data</td></tr>';
+        if (evList) evList.innerHTML = '<div class="p-4 text-center text-accentDanger text-xs">Gagal memuat data</div>';
+        if (thresholdList) thresholdList.innerHTML = '<div class="p-4 text-center text-accentDanger text-xs">Gagal memuat data</div>';
+        if (effectivenessBody) effectivenessBody.innerHTML = '<tr><td colspan="6" class="text-center p-4 text-accentDanger">Gagal memuat data</td></tr>';
     }
 }
 
@@ -1013,7 +1028,7 @@ function startPatternAnalysis() {
         symbol = document.getElementById('symbol-input')?.value.trim().toUpperCase() || '';
         if (!symbol) {
             if (outputDiv) {
-                outputDiv.innerHTML = '<div class="placeholder"><span class="placeholder-icon">⚠️</span><p style="color: var(--accent-sell);">Silakan masukkan kode saham terlebih dahulu</p></div>';
+                outputDiv.innerHTML = '<div class="flex flex-col items-center justify-center p-8 h-full text-textSecondary"><span class="text-4xl mb-4">⚠️</span><p class="text-accentDanger">Silakan masukkan kode saham terlebih dahulu</p></div>';
             }
             return;
         }
@@ -1021,7 +1036,7 @@ function startPatternAnalysis() {
         customPrompt = document.getElementById('custom-prompt-input')?.value.trim() || '';
         if (!customPrompt) {
             if (outputDiv) {
-                outputDiv.innerHTML = '<div class="placeholder"><span class="placeholder-icon">⚠️</span><p style="color: var(--accent-sell);">Silakan masukkan prompt terlebih dahulu</p></div>';
+                outputDiv.innerHTML = '<div class="flex flex-col items-center justify-center p-8 h-full text-textSecondary"><span class="text-4xl mb-4">⚠️</span><p class="text-accentDanger">Silakan masukkan prompt terlebih dahulu</p></div>';
             }
             return;
         }
@@ -1039,10 +1054,10 @@ function startPatternAnalysis() {
     if (stopBtn) stopBtn.style.display = 'flex';
     if (statusBadge) {
         statusBadge.textContent = 'Streaming...';
-        statusBadge.className = 'status-badge streaming';
+        statusBadge.className = 'px-2 py-1 rounded-full text-xs font-bold bg-accentPrimary/20 text-accentPrimary animate-pulse';
     }
 
-    if (outputDiv) outputDiv.innerHTML = '<div class="stream-loading">🤖 Menganalisis data...</div>';
+    if (outputDiv) outputDiv.innerHTML = '<div class="flex items-center justify-center p-4 text-textSecondary animate-pulse">🤖 Menganalisis data...</div>';
 
     let streamText = '';
 
@@ -1050,7 +1065,7 @@ function startPatternAnalysis() {
         state.patternSSE = createCustomPromptSSE(customPrompt, customSymbols, hoursBack, includeData, {
             onChunk: (chunk) => {
                 if (streamText === '' && outputDiv) {
-                    outputDiv.innerHTML = '<div class="message-bubble"><div class="streaming-text"></div></div>';
+                    outputDiv.innerHTML = '<div class="bg-surface/50 rounded-lg p-4 border border-white/5"><div class="prose prose-invert max-w-none text-textPrimary leading-relaxed streaming-text"></div></div>';
                 }
 
                 streamText += chunk;
@@ -1058,7 +1073,7 @@ function startPatternAnalysis() {
 
                 const textContainer = outputDiv?.querySelector('.streaming-text');
                 if (textContainer) {
-                    textContainer.innerHTML = `${htmlContent}<span class="streaming-cursor"></span>`;
+                    textContainer.innerHTML = `${htmlContent}<span class="inline-block w-2 h-4 bg-accentPrimary align-middle ml-1 animate-pulse"></span>`;
                 }
 
                 if (outputDiv) outputDiv.scrollTop = outputDiv.scrollHeight;
@@ -1066,12 +1081,12 @@ function startPatternAnalysis() {
             onDone: () => {
                 const htmlContent = marked.parse(streamText);
                 if (outputDiv) {
-                    outputDiv.innerHTML = `<div class="message-bubble"><div class="streaming-text">${htmlContent}</div></div>`;
+                    outputDiv.innerHTML = `<div class="bg-surface/50 rounded-lg p-4 border border-white/5"><div class="prose prose-invert max-w-none text-textPrimary leading-relaxed streaming-text">${htmlContent}</div></div>`;
                 }
 
                 if (statusBadge) {
                     statusBadge.textContent = 'Completed';
-                    statusBadge.className = 'status-badge';
+                    statusBadge.className = 'px-2 py-1 rounded-full text-xs font-bold bg-accentSuccess/20 text-accentSuccess';
                 }
 
                 if (startBtn) startBtn.style.display = 'flex';
@@ -1080,7 +1095,7 @@ function startPatternAnalysis() {
             onError: () => {
                 if (statusBadge) {
                     statusBadge.textContent = 'Error';
-                    statusBadge.className = 'status-badge error';
+                    statusBadge.className = 'px-2 py-1 rounded-full text-xs font-bold bg-accentDanger/20 text-accentDanger';
                 }
             }
         });
@@ -1088,7 +1103,7 @@ function startPatternAnalysis() {
         state.patternSSE = createPatternAnalysisSSE(state.currentPatternType, symbol, {
             onChunk: (chunk) => {
                 if (streamText === '' && outputDiv) {
-                    outputDiv.innerHTML = '<div class="message-bubble"><div class="streaming-text"></div></div>';
+                    outputDiv.innerHTML = '<div class="bg-surface/50 rounded-lg p-4 border border-white/5"><div class="prose prose-invert max-w-none text-textPrimary leading-relaxed streaming-text"></div></div>';
                 }
 
                 streamText += chunk;
@@ -1096,7 +1111,7 @@ function startPatternAnalysis() {
 
                 const textContainer = outputDiv?.querySelector('.streaming-text');
                 if (textContainer) {
-                    textContainer.innerHTML = `${htmlContent}<span class="streaming-cursor"></span>`;
+                    textContainer.innerHTML = `${htmlContent}<span class="inline-block w-2 h-4 bg-accentPrimary align-middle ml-1 animate-pulse"></span>`;
                 }
 
                 if (outputDiv) outputDiv.scrollTop = outputDiv.scrollHeight;
@@ -1104,12 +1119,12 @@ function startPatternAnalysis() {
             onDone: () => {
                 const htmlContent = marked.parse(streamText);
                 if (outputDiv) {
-                    outputDiv.innerHTML = `<div class="message-bubble"><div class="streaming-text">${htmlContent}</div></div>`;
+                    outputDiv.innerHTML = `<div class="bg-surface/50 rounded-lg p-4 border border-white/5"><div class="prose prose-invert max-w-none text-textPrimary leading-relaxed streaming-text">${htmlContent}</div></div>`;
                 }
 
                 if (statusBadge) {
                     statusBadge.textContent = 'Completed';
-                    statusBadge.className = 'status-badge';
+                    statusBadge.className = 'px-2 py-1 rounded-full text-xs font-bold bg-accentSuccess/20 text-accentSuccess';
                 }
 
                 if (startBtn) startBtn.style.display = 'flex';
@@ -1118,7 +1133,7 @@ function startPatternAnalysis() {
             onError: () => {
                 if (statusBadge) {
                     statusBadge.textContent = 'Error';
-                    statusBadge.className = 'status-badge error';
+                    statusBadge.className = 'px-2 py-1 rounded-full text-xs font-bold bg-accentDanger/20 text-accentDanger';
                 }
             }
         });
@@ -1159,11 +1174,15 @@ function startAnalyticsPolling() {
 
         // Get symbol from search filter for baseline, default to IHSG
         const symbol = state.currentFilters.search || 'IHSG';
+        
+        // For Order Flow, use global data (empty symbol) if purely Dashboard view (IHSG)
+        // This ensures the "Buy/Sell Pressure" bar shows aggregate market activity instead of 0
+        const flowSymbol = symbol === 'IHSG' ? '' : symbol;
 
         // OPTIMIZATION: Only fetch data relevant to active view
         const promises = [
             // Always fetch these (critical for main dashboard)
-            API.fetchOrderFlow().then(renderOrderFlow).catch(() => null),
+            API.fetchOrderFlow(flowSymbol).then(renderOrderFlow).catch(() => null),
             API.fetchMarketRegime(symbol).then(renderMarketIntelligence).catch(() => {
                 renderMarketIntelligence({ regime: 'UNKNOWN', confidence: 0 });
             }),
@@ -1238,7 +1257,7 @@ async function loadCorrelations() {
             } else {
                 // Add header to indicate context
                 const title = searchSymbol ? `Korelasi untuk ${searchSymbol}` : "Korelasi Terkuat (Global)";
-                const header = `<div style="margin-bottom:10px; font-weight:600; color:var(--text-secondary); font-size:0.9em;">${title}</div>`;
+                const header = `<div class="mb-2 font-semibold text-textSecondary text-sm">${title}</div>`;
                 container.innerHTML = header;
 
                 // Create a div for the list to append to
@@ -1251,8 +1270,8 @@ async function loadCorrelations() {
         console.error('Failed to load correlations:', error);
         if (container) {
             container.innerHTML = `
-                <div class="placeholder-small">
-                    <p style="color: var(--accent-sell);">Gagal memuat data korelasi</p>
+                <div class="flex flex-col items-center justify-center p-8 h-full text-textSecondary">
+                    <p class="text-accentDanger">Gagal memuat data korelasi</p>
                 </div>
             `;
         }
@@ -1364,7 +1383,7 @@ async function loadProfitLossHistory(reset = false) {
     } catch (error) {
         console.error('Failed to load P&L history:', error);
         if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; padding: 2rem; color: var(--accent-sell);">Gagal memuat riwayat P&L</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="11" class="text-center p-8 text-accentDanger">Gagal memuat riwayat P&L</td></tr>';
         }
     } finally {
         state.tables.history.isLoading = false;
@@ -1387,7 +1406,7 @@ async function loadPerformance(reset = true) {
     state.tables.performance.isLoading = true;
 
     if (reset) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center" style="padding: 20px;">Memuat data...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center p-5">Memuat data...</td></tr>';
         state.tables.performance.offset = 0;
         state.tables.performance.data = [];
     }
@@ -1415,7 +1434,7 @@ async function loadPerformance(reset = true) {
     } catch (error) {
         console.error('Failed to load performance:', error);
         if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center" style="padding: 20px; color: var(--accent-sell);">Gagal memuat data</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center p-8 text-accentDanger">Gagal memuat data</td></tr>';
         }
     } finally {
         state.tables.performance.isLoading = false;

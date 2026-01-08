@@ -177,19 +177,19 @@ export function clamp(value, min, max) {
 }
 
 /**
- * Get color for market regime
+ * Get CSS class for market regime
  * @param {string} regime - Market regime code
- * @returns {string} Color hex code or var
+ * @returns {string} Tailwind CSS class
  */
-export function getRegimeColor(regime) {
+export function getRegimeClass(regime) {
     switch (regime) {
-        case 'TRENDING_UP': return 'var(--diff-positive)';
-        case 'TRENDING_DOWN': return 'var(--diff-negative)';
-        case 'RANGING': return 'var(--accent-gold)';
-        case 'BREAKOUT': return '#9B59B6'; // Purple
-        case 'BREAKDOWN': return '#E67E22'; // Orange
-        case 'VOLATILE': return '#E74C3C';
-        default: return '#7F8C8D';
+        case 'TRENDING_UP': return 'text-accentSuccess';
+        case 'TRENDING_DOWN': return 'text-accentDanger';
+        case 'RANGING': return 'text-accentWarning';
+        case 'BREAKOUT': return 'text-purple-500'; 
+        case 'BREAKDOWN': return 'text-orange-500';
+        case 'VOLATILE': return 'text-accentDanger';
+        default: return 'text-textMuted';
     }
 }
 

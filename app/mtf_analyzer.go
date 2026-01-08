@@ -189,9 +189,10 @@ func (ma *MTFAnalyzer) calculateConfluence(analyses []TimeframeAnalysis) (float6
 		weight := weights[a.Timeframe]
 		totalWeight += weight
 
-		if a.Trend == dominantTrend {
+		switch a.Trend {
+		case dominantTrend:
 			agreeWeight += weight
-		} else if a.Trend == MTFTrendNeutral {
+		case MTFTrendNeutral:
 			agreeWeight += weight * 0.5 // Neutral counts as half
 		}
 	}

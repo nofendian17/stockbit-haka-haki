@@ -121,7 +121,7 @@ function connectStrategySSE() {
     if (!statusEl || !indicatorEl) return;
 
     statusEl.textContent = 'Connecting...';
-    indicatorEl.style.backgroundColor = '#FFD700';
+    indicatorEl.style.backgroundColor = '#FFD700'; // Keep inline for dynamic color state, or map to classes if possible, but simplest to leave for status
     indicatorEl.style.animation = 'pulse 2s infinite';
 
     strategyEventSource = createStrategySignalSSE(activeStrategyFilter, {
@@ -197,16 +197,16 @@ function renderSignalRow(signal, isInitialLoad = false) {
     if (placeholder) placeholder.style.display = 'none';
 
     // Decision badge
-    let badgeClass = 'badge';
+    let badgeClass = 'bg-gray-700 text-gray-300';
     let decisionIcon = '';
     if (signal.decision === 'BUY') {
-        badgeClass = 'badge buy';
+        badgeClass = 'bg-accentSuccess/20 text-accentSuccess border border-accentSuccess/20';
         decisionIcon = '📈';
     } else if (signal.decision === 'SELL') {
-        badgeClass = 'badge sell';
+        badgeClass = 'bg-accentDanger/20 text-accentDanger border border-accentDanger/20';
         decisionIcon = '📉';
     } else if (signal.decision === 'WAIT') {
-        badgeClass = 'badge unknown';
+        badgeClass = 'bg-gray-700 text-gray-300';
         decisionIcon = '⏸️';
     }
 
@@ -217,7 +217,7 @@ function renderSignalRow(signal, isInitialLoad = false) {
     const changeValue = signal.change ?? signal.price_change_pct ?? 0;
     const change = changeValue.toFixed(2);
     const changeSign = changeValue >= 0 ? '+' : '';
-    const changeClass = changeValue >= 0 ? 'diff-positive' : 'diff-negative';
+    const changeClass = changeValue >= 0 ? 'text-accentSuccess font-bold' : 'text-accentDanger font-bold';
     const confidence = Math.round((signal.confidence || 0) * 100);
 
     // Confidence display
@@ -230,45 +230,25 @@ function renderSignalRow(signal, isInitialLoad = false) {
     const priceZScore = signal.price_z_score || 0;
     const volumeZScore = signal.volume_z_score || 0;
     const enhancedReason = signal.reason || '-';
-    const zScoreInfo = `Price Z: ${priceZScore.toFixed(2)} | Vol Z: ${volumeZScore.toFixed(2)}`;
+    // const zScoreInfo = `Price Z: ${priceZScore.toFixed(2)} | Vol Z: ${volumeZScore.toFixed(2)}`;
 
     // Create row
     const row = document.createElement('tr');
+    row.className = 'border-b border-borderColor last:border-0 hover:bg-bgHover transition-colors';
+
     row.innerHTML = `
-        <td data-label="Waktu" class="col-time" title="${fullTime}">${timeAgo}</td>
-        <td data-label="Saham" class="col-symbol">
-            <strong class="clickable-symbol" onclick="if(window.openCandleModal) window.openCandleModal('${signal.stock_symbol}')">${signal.stock_symbol}</strong>
+        <td data-label="Waktu" class="table-cell whitespace-nowrap text-textMuted text-xs" title="${fullTime}">${timeAgo}</td>
+        <td data-label="Saham" class="table-cell font-bold">
+            <strong class="cursor-pointer hover:text-accentInfo transition-colors" onclick="if(window.openCandleModal) window.openCandleModal('${signal.stock_symbol}')">${signal.stock_symbol}</strong>
         </td>
-        <td data-label="Strategi" title="${signal.strategy.replace(/_/g, ' ')}">${formatStrategyName(signal.strategy)}</td>
-        <td data-label="Aksi"><span class="${badgeClass}">${decisionIcon} ${signal.decision}</span></td>
-        <td data-label="Harga" class="col-price">Rp ${price}</td>
-        <td data-label="Perubahan" class="text-right">
+        <td data-label="Strategi" class="table-cell text-xs" title="${signal.strategy.replace(/_/g, ' ')}">${formatStrategyName(signal.strategy)}</td>
+        <td data-label="Aksi" class="table-cell"><span class="px-2 py-0.5 rounded text-xs font-bold ${badgeClass}">${decisionIcon} ${signal.decision}</span></td>
+        <td data-label="Harga" class="table-cell text-right font-medium text-sm">Rp ${price}</td>
+        <td data-label="Perubahan" class="table-cell text-right text-sm">
             <span class="${changeClass}">${changeSign}${change}%</span>
         </td>
-        <td data-label="Keyakinan" class="text-right">
-            <span class="${confidenceClass}" title="${confidenceLabel} (${confidence}%)">${confidenceIcon} ${confidence}%</span>
-        </td>
-        <td data-label="Hasil" class="text-center">
+        <td data-label="Result" class="table-cell text-center">
             ${renderOutcome(signal)}
-        </td>
-        <td data-label="Alasan" class="reason-cell reason-cell-multiline" title="${zScoreInfo}">
-            ${enhancedReason}
-            ${priceZScore > 0 || volumeZScore > 0 ? `<div style="font-size:0.7em; color:#888; margin-top:4px;">${zScoreInfo}</div>` : ''}
-            ${(() => {
-            if (signal.analysis_data) {
-                try {
-                    const analysis = JSON.parse(signal.analysis_data);
-                    if (analysis.factors) {
-                        const score = analysis.total_score || 0;
-                        const scoreColor = score >= 80 ? '#0ECB81' : score >= 60 ? '#F0B90B' : '#F6465D';
-                        return `<div style="font-size:0.7em; margin-top:4px; font-weight:600; color:${scoreColor}">
-                                Score: ${score}/100
-                             </div>`;
-                    }
-                } catch (e) { return ''; }
-            }
-            return '';
-        })()}
         </td>
     `;
 
@@ -306,20 +286,20 @@ function renderSignalRow(signal, isInitialLoad = false) {
  * @returns {Object} Confidence display info
  */
 function getConfidenceInfo(confidence) {
-    let confidenceClass = 'confidence-low';
+    let confidenceClass = 'text-textMuted';
     let confidenceIcon = '⚪';
     let confidenceLabel = 'Low';
 
     if (confidence >= 80) {
-        confidenceClass = 'confidence-extreme';
+        confidenceClass = 'text-accentDanger font-bold';
         confidenceIcon = '🔴';
         confidenceLabel = 'Extreme';
     } else if (confidence >= 70) {
-        confidenceClass = 'confidence-high';
+        confidenceClass = 'text-accentWarning font-bold';
         confidenceIcon = '🟠';
         confidenceLabel = 'High';
     } else if (confidence >= 50) {
-        confidenceClass = 'confidence-medium';
+        confidenceClass = 'text-yellow-400 font-bold';
         confidenceIcon = '🟡';
         confidenceLabel = 'Medium';
     }
@@ -369,23 +349,22 @@ function getTimeInfo(signal) {
  */
 function renderOutcome(signal) {
     if (!signal.outcome) {
-        return `<span class="outcome-badge outcome-pending">PENDING</span>`;
+        return `<span class="outcome-pending px-2 py-0.5 bg-bgSecondary text-textSecondary text-xs rounded border border-borderColor">PENDING</span>`;
     }
 
     const profit = signal.profit_loss_pct || 0;
-    let outcomeClass = 'outcome-loss';
-
+    
     if (signal.outcome === 'WIN') {
-        outcomeClass = 'outcome-win';
+        return `<span class="px-2 py-0.5 bg-accentSuccess/20 text-accentSuccess border border-accentSuccess/20 text-xs rounded font-bold">WIN (+${profit.toFixed(1)}%)</span>`;
     } else if (signal.outcome === 'OPEN') {
-        outcomeClass = 'badge'; // Use default blue/neutral badge style
-        return `<span class="badge" style="background: var(--accent-blue); color: white;">OPEN (${profit >= 0 ? '+' : ''}${profit.toFixed(1)}%)</span>`;
+        return `<span class="px-2 py-0.5 bg-accentInfo/20 text-accentInfo border border-accentInfo/20 text-xs rounded font-bold">OPEN (${profit >= 0 ? '+' : ''}${profit.toFixed(1)}%)</span>`;
+    } else if (signal.outcome === 'LOSS') {
+        return `<span class="px-2 py-0.5 bg-accentDanger/20 text-accentDanger border border-accentDanger/20 text-xs rounded font-bold">LOSS (${profit.toFixed(1)}%)</span>`;
     } else if (signal.outcome === 'SKIPPED') {
-        return `<span class="badge" style="background: var(--accent-gold); color: white;">SKIPPED</span>`;
+        return `<span class="px-2 py-0.5 bg-yellow-900/40 text-yellow-400 border border-yellow-700/40 text-xs rounded font-bold">SKIPPED</span>`;
     } else if (signal.outcome === 'BREAKEVEN') {
-        return `<span class="badge" style="background: var(--text-secondary); color: white;">BREAKEVEN</span>`;
+        return `<span class="px-2 py-0.5 bg-gray-700 text-gray-300 text-xs rounded font-bold">BREAKEVEN</span>`;
     }
 
-    const sign = profit >= 0 ? '+' : '';
-    return `<span class="outcome-badge ${outcomeClass}">${signal.outcome} (${sign}${profit.toFixed(1)}%)</span>`;
+    return `<span class="text-xs text-textMuted">${signal.outcome}</span>`;
 }

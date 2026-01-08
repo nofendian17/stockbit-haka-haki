@@ -110,8 +110,10 @@ export async function fetchAnalyticsHub() {
  * Fetch order flow data
  * @returns {Promise<Object>} Order flow data
  */
-export async function fetchOrderFlow() {
-    return apiFetch(API_ENDPOINTS.ORDER_FLOW);
+export async function fetchOrderFlow(symbol = '') {
+    const params = new URLSearchParams();
+    if (symbol) params.append('symbol', symbol);
+    return apiFetch(`${API_ENDPOINTS.ORDER_FLOW}?${params.toString()}`);
 }
 
 /**

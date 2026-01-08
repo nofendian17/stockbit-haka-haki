@@ -62,8 +62,11 @@ func (r *Repository) GetLatestBaseline(symbol string) (*models.StatisticalBaseli
 
 // CalculateBaselinesDB calculates statistical baselines directly in the database
 // Uses candle_1min view for efficient aggregation
-func (r *Repository) CalculateBaselinesDB(hoursBack int, minTrades int) ([]models.StatisticalBaseline, error) {
+func (r *Repository) CalculateBaselinesDB(minutesBack int, minTrades int) ([]models.StatisticalBaseline, error) {
 	var baselines []models.StatisticalBaseline
+
+	// Calculate hours for display/storage (integer division)
+	lookbackHours := minutesBack / 60
 
 	// Complex aggregation query using Postgres/TimescaleDB functions
 	// We use candle_1min to get precise volume/price data but aggregated by minute first for speed
@@ -86,7 +89,7 @@ func (r *Repository) CalculateBaselinesDB(hoursBack int, minTrades int) ([]model
 				AVG(total_value) as mean_value,
 				STDDEV(total_value) as std_dev_value
 			FROM candle_1min
-			WHERE bucket >= NOW() - INTERVAL '1 hour' * ?
+			WHERE bucket >= NOW() - INTERVAL '1 minute' * ?
 			GROUP BY stock_symbol
 			HAVING COUNT(*) >= ?
 		)
@@ -108,9 +111,9 @@ func (r *Repository) CalculateBaselinesDB(hoursBack int, minTrades int) ([]model
 			COALESCE(mean_value, 0) as mean_value,
 			COALESCE(std_dev_value, 0) as std_dev_value
 		FROM stats
-	`, hoursBack)
+	`, lookbackHours)
 
-	if err := r.db.Raw(query, hoursBack, minTrades).Scan(&baselines).Error; err != nil {
+	if err := r.db.Raw(query, minutesBack, minTrades).Scan(&baselines).Error; err != nil {
 		return nil, fmt.Errorf("CalculateBaselinesDB: %w", err)
 	}
 

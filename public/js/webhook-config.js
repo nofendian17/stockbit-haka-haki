@@ -29,14 +29,14 @@ function setupWebhookModal() {
 
     if (openBtn && modal) {
         openBtn.addEventListener('click', () => {
-            modal.classList.add('show');
+            modal.classList.remove('hidden');
             loadWebhooks();
         });
     }
 
     if (closeBtn && modal) {
         closeBtn.addEventListener('click', () => {
-            modal.classList.remove('show');
+            modal.classList.add('hidden');
             resetWebhookForm();
         });
     }
@@ -44,7 +44,7 @@ function setupWebhookModal() {
     if (modal) {
         modal.addEventListener('click', (e) => {
             if (e.target === modal) {
-                modal.classList.remove('show');
+                modal.classList.add('hidden');
                 resetWebhookForm();
             }
         });
@@ -54,7 +54,7 @@ function setupWebhookModal() {
         addBtn.addEventListener('click', () => {
             resetWebhookForm();
             const formSection = safeGetElement('webhook-form-section');
-            if (formSection) formSection.style.display = 'block';
+            if (formSection) formSection.classList.remove('hidden');
         });
     }
 }
@@ -88,8 +88,8 @@ async function loadWebhooks() {
     const loading = safeGetElement('webhook-loading');
     const placeholder = safeGetElement('webhook-placeholder');
 
-    if (loading) loading.style.display = 'block';
-    if (placeholder) placeholder.style.display = 'none';
+    if (loading) loading.classList.remove('hidden');
+    if (placeholder) placeholder.classList.add('hidden');
 
     try {
         webhooks = await API.fetchWebhooks();
@@ -97,10 +97,10 @@ async function loadWebhooks() {
     } catch (error) {
         console.error('Failed to load webhooks:', error);
         if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--accent-sell);">Failed to load webhooks</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-accentDanger p-4">Failed to load webhooks</td></tr>';
         }
     } finally {
-        if (loading) loading.style.display = 'none';
+        if (loading) loading.classList.add('hidden');
     }
 }
 
@@ -112,33 +112,34 @@ function renderWebhooks(webhooks, tbody, placeholder) {
 
     if (!webhooks || webhooks.length === 0) {
         tbody.innerHTML = '';
-        if (placeholder) placeholder.style.display = 'block';
+        if (placeholder) placeholder.classList.remove('hidden');
         return;
     }
 
-    if (placeholder) placeholder.style.display = 'none';
+    if (placeholder) placeholder.classList.add('hidden');
 
     tbody.innerHTML = '';
     webhooks.forEach(webhook => {
         const row = document.createElement('tr');
+        row.className = 'border-b border-borderColor last:border-0 hover:bg-bgHover transition-colors';
 
-        const statusClass = webhook.is_active ? 'diff-positive' : 'text-secondary';
+        const statusClass = webhook.is_active ? 'text-accentSuccess font-bold' : 'text-textMuted';
         const statusText = webhook.is_active ? '✓ Active' : '✗ Disabled';
         const toggleIcon = webhook.is_active ? '🔔' : '🔕';
         const toggleTitle = webhook.is_active ? 'Disable webhook' : 'Enable webhook';
 
         row.innerHTML = `
-            <td style="font-weight: 500;">${escapeHtml(webhook.name || 'Unnamed')}</td>
-            <td style="font-size: 0.85em; word-break: break-all;">${escapeHtml(webhook.url || '')}</td>
-            <td class="${statusClass}" style="font-weight: 500;">${statusText}</td>
-            <td style="text-align: right;">
-                <button class="btn-icon" onclick="window.toggleWebhook(${webhook.id})" title="${toggleTitle}" style="cursor: pointer;">
+            <td data-label="Name" class="p-3 font-medium">${escapeHtml(webhook.name || 'Unnamed')}</td>
+            <td data-label="URL" class="p-3 text-sm break-all">${escapeHtml(webhook.url || '')}</td>
+            <td data-label="Status" class="p-3 ${statusClass}">${statusText}</td>
+            <td data-label="Actions" class="p-3 text-right space-x-2">
+                <button class="p-1 hover:text-accentInfo transition-colors" onclick="window.toggleWebhook(${webhook.id})" title="${toggleTitle}">
                     ${toggleIcon}
                 </button>
-                <button class="btn-icon" onclick="window.editWebhook(${webhook.id})" title="Edit">
+                <button class="p-1 hover:text-accentWarning transition-colors" onclick="window.editWebhook(${webhook.id})" title="Edit">
                     ✏️
                 </button>
-                <button class="btn-icon" onclick="window.deleteWebhook(${webhook.id})" title="Delete" style="color: var(--accent-sell);">
+                <button class="p-1 hover:text-accentDanger transition-colors" onclick="window.deleteWebhook(${webhook.id})" title="Delete">
                     🗑️
                 </button>
             </td>
@@ -220,7 +221,7 @@ export function editWebhook(id) {
     if (nameInput) nameInput.value = webhook.name || '';
     if (urlInput) urlInput.value = webhook.url || '';
     if (enabledInput) enabledInput.checked = webhook.is_active || false;
-    if (formSection) formSection.style.display = 'block';
+    if (formSection) formSection.classList.remove('hidden');
     if (formTitle) formTitle.textContent = 'Edit Webhook';
 }
 
@@ -284,7 +285,7 @@ function resetWebhookForm() {
     const formTitle = safeGetElement('webhook-form-title');
 
     if (form) form.reset();
-    if (formSection) formSection.style.display = 'none';
+    if (formSection) formSection.classList.add('hidden');
     if (formTitle) formTitle.textContent = 'Add New Webhook';
 }
 

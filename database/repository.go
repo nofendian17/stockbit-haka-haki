@@ -826,8 +826,8 @@ func (r *TradeRepository) GetSignalPerformanceStats(strategy string, symbol stri
 }
 
 // Analytics methods
-func (r *TradeRepository) CalculateBaselinesDB(hoursBack int, minTrades int) ([]models.StatisticalBaseline, error) {
-	return r.analytics.CalculateBaselinesDB(hoursBack, minTrades)
+func (r *TradeRepository) CalculateBaselinesDB(minutesBack int, minTrades int) ([]models.StatisticalBaseline, error) {
+	return r.analytics.CalculateBaselinesDB(minutesBack, minTrades)
 }
 
 func (r *TradeRepository) GetGlobalPerformanceStats() (*types.PerformanceStats, error) {
