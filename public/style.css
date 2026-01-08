@@ -390,12 +390,12 @@ body {
 .table-wrapper {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  overflow: hidden;
-  max-height: 500px;
+  max-height: 450px;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: auto;
   scroll-behavior: smooth;
   position: relative;
+  display: block;
 }
 
 .data-table {
@@ -407,6 +407,9 @@ body {
 .data-table thead {
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .data-table th {
@@ -442,19 +445,21 @@ body {
 
 /* Custom Scrollbar for Tables */
 .table-wrapper::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 
 .table-wrapper::-webkit-scrollbar-track {
   background: var(--bg-secondary);
   border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
 }
 
 .table-wrapper::-webkit-scrollbar-thumb {
   background: var(--border-hover);
   border-radius: var(--radius-sm);
   transition: var(--transition);
+  border: 1px solid var(--border-color);
 }
 
 .table-wrapper::-webkit-scrollbar-thumb:hover {
@@ -463,7 +468,7 @@ body {
 
 /* Firefox scrollbar */
 .table-wrapper {
-  scrollbar-width: thin;
+  scrollbar-width: auto;
   scrollbar-color: var(--border-hover) var(--bg-secondary);
 }
 

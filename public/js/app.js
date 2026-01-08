@@ -109,6 +109,8 @@ async function fetchAlerts(reset = false) {
     const loadingMore = safeGetElement('loading-more');
     const noMoreData = safeGetElement('no-more-data');
     
+    console.log(`🔍 Fetching alerts... Reset: ${reset}, Offset: ${state.currentOffset}, HasMore: ${state.hasMore}`);
+    
     if (reset) {
         if (loadingDiv) loadingDiv.style.display = 'block';
         if (noMoreData) noMoreData.style.display = 'none';
@@ -124,6 +126,8 @@ async function fetchAlerts(reset = false) {
 
         const alerts = data.data || [];
         state.hasMore = data.has_more || false;
+
+        console.log(`✅ Received ${alerts.length} alerts. Total: ${state.alerts.length + alerts.length}, HasMore: ${state.hasMore}`);
 
         if (reset) {
             state.alerts = alerts;
@@ -287,14 +291,30 @@ function setupInfiniteScroll() {
     // Find the first table-wrapper in the whale alerts section (first card with alerts-table-body)
     const alertsTable = document.getElementById('alerts-table-body');
     const container = alertsTable?.closest('.table-wrapper');
+    
+    if (!container) {
+        console.warn('⚠️ Table wrapper not found for infinite scroll');
+        return;
+    }
+    
+    console.log('✅ Infinite scroll setup on .table-wrapper');
+    
     if (container) {
         container.addEventListener('scroll', () => {
             const { scrollTop, scrollHeight, clientHeight } = container;
             const noMoreData = safeGetElement('no-more-data');
             
+            const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+            
+            // Debug log
+            if (distanceFromBottom < CONFIG.SCROLL_THRESHOLD + 50) {
+                console.log(`📊 Scroll position: ${Math.round(distanceFromBottom)}px from bottom`);
+            }
+            
             // Check if scrolled near bottom
-            if (scrollHeight - scrollTop - clientHeight < CONFIG.SCROLL_THRESHOLD) {
+            if (distanceFromBottom < CONFIG.SCROLL_THRESHOLD) {
                 if (state.hasMore && !state.isLoading) {
+                    console.log('🔄 Loading more data...');
                     // Load more data
                     fetchAlerts(false);
                 } else if (!state.hasMore && noMoreData && state.alerts.length > 0) {
