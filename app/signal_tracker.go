@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"stockbit-haka-haki/cache"
+	"stockbit-haka-haki/config"
 	"stockbit-haka-haki/database"
 )
 
@@ -19,27 +20,9 @@ const (
 
 // Position Management Constants
 const (
-	MinSignalIntervalMinutes = 15 // Minimum 15 minutes between signals for same symbol
-	MaxOpenPositions         = 10 // Maximum concurrent open positions (adaptive based on regime)
-	MaxPositionsPerSymbol    = 1  // Maximum positions per symbol (prevent averaging down)
-	SignalTimeWindowMinutes  = 5  // Time window for duplicate detection
-
-	// Optimization: Order Flow Imbalance thresholds
-	OrderFlowBuyThreshold  = 0.5  // 50% buy imbalance required for BUY signals (Tightened from 30%)
-	AggressiveBuyThreshold = 60.0 // 60% aggressive buyers required
-
-	// Optimization: Baseline quality requirements
-	MinBaselineSampleSize       = 50 // Minimum trades for reliable baseline (Tightened from 30)
-	MinBaselineSampleSizeStrict = 80 // Minimum for full confidence
-
-	// Optimization: Time-of-day adjustments
+	// Optimization: Time-of-Day adjustments (Still hardcoded as business logic)
 	MorningBoostHour     = 10 // Before 10:00 WIB = morning momentum
 	AfternoonCautionHour = 14 // After 14:00 WIB = increased caution
-
-	// Optimization: Strategy performance tracking
-	MinStrategySignals   = 20 // Minimum signals before performance evaluation
-	LowWinRateThreshold  = 30 // Below 30% = disable strategy temporarily
-	HighWinRateThreshold = 65 // Above 65% = boost confidence
 )
 
 // isTradingTime checks if the given time is within Indonesian market trading hours
@@ -114,22 +97,24 @@ func getTradingSession(t time.Time) string {
 type SignalTracker struct {
 	repo        *database.TradeRepository
 	redis       *cache.RedisClient
+	cfg         *config.Config
 	done        chan bool
 	mtfAnalyzer *MTFAnalyzer            // Multi-timeframe analyzer
 	exitCalc    *ExitStrategyCalculator // ATR-based exit strategy calculator
 }
 
 // NewSignalTracker creates a new signal outcome tracker
-func NewSignalTracker(repo *database.TradeRepository, redis *cache.RedisClient) *SignalTracker {
+func NewSignalTracker(repo *database.TradeRepository, redis *cache.RedisClient, cfg *config.Config) *SignalTracker {
 	// Initialize MTF Analyzer
 	mtf := NewMTFAnalyzer(repo)
 
 	// Initialize Exit Strategy Calculator
-	exitCalc := NewExitStrategyCalculator(repo)
+	exitCalc := NewExitStrategyCalculator(repo, cfg)
 
 	return &SignalTracker{
 		repo:        repo,
 		redis:       redis,
+		cfg:         cfg,
 		done:        make(chan bool),
 		mtfAnalyzer: mtf,
 		exitCalc:    exitCalc,
@@ -311,11 +296,11 @@ func (st *SignalTracker) shouldCreateOutcome(signal *database.TradingSignalDB) (
 		log.Printf("📈 Signal EV check passed for %s: +%.4f", signal.Strategy, ev)
 	}
 
-	// OPTIMIZATION #2: Order Flow Imbalance Check (Adaptive)
+	// 0. Order Flow Imbalance Check (Adaptive)
 	// Default to standard threshold, but relax if strong momentum indicators exist
-	dynamicFlowThreshold := OrderFlowBuyThreshold
+	dynamicFlowThreshold := st.cfg.Trading.OrderFlowBuyThreshold
 	if isHighVolume || isTrendAligned {
-		dynamicFlowThreshold = 0.45 // Relax to 45% if we have volume or trend support
+		dynamicFlowThreshold = st.cfg.Trading.OrderFlowBuyThreshold * 0.9 // Relax by 10%
 	}
 
 	flowPassed, _, flowReason := st.checkOrderFlowImbalance(signal.StockSymbol, signal.Decision, dynamicFlowThreshold)
@@ -352,25 +337,25 @@ func (st *SignalTracker) shouldCreateOutcome(signal *database.TradingSignalDB) (
 
 	// 2. Check if symbol already has open position
 	symbolOutcomes, err := st.repo.GetSignalOutcomes(signal.StockSymbol, "OPEN", time.Time{}, time.Time{}, 0)
-	if err == nil && len(symbolOutcomes) >= MaxPositionsPerSymbol {
+	if err == nil && len(symbolOutcomes) >= st.cfg.Trading.MaxPositionsPerSymbol {
 		return false, fmt.Sprintf("Symbol %s already has %d open position(s)", signal.StockSymbol, len(symbolOutcomes))
 	}
 
 	// 3. Check for recent signals within time window (duplicate prevention)
-	recentSignalTime := signal.GeneratedAt.Add(-time.Duration(SignalTimeWindowMinutes) * time.Minute)
+	recentSignalTime := signal.GeneratedAt.Add(-time.Duration(st.cfg.Trading.SignalTimeWindowMinutes) * time.Minute)
 	recentSignals, err := st.repo.GetTradingSignals(signal.StockSymbol, signal.Strategy, "BUY", recentSignalTime, signal.GeneratedAt, 10)
 	if err == nil && len(recentSignals) > 1 {
-		return false, fmt.Sprintf("Duplicate signal within %d minute window", SignalTimeWindowMinutes)
+		return false, fmt.Sprintf("Duplicate signal within %d minute window", st.cfg.Trading.SignalTimeWindowMinutes)
 	}
 
 	// 4. Check minimum interval since last signal for this symbol
-	lastSignalTime := signal.GeneratedAt.Add(-time.Duration(MinSignalIntervalMinutes) * time.Minute)
+	lastSignalTime := signal.GeneratedAt.Add(-time.Duration(st.cfg.Trading.MinSignalIntervalMinutes) * time.Minute)
 	lastSignals, err := st.repo.GetTradingSignals(signal.StockSymbol, "", "BUY", lastSignalTime, time.Time{}, 1)
 	if err == nil && len(lastSignals) > 0 {
 		if lastSignals[0].ID != signal.ID {
 			timeSince := signal.GeneratedAt.Sub(lastSignals[0].GeneratedAt).Minutes()
-			if timeSince < MinSignalIntervalMinutes {
-				return false, fmt.Sprintf("Signal too soon (%.1f min < %d min required)", timeSince, MinSignalIntervalMinutes)
+			if timeSince < float64(st.cfg.Trading.MinSignalIntervalMinutes) {
+				return false, fmt.Sprintf("Signal too soon (%.1f min < %d min required)", timeSince, st.cfg.Trading.MinSignalIntervalMinutes)
 			}
 		}
 	}
@@ -624,6 +609,14 @@ func (st *SignalTracker) updateSignalOutcome(signal *database.TradingSignalDB, o
 		outcome.RiskRewardRatio = &riskReward
 	}
 
+	// 6. Check Max Holding Loss (Cut Loss if stuck in loss for too long)
+	// Example: If held > 60 mins and loss > MaxHoldingLossPct (e.g., 1.5%), cut loss
+	if !shouldExit && holdingMinutes > 60 && profitLossPct < -st.cfg.Trading.MaxHoldingLossPct {
+		shouldExit = true
+		exitReason = "TIME_BASED_CUT_LOSS"
+		log.Printf("✂️ Time-based cut loss for %s: held %d mins, P/L %.2f%%", signal.StockSymbol, holdingMinutes, profitLossPct)
+	}
+
 	if shouldExit {
 		now := time.Now()
 		outcome.ExitTime = &now
@@ -654,6 +647,10 @@ func (st *SignalTracker) checkOrderFlowImbalance(symbol string, decision string,
 
 	orderFlow, err := st.repo.GetLatestOrderFlow(symbol)
 	if err != nil || orderFlow == nil {
+		// New Fail-Safe Logic
+		if st.cfg.Trading.RequireOrderFlow {
+			return false, 0.0, "Order flow data missing (Fail-Safe triggered)"
+		}
 		// No order flow data - allow but don't boost
 		return true, 1.0, ""
 	}
@@ -663,14 +660,20 @@ func (st *SignalTracker) checkOrderFlowImbalance(symbol string, decision string,
 		return true, 1.0, ""
 	}
 
+	// Fail-Safe: If order flow is required but missing/invalid, reject
+	// Note: We already checked for nil, but here we can enforce stricter policies
+	if st.cfg.Trading.RequireOrderFlow && totalVolume < 100 { // Just sanity check
+		return false, 0.0, "Insufficient order flow volume (Fail-Safe)"
+	}
+
 	// Calculate buy pressure
 	buyPressure := (orderFlow.BuyVolumeLots / totalVolume)
 
 	// Check aggressive buyers if available
-	if orderFlow.AggressiveBuyPct != nil && *orderFlow.AggressiveBuyPct < AggressiveBuyThreshold {
+	if orderFlow.AggressiveBuyPct != nil && *orderFlow.AggressiveBuyPct < st.cfg.Trading.AggressiveBuyThreshold {
 		// Only penalize if buy pressure is also weak
 		if buyPressure < 0.6 {
-			return false, 0.7, fmt.Sprintf("Low aggressive buy pressure (%.1f%% < %.0f%%)", *orderFlow.AggressiveBuyPct, AggressiveBuyThreshold)
+			return false, 0.7, fmt.Sprintf("Low aggressive buy pressure (%.1f%% < %.0f%%)", *orderFlow.AggressiveBuyPct, st.cfg.Trading.AggressiveBuyThreshold)
 		}
 	}
 
@@ -678,7 +681,7 @@ func (st *SignalTracker) checkOrderFlowImbalance(symbol string, decision string,
 	if buyPressure < requiredThreshold {
 		// New: Aggressive Haka Override
 		// If buyers are aggressively hitting the ask (>60%), accept lower passive balance
-		if orderFlow.AggressiveBuyPct != nil && *orderFlow.AggressiveBuyPct > AggressiveBuyThreshold {
+		if orderFlow.AggressiveBuyPct != nil && *orderFlow.AggressiveBuyPct > st.cfg.Trading.AggressiveBuyThreshold {
 			if buyPressure > 0.4 { // Hard floor
 				return true, 1.2, fmt.Sprintf("Aggressive Haka detected (%.1f%%)", *orderFlow.AggressiveBuyPct)
 			}
@@ -730,12 +733,12 @@ func (st *SignalTracker) checkBaselineQuality(symbol string) (bool, float64, str
 // evaluateBaselineQuality performs the actual baseline quality evaluation
 func (st *SignalTracker) evaluateBaselineQuality(baseline *database.StatisticalBaseline) (bool, float64, string) {
 	// Strict quality check
-	if baseline.SampleSize < MinBaselineSampleSize {
-		return false, 0.0, fmt.Sprintf("Insufficient baseline data (%d < %d trades)", baseline.SampleSize, MinBaselineSampleSize)
+	if baseline.SampleSize < st.cfg.Trading.MinBaselineSampleSize {
+		return false, 0.0, fmt.Sprintf("Insufficient baseline data (%d < %d trades)", baseline.SampleSize, st.cfg.Trading.MinBaselineSampleSize)
 	}
 
 	// Penalize weak baselines
-	if baseline.SampleSize < MinBaselineSampleSizeStrict {
+	if baseline.SampleSize < st.cfg.Trading.MinBaselineSampleSizeStrict {
 		return true, 0.6, fmt.Sprintf("Limited baseline data (%d trades)", baseline.SampleSize)
 	}
 
@@ -847,19 +850,19 @@ func (st *SignalTracker) calculateStrategyPerformance(strategy string) (float64,
 	}
 
 	// Need minimum signals for evaluation
-	if totalSignals < MinStrategySignals {
+	if totalSignals < st.cfg.Trading.MinStrategySignals {
 		return 1.0, false, ""
 	}
 
 	winRate := float64(wins) / float64(totalSignals) * 100
 
 	// Disable underperforming strategies
-	if winRate < float64(LowWinRateThreshold) {
-		return 0.0, true, fmt.Sprintf("Strategy %s underperforming (WR: %.1f%% < %d%%)", strategy, winRate, LowWinRateThreshold)
+	if winRate < st.cfg.Trading.LowWinRateThreshold {
+		return 0.0, true, fmt.Sprintf("Strategy %s underperforming (WR: %.1f%% < %.0f%%)", strategy, winRate, st.cfg.Trading.LowWinRateThreshold)
 	}
 
 	// Boost high-performing strategies
-	if winRate > float64(HighWinRateThreshold) {
+	if winRate > st.cfg.Trading.HighWinRateThreshold {
 		return 1.2, false, fmt.Sprintf("Strategy %s performing well (WR: %.1f%%)", strategy, winRate)
 	}
 
@@ -875,7 +878,7 @@ func (st *SignalTracker) calculateStrategyPerformance(strategy string) (float64,
 func (st *SignalTracker) getRegimeAdaptiveLimit(symbol string) int {
 	regime, err := st.repo.GetLatestRegime(symbol)
 	if err != nil || regime == nil {
-		return MaxOpenPositions // Default
+		return st.cfg.Trading.MaxOpenPositions // Default
 	}
 
 	// Aggressive in trending markets
@@ -895,7 +898,7 @@ func (st *SignalTracker) getRegimeAdaptiveLimit(symbol string) int {
 		return 8
 	}
 
-	return MaxOpenPositions
+	return st.cfg.Trading.MaxOpenPositions
 }
 
 // GetOpenPositions returns currently open trading positions with optional filters

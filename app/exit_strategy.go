@@ -6,6 +6,7 @@ import (
 	"math"
 	"time"
 
+	"stockbit-haka-haki/config"
 	"stockbit-haka-haki/database"
 )
 
@@ -14,11 +15,6 @@ const (
 	ATRPeriod = 14 // Standard ATR period (14 candles)
 
 	// Exit Level Multipliers (based on ATR)
-	StopLossATRMultiplier     = 1.5 // Initial stop loss = ATR × 1.5
-	TrailingStopATRMultiplier = 1.5 // Trailing stop offset = ATR × 1.5
-	TakeProfit1ATRMultiplier  = 3.0 // First take profit = ATR × 3.0
-	TakeProfit2ATRMultiplier  = 5.0 // Final take profit = ATR × 5.0
-
 	// Fallback values when ATR cannot be calculated
 	FallbackStopLossPct    = 2.0 // -2% default stop loss
 	FallbackTakeProfit1Pct = 4.0 // +4% default TP1
@@ -42,12 +38,14 @@ type ExitLevels struct {
 // ExitStrategyCalculator calculates dynamic exit levels based on ATR
 type ExitStrategyCalculator struct {
 	repo *database.TradeRepository
+	cfg  *config.Config
 }
 
 // NewExitStrategyCalculator creates a new exit strategy calculator
-func NewExitStrategyCalculator(repo *database.TradeRepository) *ExitStrategyCalculator {
+func NewExitStrategyCalculator(repo *database.TradeRepository, cfg *config.Config) *ExitStrategyCalculator {
 	return &ExitStrategyCalculator{
 		repo: repo,
+		cfg:  cfg,
 	}
 }
 
@@ -148,11 +146,11 @@ func (esc *ExitStrategyCalculator) GetExitLevels(symbol string, entryPrice float
 		levels.ATR = atr
 		levels.ATRPercent = atrPct
 
-		// Apply multipliers
-		levels.InitialStopPct = atrPct * StopLossATRMultiplier
-		levels.TrailingStopPct = atrPct * TrailingStopATRMultiplier
-		levels.TakeProfit1Pct = atrPct * TakeProfit1ATRMultiplier
-		levels.TakeProfit2Pct = atrPct * TakeProfit2ATRMultiplier
+		// Apply multipliers from config
+		levels.InitialStopPct = atrPct * esc.cfg.Trading.StopLossATRMultiplier
+		levels.TrailingStopPct = atrPct * esc.cfg.Trading.TrailingStopATRMultiplier
+		levels.TakeProfit1Pct = atrPct * esc.cfg.Trading.TakeProfit1ATRMultiplier
+		levels.TakeProfit2Pct = atrPct * esc.cfg.Trading.TakeProfit2ATRMultiplier
 
 		// Apply reasonable boundaries
 		levels.InitialStopPct = clamp(levels.InitialStopPct, 0.5, 5.0)   // 0.5% - 5% max

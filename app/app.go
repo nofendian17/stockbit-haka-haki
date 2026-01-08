@@ -196,7 +196,7 @@ func (a *App) Start() error {
 	log.Println("🚀 Starting Phase 1 enhancement trackers...")
 
 	// Signal Outcome Tracker
-	a.signalTracker = NewSignalTracker(a.tradeRepo, a.redis)
+	a.signalTracker = NewSignalTracker(a.tradeRepo, a.redis, a.config)
 	go a.signalTracker.Start()
 
 	// 10. Start API Server (AFTER signal tracker is initialized)
@@ -564,7 +564,7 @@ func (a *App) setupHandlers() {
 	// Running Trade Handler
 	// Running Trade Handler
 	// Initialize Volatility Provider (ExitStrategyCalculator) for Adaptive Thresholds
-	volatilityProv := NewExitStrategyCalculator(a.tradeRepo)
+	volatilityProv := NewExitStrategyCalculator(a.tradeRepo, a.config)
 	runningTradeHandler := handlers.NewRunningTradeHandler(a.tradeRepo, a.webhookManager, a.redis, a.broker, volatilityProv)
 	a.handlerManager.RegisterHandler("running_trade", runningTradeHandler)
 }

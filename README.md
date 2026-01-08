@@ -48,6 +48,7 @@ For detailed technical information, please refer to the `docs/` directory:
 
 - **[API Reference](docs/API.md)**: Endpoints, Parameters, and Response formats.
 - **[Architecture](docs/ARCHITECTURE.md)**: System design and component diagrams.
+- **[Configuration](docs/CONFIGURATION.md)**: Environment variables and tuning guide.
 - **[Deployment](docs/DEPLOYMENT.md)**: Configuration and production setup.
 
 ## 🛠️ Project Structure

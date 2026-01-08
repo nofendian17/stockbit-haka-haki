@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"log"
 	"os"
 
@@ -28,6 +29,9 @@ type Config struct {
 
 	// LLM configuration
 	LLM LLMConfig
+
+	// Trading configuration
+	Trading TradingConfig
 }
 
 // LLMConfig holds LLM service configuration
@@ -36,6 +40,38 @@ type LLMConfig struct {
 	Endpoint string
 	APIKey   string
 	Model    string
+}
+
+// TradingConfig holds trading parameters and thresholds
+type TradingConfig struct {
+	// Position Management
+	MinSignalIntervalMinutes int
+	MaxOpenPositions         int
+	MaxPositionsPerSymbol    int
+	SignalTimeWindowMinutes  int
+
+	// Thresholds
+	OrderFlowBuyThreshold       float64
+	AggressiveBuyThreshold      float64
+	MinBaselineSampleSize       int
+	MinBaselineSampleSizeStrict int
+
+	// Strategy Performance
+	MinStrategySignals   int
+	LowWinRateThreshold  float64 // Percent
+	HighWinRateThreshold float64 // Percent
+
+	// Fail-Safe
+	RequireOrderFlow bool // If true, reject signals if order flow data is missing
+
+	// Risk Management
+	MaxHoldingLossPct float64 // Cut loss if held too long and loss exceeds this (positive value representing negative %)
+
+	// ATR Multipliers
+	StopLossATRMultiplier     float64
+	TrailingStopATRMultiplier float64
+	TakeProfit1ATRMultiplier  float64
+	TakeProfit2ATRMultiplier  float64
 }
 
 // LoadFromEnv loads configuration from environment variables
@@ -70,7 +106,60 @@ func LoadFromEnv() *Config {
 			APIKey:   getEnvOrDefault("LLM_API_KEY", ""),
 			Model:    getEnvOrDefault("LLM_MODEL", "qwen3-max"),
 		},
+
+		// Trading configuration
+		Trading: TradingConfig{
+			// Default values matching previous constants
+			MinSignalIntervalMinutes: getEnvInt("TRADING_MIN_SIGNAL_INTERVAL", 15),
+			MaxOpenPositions:         getEnvInt("TRADING_MAX_OPEN_POSITIONS", 10),
+			MaxPositionsPerSymbol:    getEnvInt("TRADING_MAX_POSITIONS_PER_SYMBOL", 1),
+			SignalTimeWindowMinutes:  getEnvInt("TRADING_SIGNAL_TIME_WINDOW", 5),
+
+			OrderFlowBuyThreshold:       getEnvFloat("TRADING_ORDER_FLOW_THRESHOLD", 0.5),
+			AggressiveBuyThreshold:      getEnvFloat("TRADING_AGGRESSIVE_BUY_THRESHOLD", 60.0),
+			MinBaselineSampleSize:       getEnvInt("TRADING_MIN_BASELINE_SAMPLE", 50),
+			MinBaselineSampleSizeStrict: getEnvInt("TRADING_MIN_BASELINE_SAMPLE_STRICT", 80),
+
+			MinStrategySignals:   getEnvInt("TRADING_MIN_STRATEGY_SIGNALS", 20),
+			LowWinRateThreshold:  getEnvFloat("TRADING_LOW_WIN_RATE", 30.0),
+			HighWinRateThreshold: getEnvFloat("TRADING_HIGH_WIN_RATE", 65.0),
+
+			RequireOrderFlow: getEnvOrDefault("TRADING_REQUIRE_ORDER_FLOW", "false") == "true", // Default false for now to match previous behavior (soft check), plan to enable later
+
+			MaxHoldingLossPct: getEnvFloat("TRADING_MAX_HOLDING_LOSS_PCT", 1.5), // New safety cut
+
+			StopLossATRMultiplier:     getEnvFloat("TRADING_SL_ATR_MULT", 1.5),
+			TrailingStopATRMultiplier: getEnvFloat("TRADING_TS_ATR_MULT", 1.5),
+			TakeProfit1ATRMultiplier:  getEnvFloat("TRADING_TP1_ATR_MULT", 3.0),
+			TakeProfit2ATRMultiplier:  getEnvFloat("TRADING_TP2_ATR_MULT", 5.0),
+		},
 	}
+}
+
+// getEnvInt gets environment variable as int or returns default value
+func getEnvInt(key string, defaultValue int) int {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	var intValue int
+	if _, err := fmt.Sscanf(value, "%d", &intValue); err != nil {
+		return defaultValue
+	}
+	return intValue
+}
+
+// getEnvFloat gets environment variable as float64 or returns default value
+func getEnvFloat(key string, defaultValue float64) float64 {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	var floatValue float64
+	if _, err := fmt.Sscanf(value, "%f", &floatValue); err != nil {
+		return defaultValue
+	}
+	return floatValue
 }
 
 // getEnvOrDefault gets environment variable or returns default value
