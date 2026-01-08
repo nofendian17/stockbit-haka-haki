@@ -786,7 +786,7 @@ function displayFollowupData(data) {
             const now = new Date();
             const diffMs = now - alertTime;
             const diffMins = Math.floor(diffMs / 60000);
-            
+
             if (diffMins < 60) {
                 timeDiff = `${diffMins}m`;
             } else {
@@ -1174,7 +1174,7 @@ function startAnalyticsPolling() {
 
         // Get symbol from search filter for baseline, default to IHSG
         const symbol = state.currentFilters.search || 'IHSG';
-        
+
         // For Order Flow, use global data (empty symbol) if purely Dashboard view (IHSG)
         // This ensures the "Buy/Sell Pressure" bar shows aggregate market activity instead of 0
         const flowSymbol = symbol === 'IHSG' ? '' : symbol;
@@ -1314,6 +1314,9 @@ function setupProfitLossHistory() {
         getIsLoading: () => state.tables.history.isLoading,
         noMoreDataId: 'history-no-more-data'
     });
+
+    // Initial load
+    loadProfitLossHistory(true);
 }
 
 /**
