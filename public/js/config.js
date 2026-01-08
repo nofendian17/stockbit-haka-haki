@@ -9,7 +9,7 @@ export const CONFIG = {
 
     // Pagination & Display
     PAGE_SIZE: 50,
-    MAX_ALERTS_CACHE: 200,
+    MAX_ALERTS_CACHE: 100,
     MAX_VISIBLE_SIGNALS: 100,
 
     // Polling Intervals (milliseconds)

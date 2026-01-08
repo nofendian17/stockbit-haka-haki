@@ -250,6 +250,66 @@ For real-time generated insights, use the streaming endpoints:
 
 These endpoints return data in `text/event-stream` format.
 
+### Custom Prompt Analysis (NEW)
+`POST /api/patterns/custom/stream`
+
+Allow users to provide custom prompts for AI analysis based on database data.
+
+**Request Body:**
+```json
+{
+  "prompt": "Analisis pola BBCA dalam 24 jam terakhir",
+  "symbols": ["BBCA", "TLKM"],
+  "hours_back": 24,
+  "include_data": "alerts,regimes,patterns,signals"
+}
+```
+
+**Parameters:**
+- `prompt` (required): User's custom question or analysis request.
+- `symbols` (optional): Array of stock symbols to focus analysis on. If empty, includes top active stocks.
+- `hours_back` (optional): Hours of historical data to include (default: 24, max: 168).
+- `include_data` (optional): Comma-separated data types to include as context:
+  - `alerts`: Whale alerts (large transactions)
+  - `regimes`: Market regime (trending/ranging/volatile)
+  - `patterns`: Accumulation/distribution patterns
+  - `signals`: Trading signals with outcomes
+  - Default: `"alerts,regimes"`
+
+**Response:**
+Server-Sent Events (SSE) stream with AI-generated analysis.
+
+**Example Request:**
+```bash
+curl -X POST http://localhost:8080/api/patterns/custom/stream \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Saham mana yang paling banyak akumulasi hari ini?",
+    "hours_back": 24,
+    "include_data": "alerts,regimes,patterns"
+  }'
+```
+
+**Response Format:**
+```
+data: Berdasarkan data dalam 24 jam terakhir...
+data: 
+data: **Top 3 Saham dengan Akumulasi Tertinggi:**
+data: 1. **BBCA** - 15 alerts, Rp 5.4 Miliar
+...
+event: done
+data: Stream completed
+```
+
+**Use Cases:**
+- Free-form questions about market data
+- Custom analysis combining multiple data sources
+- Comparative analysis between stocks
+- Strategy validation based on historical signals
+- Risk assessment with anomaly detection
+
+See [CUSTOM_PROMPT_FEATURE.md](./CUSTOM_PROMPT_FEATURE.md) for detailed usage guide.
+
 ---
 
 ## Analytics & Performance

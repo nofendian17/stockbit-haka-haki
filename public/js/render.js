@@ -27,6 +27,7 @@ export function renderWhaleAlerts(alerts, tbody, loadingDiv) {
 
     if (loadingDiv) loadingDiv.style.display = 'none';
 
+    // Render all alerts (infinite scroll will load more)
     alerts.forEach(alert => {
         const row = createWhaleAlertRow(alert);
         tbody.appendChild(row);
