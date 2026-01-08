@@ -233,13 +233,14 @@ func (wt *WhaleFollowupTracker) updateFollowup(followup *database.WhaleAlertFoll
 func (wt *WhaleFollowupTracker) classifyImpact(priceChangePct float64, action string) string {
 	threshold := 0.5 // 0.5% threshold for significance
 
-	if action == "BUY" {
+	switch action {
+	case "BUY":
 		if priceChangePct > threshold {
 			return "POSITIVE" // Price went up after BUY
 		} else if priceChangePct < -threshold {
 			return "NEGATIVE" // Price went down after BUY (unexpected)
 		}
-	} else if action == "SELL" {
+	case "SELL":
 		if priceChangePct < -threshold {
 			return "POSITIVE" // Price went down after SELL
 		} else if priceChangePct > threshold {

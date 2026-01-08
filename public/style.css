@@ -8,39 +8,39 @@
   --bg-secondary: #16181d;
   --bg-card: #1a1d23;
   --bg-hover: #22252b;
-  
+
   /* Borders */
   --border-color: #2f3339;
   --border-hover: #3a3d43;
-  
+
   /* Text */
   --text-primary: #e7e9ea;
   --text-secondary: #8b949e;
   --text-muted: #6e7681;
-  
+
   /* Accent Colors */
   --success: #0ecb81;
   --danger: #f6465d;
   --warning: #ffa500;
   --info: #3b82f6;
   --purple: #a855f7;
-  
+
   /* Typography */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'SF Mono', 'Monaco', 'Cascadia Code', monospace;
-  
+
   /* Spacing */
   --space-xs: 0.25rem;
   --space-sm: 0.5rem;
   --space-md: 1rem;
   --space-lg: 1.5rem;
   --space-xl: 2rem;
-  
+
   /* Border Radius */
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
-  
+
   /* Transitions */
   --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -177,8 +177,15 @@ body {
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.4;
+  }
 }
 
 .regime-badge {
@@ -547,7 +554,9 @@ body {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .loading-more {
@@ -762,22 +771,22 @@ footer {
     flex-wrap: wrap;
     gap: 1rem;
   }
-  
+
   .nav-stats {
     order: 3;
     width: 100%;
     justify-content: space-between;
     gap: 1rem;
   }
-  
+
   .summary-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .intel-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .tabs {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
@@ -785,181 +794,249 @@ footer {
 }
 
 @media (max-width: 768px) {
+
   /* Container & Layout */
   .container {
-    padding: var(--space-md);
+    padding: 1rem 0.75rem;
   }
-  
+
   body {
     font-size: 14px;
   }
-  
+
   /* Navbar Mobile */
   .navbar {
     position: sticky;
     top: 0;
     z-index: 100;
   }
-  
+
   .nav-container {
-    padding: 0.4rem 0.75rem;
-    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    gap: 0.75rem;
   }
-  
+
   .nav-brand {
+    font-size: 0.95rem;
+  }
+
+  .brand-icon {
+    font-size: 1.25rem;
+  }
+
+  /* Show stats in compact format */
+  .nav-stats {
+    display: flex;
+    gap: 0.75rem;
+    font-size: 0.75rem;
+  }
+
+  .stat-label {
+    font-size: 0.65rem;
+  }
+
+  .stat-value {
     font-size: 0.85rem;
   }
-  
-  .brand-icon {
-    font-size: 1rem;
-  }
-  
-  .nav-stats {
-    display: none; /* Hide stats on mobile to save space */
-  }
-  
+
   .nav-actions {
-    gap: 0.4rem;
-  }
-  
-  .icon-btn {
-    width: 28px;
-    height: 28px;
-    font-size: 0.9rem;
-  }
-  
-  .status-live {
-    font-size: 0.7rem;
-    padding: 0.2rem 0.4rem;
-  }
-  
-  /* Filters Mobile */
-  .filters-section {
-    margin-bottom: var(--space-lg);
-  }
-  
-  .filter-group {
-    flex-direction: column;
     gap: 0.5rem;
   }
-  
+
+  .icon-btn {
+    width: 36px;
+    height: 36px;
+    font-size: 1rem;
+    min-width: 44px;
+    /* iOS touch target */
+    min-height: 44px;
+  }
+
+  .status-live {
+    font-size: 0.75rem;
+    padding: 0.3rem 0.5rem;
+  }
+
+  /* Filters Mobile */
+  .filters-section {
+    margin-bottom: 1.5rem;
+  }
+
+  .filter-group {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
   .filter-input,
   .filter-select,
   .btn-refresh,
   .btn-clear {
     width: 100%;
     max-width: none;
+    min-height: 44px;
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
   }
-  
+
   /* Cards Mobile */
   .card {
-    padding: var(--space-md);
+    padding: 1rem;
     border-radius: var(--radius-md);
+    margin-bottom: 1.5rem;
   }
-  
+
   .card-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 0.5rem;
+    margin-bottom: 1rem;
   }
-  
+
   .card-title {
     font-size: 1.1rem;
   }
-  
+
   .card-subtitle {
     font-size: 0.8rem;
   }
-  
-  /* Tables Mobile - Horizontal Scroll */
+
+  /* Tables Mobile - Card Layout */
   .table-wrapper {
-    max-height: 400px; /* Smaller for mobile */
-    overflow-x: auto;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    max-height: none;
+    /* Allow full height for cards */
+    overflow-x: visible;
+    overflow-y: visible;
+    border: none;
+    /* Remove border as cards have their own */
   }
-  
+
+  /* Convert tables to card layout */
+  .data-table thead {
+    display: none;
+    /* Hide headers on mobile */
+  }
+
+  .data-table,
+  .data-table tbody,
+  .data-table tr {
+    display: block;
+    width: 100%;
+  }
+
   .data-table {
-    font-size: 0.75rem;
-    min-width: 600px; /* Force horizontal scroll for better readability */
+    font-size: 0.85rem;
+    min-width: unset;
   }
-  
-  .data-table th,
+
+  .data-table tr {
+    margin-bottom: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 0.75rem;
+    background: var(--bg-secondary);
+  }
+
   .data-table td {
-    padding: 0.5rem;
-    white-space: nowrap;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border: none;
+    text-align: right;
+    white-space: normal;
+    /* Allow text wrapping */
   }
-  
-  .data-table th {
+
+  .data-table td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
     font-size: 0.7rem;
+    letter-spacing: 0.5px;
+    text-align: left;
+    flex-shrink: 0;
+    margin-right: 1rem;
   }
-  
+
+  /* Special handling for text-right columns */
+  .data-table td.text-right {
+    text-align: right;
+  }
+
   /* Tabs Mobile */
   .tabs {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
-    gap: 0.25rem;
-    padding-bottom: 0.5rem;
+    gap: 0.5rem;
+    padding-bottom: 0.75rem;
     margin-bottom: var(--space-md);
+    /* Add fade effect to indicate scrollability */
+    mask-image: linear-gradient(to right, black 90%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, black 90%, transparent 100%);
   }
-  
+
   .tab,
   .strategy-tab,
   .tab-btn,
   .s-tab {
-    padding: 0.5rem 0.75rem;
-    font-size: 0.8rem;
+    padding: 0.625rem 1rem;
+    font-size: 0.85rem;
     white-space: nowrap;
     flex-shrink: 0;
+    min-height: 44px;
+    /* Touch target */
+    display: flex;
+    align-items: center;
   }
-  
+
   /* Badges Mobile */
   .badge {
     padding: 0.2rem 0.5rem;
     font-size: 0.65rem;
   }
-  
+
   /* Modal Mobile */
   .modal-content {
     width: 95%;
     max-height: 90vh;
     margin: 1rem;
   }
-  
+
   .modal-header {
     padding: var(--space-md);
   }
-  
+
   .modal-header h2 {
     font-size: 1.1rem;
   }
-  
+
   .modal-body {
     padding: var(--space-md);
     font-size: 0.875rem;
   }
-  
+
   /* Intel Grid Mobile */
   .intel-grid {
     grid-template-columns: 1fr;
     gap: var(--space-md);
   }
-  
+
   .intel-card {
     padding: var(--space-md);
   }
-  
+
   /* Pattern Feed Mobile */
   .pattern-scroll {
     max-height: 200px;
   }
-  
+
   /* Summary Grid Mobile */
   .summary-grid {
     grid-template-columns: 1fr;
     gap: var(--space-md);
   }
-  
+
   /* Buttons Mobile - Better Touch Targets */
   .btn-primary,
   .btn-secondary,
@@ -967,67 +1044,69 @@ footer {
   .btn-clear {
     padding: 0.75rem 1rem;
     font-size: 0.875rem;
-    min-height: 44px; /* iOS minimum touch target */
+    min-height: 44px;
+    /* iOS minimum touch target */
   }
-  
+
   /* History Filters Mobile */
   .history-filters {
     flex-direction: column;
   }
-  
+
   .history-filters .filter-select {
     width: 100%;
   }
 }
 
 @media (max-width: 480px) {
+
   /* Extra Small Devices */
   .container {
     padding: 0.75rem;
   }
-  
+
   .card {
     padding: 0.75rem;
     border-radius: var(--radius-sm);
   }
-  
+
   .card-title {
     font-size: 1rem;
   }
-  
+
   .nav-container {
     padding: 0.3rem 0.5rem;
   }
-  
+
   .nav-brand {
     font-size: 0.8rem;
   }
-  
+
   .brand-icon {
     font-size: 0.9rem;
   }
-  
+
   .icon-btn {
     width: 26px;
     height: 26px;
     font-size: 0.85rem;
   }
-  
+
   .status-live {
     font-size: 0.65rem;
     padding: 0.15rem 0.35rem;
   }
-  
+
   .data-table {
     font-size: 0.7rem;
     min-width: 500px;
   }
-  
+
   .data-table th,
   .data-table td {
     padding: 0.4rem;
   }
-  
+
   .tab,
   .strategy-tab,
   .tab-btn,
@@ -1035,7 +1114,7 @@ footer {
     padding: 0.4rem 0.6rem;
     font-size: 0.75rem;
   }
-  
+
   .modal-content {
     width: 100%;
     height: 100%;
@@ -1048,13 +1127,15 @@ footer {
 /* Landscape Mobile */
 @media (max-width: 768px) and (orientation: landscape) {
   .navbar {
-    position: relative; /* Allow scrolling in landscape */
+    position: relative;
+    /* Allow scrolling in landscape */
   }
-  
+
   .nav-stats {
-    display: none; /* Hide stats in landscape to save space */
+    display: none;
+    /* Hide stats in landscape to save space */
   }
-  
+
   .modal-content {
     max-height: 95vh;
   }
@@ -1062,6 +1143,7 @@ footer {
 
 /* Touch Device Optimizations */
 @media (hover: none) and (pointer: coarse) {
+
   /* Touch-specific styles */
   .clickable-row,
   .clickable-symbol,
@@ -1072,22 +1154,22 @@ footer {
   .icon-btn {
     -webkit-tap-highlight-color: rgba(59, 130, 246, 0.2);
   }
-  
+
   /* Larger touch targets */
   .clickable-row {
     min-height: 44px;
   }
-  
+
   .icon-btn {
     min-width: 44px;
     min-height: 44px;
   }
-  
+
   /* Disable hover effects on touch */
   .data-table tbody tr:hover {
     background: transparent;
   }
-  
+
   .data-table tbody tr:active {
     background: var(--bg-hover);
   }
