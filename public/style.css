@@ -391,6 +391,11 @@ body {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   overflow: hidden;
+  max-height: 600px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+  position: relative;
 }
 
 .data-table {
@@ -433,6 +438,33 @@ body {
 
 .text-center {
   text-align: center;
+}
+
+/* Custom Scrollbar for Tables */
+.table-wrapper::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.table-wrapper::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+}
+
+.table-wrapper::-webkit-scrollbar-thumb {
+  background: var(--border-hover);
+  border-radius: var(--radius-sm);
+  transition: var(--transition);
+}
+
+.table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Firefox scrollbar */
+.table-wrapper {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-hover) var(--bg-secondary);
 }
 
 /* ==========================================
@@ -804,7 +836,9 @@ footer {
   
   /* Tables Mobile - Horizontal Scroll */
   .table-wrapper {
+    max-height: 400px; /* Smaller for mobile */
     overflow-x: auto;
+    overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
   
