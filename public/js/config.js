@@ -8,7 +8,7 @@ export const CONFIG = {
     API_BASE: '/api',
 
     // Pagination & Display
-    PAGE_SIZE: 50,
+    PAGE_SIZE: 20,
     MAX_ALERTS_CACHE: 100,
     MAX_VISIBLE_SIGNALS: 100,
 
