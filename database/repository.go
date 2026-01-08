@@ -146,6 +146,13 @@ func (r *TradeRepository) InitSchema() error {
 		ADD COLUMN IF NOT EXISTS analysis_data JSONB
 	`)
 
+	// Manual migration for signal_outcomes ATR and trailing stop columns
+	r.db.db.Exec(`
+		ALTER TABLE signal_outcomes 
+		ADD COLUMN IF NOT EXISTS atr_at_entry DECIMAL(15,4),
+		ADD COLUMN IF NOT EXISTS trailing_stop_price DECIMAL(15,2)
+	`)
+
 	// Setup TimescaleDB extension and hypertables
 	if err := r.setupTimescaleDB(); err != nil {
 		return err
