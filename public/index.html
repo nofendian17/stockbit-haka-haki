@@ -51,10 +51,10 @@
         @apply bg-bgCard border border-borderColor rounded-xl p-3 mb-2 overflow-hidden shadow-sm;
       }
       .table-header {
-        @apply px-2 py-1.5 text-left font-semibold text-[10px] text-textMuted uppercase tracking-wider bg-bgSecondary sticky top-0 z-10 border-b border-borderColor whitespace-nowrap;
+        @apply px-4 py-3 text-left font-semibold text-xs text-textMuted uppercase tracking-wider bg-bgSecondary sticky top-0 z-10 border-b border-borderColor whitespace-nowrap;
       }
       .table-cell {
-        @apply px-2 py-1 text-[11px] text-textPrimary border-t border-borderColor whitespace-nowrap;
+        @apply px-4 py-3 text-xs text-textPrimary border-t border-borderColor whitespace-nowrap align-middle;
       }
       .badge {
         @apply px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide inline-block;
@@ -66,7 +66,7 @@
       }
     }
 
-    /* Mobile Responsive Table */
+    /* Mobile Responsive Table Cards */
     @media (max-width: 768px) {
         table, thead, tbody, th, td, tr {
             display: block;
@@ -79,38 +79,45 @@
         }
 
         tr {
-            @apply border border-borderColor rounded-lg mb-1.5 bg-bgCard;
+            @apply border border-borderColor rounded-xl bg-bgCard shadow-lg mb-4 relative overflow-hidden transition-colors;
         }
 
+        /* Standard Row Styling */
         td {
-            /* Changed: Flex layout with label on left, value on right. Removed absolute positioning mess. */
-            @apply border-none relative flex justify-between items-center py-0.5 px-3 text-[11px];
-            min-height: 24px; /* Ensure touch target size */
-        }
-        
-        td.table-cell {
-             @apply border-b border-borderColor last:border-0;
+            @apply flex justify-between items-center px-4 py-3 border-b border-borderColor/30 text-sm min-h-[44px];
         }
 
+        td:last-child {
+            border-bottom: none;
+            @apply bg-bgSecondary/20;
+        }
+
+        /* Label Styling (Pseudo-element) */
         td:before {
             content: attr(data-label);
-            /* Changed: Static position, taking natural width */
-            @apply text-[10px] font-bold text-textSecondary uppercase tracking-wider text-left pr-4;
-            /* Prevent label from shrinking too much */
+            @apply text-xs font-semibold text-textSecondary uppercase tracking-wider pr-4;
             flex-shrink: 0;
-            max-width: 40%;
-            white-space: normal; /* Allow label wrapping if needed */
+            max-width: 140px;
+        }
+
+        /* Symbol/Header Cell - Card Header Look */
+        td[data-label="Saham"] {
+            @apply bg-bgSecondary/60 border-b border-borderColor py-3 font-bold text-base;
+            justify-content: space-between; /* Symbol Left, Confidence Right */
+            gap: 8px;
+            order: -1; /* Move to top of card */
         }
         
-        /* Value styling */
-        td > * {
-            @apply text-right block w-full; /* Ensure value takes available space and aligns right */
-            margin-left: auto; /* Push to right */
+        td[data-label="Saham"]:before {
+            display: none; /* Hide label for the header */
         }
         
-        /* Reset specific tweaks */
-        td.text-right {
-            text-align: right; 
+        /* Ensure content inside cells aligns right */
+        td > *:not(:first-child) {
+            /* This targets the value content if it's the second child (after :before pseudo) 
+               But :before is pseudo, so 'td > *' targets the actual DOM children.
+               We want the content on the right. 
+            */
         }
     }
     

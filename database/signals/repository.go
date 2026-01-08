@@ -184,13 +184,14 @@ func (r *Repository) GetOpenSignals(limit int) ([]models.TradingSignalDB, error)
 func (r *Repository) GetSignalPerformanceStats(strategy string, symbol string) (*types.PerformanceStats, error) {
 	// Check if there are any outcomes first
 	query := r.db.Model(&models.SignalOutcome{}).
-		Where("outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN', 'OPEN')")
+		Joins("JOIN trading_signals ON signal_outcomes.signal_id = trading_signals.id").
+		Where("signal_outcomes.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN', 'OPEN')")
 
 	if strategy != "" && strategy != "ALL" {
-		query = query.Where("strategy = ?", strategy)
+		query = query.Where("trading_signals.strategy = ?", strategy)
 	}
 	if symbol != "" {
-		query = query.Where("stock_symbol = ?", symbol)
+		query = query.Where("signal_outcomes.stock_symbol = ?", symbol)
 	}
 
 	var count int64
