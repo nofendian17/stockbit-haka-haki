@@ -38,7 +38,7 @@ func (r *Repository) SaveTradingSignal(signal *models.TradingSignalDB) error {
 }
 
 // GetTradingSignals retrieves trading signals with filters
-func (r *Repository) GetTradingSignals(symbol string, strategy string, decision string, startTime, endTime time.Time, limit int) ([]models.TradingSignalDB, error) {
+func (r *Repository) GetTradingSignals(symbol string, strategy string, decision string, startTime, endTime time.Time, limit, offset int) ([]models.TradingSignalDB, error) {
 	var signals []models.TradingSignalDB
 	query := r.db.Order("generated_at DESC")
 
@@ -59,6 +59,9 @@ func (r *Repository) GetTradingSignals(symbol string, strategy string, decision 
 	}
 	if limit > 0 {
 		query = query.Limit(limit)
+	}
+	if offset > 0 {
+		query = query.Offset(offset)
 	}
 
 	if err := query.Find(&signals).Error; err != nil {

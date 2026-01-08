@@ -4,7 +4,7 @@
  */
 
 import { CONFIG } from './config.js';
-import { debounce, safeGetElement } from './utils.js';
+import { debounce, safeGetElement, setupTableInfiniteScroll } from './utils.js';
 import * as API from './api.js';
 import { renderWhaleAlerts, renderRunningPositions, renderSummaryTable, updateStatsTicker, renderStockCorrelations, renderProfitLossHistory, renderMarketIntelligence, renderOrderFlow, renderPatternFeed, renderDailyPerformance } from './render.js';
 import { createWhaleAlertSSE, createPatternAnalysisSSE, createCustomPromptSSE } from './sse-handler.js?v=2';
@@ -321,46 +321,7 @@ function highlightActiveFilters() {
     });
 }
 
-/**
- * Setup infinite scroll for a specific table
- * @param {Object} config - Configuration object
- * @param {string} config.tableBodyId - ID of the table body element
- * @param {Function} config.fetchFunction - Function to fetch more data
- * @param {string} config.stateKey - Key in state.tables for this table (optional, for tables using state.tables)
- * @param {Function} config.getHasMore - Function to get hasMore state
- * @param {Function} config.getIsLoading - Function to get isLoading state
- * @param {string} config.noMoreDataId - ID of "no more data" indicator (optional)
- */
-function setupTableInfiniteScroll(config) {
-    const tableBody = document.getElementById(config.tableBodyId);
-    const container = tableBody?.closest('.table-wrapper');
 
-    if (!container) {
-        console.warn(`⚠️ Table wrapper not found for ${config.tableBodyId}`);
-        return;
-    }
-
-    console.log(`✅ Infinite scroll setup for ${config.tableBodyId}`);
-
-    container.addEventListener('scroll', () => {
-        const { scrollTop, scrollHeight, clientHeight } = container;
-        const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-
-        // Check if scrolled near bottom
-        if (distanceFromBottom < CONFIG.SCROLL_THRESHOLD) {
-            const hasMore = config.getHasMore();
-            const isLoading = config.getIsLoading();
-
-            if (hasMore && !isLoading) {
-                console.log(`🔄 Loading more data for ${config.tableBodyId}...`);
-                config.fetchFunction();
-            } else if (!hasMore && config.noMoreDataId) {
-                const noMoreData = safeGetElement(config.noMoreDataId);
-                if (noMoreData) noMoreData.style.display = 'block';
-            }
-        }
-    });
-}
 
 /**
  * Setup infinite scroll for whale alerts table

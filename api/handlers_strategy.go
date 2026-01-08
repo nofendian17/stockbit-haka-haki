@@ -159,6 +159,13 @@ func (s *Server) handleGetSignalHistory(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
+	offset := 0
+	if o := query.Get("offset"); o != "" {
+		if parsed, err := strconv.Atoi(o); err == nil && parsed > 0 {
+			offset = parsed
+		}
+	}
+
 	var startTime, endTime time.Time
 	if start := query.Get("start"); start != "" {
 		startTime, _ = time.Parse(time.RFC3339, start)
@@ -167,7 +174,7 @@ func (s *Server) handleGetSignalHistory(w http.ResponseWriter, r *http.Request) 
 		endTime, _ = time.Parse(time.RFC3339, end)
 	}
 
-	signals, err := s.repo.GetTradingSignals(symbol, strategy, decision, startTime, endTime, limit)
+	signals, err := s.repo.GetTradingSignals(symbol, strategy, decision, startTime, endTime, limit, offset)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

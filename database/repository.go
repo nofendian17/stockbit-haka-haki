@@ -788,8 +788,8 @@ func (r *TradeRepository) SaveTradingSignal(signal *TradingSignalDB) error {
 	return r.signals.SaveTradingSignal(signal)
 }
 
-func (r *TradeRepository) GetTradingSignals(symbol string, strategy string, decision string, startTime, endTime time.Time, limit int) ([]TradingSignalDB, error) {
-	return r.signals.GetTradingSignals(symbol, strategy, decision, startTime, endTime, limit)
+func (r *TradeRepository) GetTradingSignals(symbol string, strategy string, decision string, startTime, endTime time.Time, limit, offset int) ([]TradingSignalDB, error) {
+	return r.signals.GetTradingSignals(symbol, strategy, decision, startTime, endTime, limit, offset)
 }
 
 func (r *TradeRepository) GetSignalByID(id int64) (*TradingSignalDB, error) {

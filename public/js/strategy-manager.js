@@ -4,7 +4,7 @@
  */
 
 import { CONFIG } from './config.js';
-import { safeGetElement, formatStrategyName, getTimeAgo, parseTimestamp } from './utils.js';
+import { safeGetElement, formatStrategyName, getTimeAgo, parseTimestamp, setupTableInfiniteScroll } from './utils.js';
 import { fetchStrategySignals, fetchSignalHistory } from './api.js';
 import { createStrategySignalSSE, closeSSE } from './sse-handler.js';
 
@@ -12,6 +12,12 @@ import { createStrategySignalSSE, closeSSE } from './sse-handler.js';
 let strategyEventSource = null;
 let activeStrategyFilter = 'ALL';
 let renderedSignalIds = new Set();
+let historyState = {
+    offset: 0,
+    hasMore: true,
+    isLoading: false
+};
+let isHistoryScrollSetup = false;
 
 /**
  * Initialize strategy system
@@ -97,7 +103,8 @@ function setupStrategyTabs() {
 
             if (activeStrategyFilter === 'HISTORY') {
                 if (strategyEventSource) closeSSE(strategyEventSource);
-                fetchHistorySignals();
+                fetchHistorySignals(true);
+                setupHistoryInfiniteScroll();
             } else {
                 fetchInitialSignals().then(() => {
                     connectStrategySSE();
@@ -147,37 +154,87 @@ function connectStrategySSE() {
 /**
  * Fetch signal history
  */
-async function fetchHistorySignals() {
+/**
+ * Fetch signal history
+ * @param {boolean} reset - Whether to reset the list
+ */
+async function fetchHistorySignals(reset = false) {
+    if (historyState.isLoading) return;
+    if (!reset && !historyState.hasMore) return;
+
     const symbol = document.getElementById('symbol-filter-input')?.value || '';
     const loading = safeGetElement('signals-loading', 'FetchHistory');
     const tbody = safeGetElement('signals-table-body', 'FetchHistory');
     const placeholder = safeGetElement('signals-placeholder', 'FetchHistory');
+    const loadingMore = safeGetElement('signals-loading-more'); // Need to ensure this element exists or handle gracefully
 
     if (!tbody) return;
 
-    if (loading) loading.style.display = 'flex';
-    if (placeholder) placeholder.style.display = 'none';
-    tbody.innerHTML = '';
-    renderedSignalIds.clear();
+    historyState.isLoading = true;
+
+    if (reset) {
+        historyState.offset = 0;
+        historyState.hasMore = true;
+        tbody.innerHTML = '';
+        renderedSignalIds.clear();
+        if (loading) loading.style.display = 'flex';
+        if (placeholder) placeholder.style.display = 'none';
+    } else {
+        // Show loading more indicator if exists, or reuse main loading
+        if (loadingMore) loadingMore.style.display = 'flex';
+    }
 
     try {
-        const data = await fetchSignalHistory(symbol, 50);
+        const offset = reset ? 0 : historyState.offset;
+        const limit = 50;
+        const data = await fetchSignalHistory(symbol, limit, offset);
 
-        if (loading) loading.style.display = 'none';
+        if (reset && loading) loading.style.display = 'none';
+        if (loadingMore) loadingMore.style.display = 'none';
 
-        if (!data.signals || !Array.isArray(data.signals) || data.signals.length === 0) {
-            if (placeholder) placeholder.style.display = 'flex';
+        const signals = data.signals || [];
+        const count = data.count || signals.length; // Use count from backend if available
+
+        if (signals.length === 0) {
+            historyState.hasMore = false;
+            if (reset && placeholder) placeholder.style.display = 'flex';
             return;
         }
 
-        data.signals.forEach(signal => {
-            renderSignalRow(signal, true);
+        // Update state
+        historyState.offset += signals.length;
+        historyState.hasMore = signals.length >= limit; // Simple check, or use data.has_more if backend provides
+
+        signals.forEach(signal => {
+            renderSignalRow(signal, true); // Treat history items as initial load (append)
         });
+
     } catch (err) {
         console.error("Failed to fetch history:", err);
-        if (loading) loading.style.display = 'none';
-        if (placeholder) placeholder.style.display = 'flex';
+        historyState.isLoading = false;
+        if (reset && loading) loading.style.display = 'none';
+        if (loadingMore) loadingMore.style.display = 'none';
+        if (reset && placeholder) placeholder.style.display = 'flex';
+    } finally {
+        historyState.isLoading = false;
     }
+}
+
+/**
+ * Setup infinite scroll for history table
+ */
+function setupHistoryInfiniteScroll() {
+    if (isHistoryScrollSetup) return;
+
+    setupTableInfiniteScroll({
+        tableBodyId: 'signals-table-body',
+        fetchFunction: () => fetchHistorySignals(false),
+        getHasMore: () => historyState.hasMore,
+        getIsLoading: () => historyState.isLoading,
+        noMoreDataId: 'signals-no-more-data' // Ensure this ID exists in HTML
+    });
+
+    isHistoryScrollSetup = true;
 }
 
 /**
@@ -353,7 +410,7 @@ function renderOutcome(signal) {
     }
 
     const profit = signal.profit_loss_pct || 0;
-    
+
     if (signal.outcome === 'WIN') {
         return `<span class="px-2 py-0.5 bg-accentSuccess/20 text-accentSuccess border border-accentSuccess/20 text-xs rounded font-bold">WIN (+${profit.toFixed(1)}%)</span>`;
     } else if (signal.outcome === 'OPEN') {

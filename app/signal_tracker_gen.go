@@ -141,6 +141,7 @@ func (st *SignalTracker) filterDuplicateSignalsDB(signals []database.TradingSign
 			signal.Timestamp,
 			signal.Timestamp,
 			1,
+			0, // Offset
 		)
 
 		if err == nil && len(existingSignals) == 0 {

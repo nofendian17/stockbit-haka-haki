@@ -281,14 +281,14 @@ func (st *SignalTracker) shouldCreateOutcome(signal *database.TradingSignalDB) (
 
 	// Check for recent signals within time window (duplicate prevention)
 	recentSignalTime := signal.GeneratedAt.Add(-time.Duration(st.cfg.Trading.SignalTimeWindowMinutes) * time.Minute)
-	recentSignals, err := st.repo.GetTradingSignals(signal.StockSymbol, signal.Strategy, "BUY", recentSignalTime, signal.GeneratedAt, 10)
+	recentSignals, err := st.repo.GetTradingSignals(signal.StockSymbol, signal.Strategy, "BUY", recentSignalTime, signal.GeneratedAt, 10, 0)
 	if err == nil && len(recentSignals) > 1 {
 		return false, fmt.Sprintf("Duplicate signal within %d minute window", st.cfg.Trading.SignalTimeWindowMinutes), 0.0
 	}
 
 	// Check minimum interval since last signal for this symbol
 	lastSignalTime := signal.GeneratedAt.Add(-time.Duration(st.cfg.Trading.MinSignalIntervalMinutes) * time.Minute)
-	lastSignals, err := st.repo.GetTradingSignals(signal.StockSymbol, "", "BUY", lastSignalTime, time.Time{}, 1)
+	lastSignals, err := st.repo.GetTradingSignals(signal.StockSymbol, "", "BUY", lastSignalTime, time.Time{}, 1, 0)
 	if err == nil && len(lastSignals) > 0 {
 		if lastSignals[0].ID != signal.ID {
 			timeSince := signal.GeneratedAt.Sub(lastSignals[0].GeneratedAt).Minutes()

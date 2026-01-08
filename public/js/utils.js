@@ -186,7 +186,7 @@ export function getRegimeClass(regime) {
         case 'TRENDING_UP': return 'text-accentSuccess';
         case 'TRENDING_DOWN': return 'text-accentDanger';
         case 'RANGING': return 'text-accentWarning';
-        case 'BREAKOUT': return 'text-purple-500'; 
+        case 'BREAKOUT': return 'text-purple-500';
         case 'BREAKDOWN': return 'text-orange-500';
         case 'VOLATILE': return 'text-accentDanger';
         default: return 'text-textMuted';
@@ -201,4 +201,64 @@ export function getRegimeClass(regime) {
 export function getRegimeLabel(regime) {
     if (!regime) return 'UNKNOWN';
     return regime.replace(/_/g, ' ');
+}
+
+/**
+ * Setup infinite scroll for a specific table
+ * @param {Object} config - Configuration object
+ * @param {string} config.tableBodyId - ID of the table body element
+ * @param {Function} config.fetchFunction - Function to fetch more data
+ * @param {string} config.stateKey - Key in state.tables for this table (optional, for tables using state.tables)
+ * @param {Function} config.getHasMore - Function to get hasMore state
+ * @param {Function} config.getIsLoading - Function to get isLoading state
+ * @param {string} config.noMoreDataId - ID of "no more data" indicator (optional)
+ * @param {number} config.scrollThreshold - Distance from bottom to trigger (default: 300)
+ */
+export function setupTableInfiniteScroll(config) {
+    const tableBody = document.getElementById(config.tableBodyId);
+    if (!tableBody) {
+        console.warn(`[Scroll] Table body not found: ${config.tableBodyId}`);
+        return;
+    }
+
+    // Find scrollable container - robust logic
+    // Usually it's the closest .table-wrapper or similar, but let's be flexible
+    let container = tableBody.closest('.table-wrapper') || tableBody.closest('.overflow-y-auto');
+
+    // Fallback: if no typical container found, check if body itself is scroll target (unlikely for specific tables but possible)
+    if (!container && config.containerId) {
+        container = document.getElementById(config.containerId);
+    }
+
+    if (!container) {
+        console.warn(`[Scroll] Scroll container not found for ${config.tableBodyId}`);
+        return;
+    }
+
+    // Default threshold
+    const threshold = config.scrollThreshold || 300;
+
+    console.log(`✅ Infinite scroll setup for ${config.tableBodyId}`);
+
+    // Debounce scroll event
+    const scrollHandler = debounce(() => {
+        const { scrollTop, scrollHeight, clientHeight } = container;
+        const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+
+        // Check if scrolled near bottom
+        if (distanceFromBottom < threshold) {
+            const hasMore = config.getHasMore();
+            const isLoading = config.getIsLoading();
+
+            if (hasMore && !isLoading) {
+                console.log(`🔄 Loading more data for ${config.tableBodyId}...`);
+                config.fetchFunction();
+            } else if (!hasMore && config.noMoreDataId) {
+                const noMoreData = safeGetElement(config.noMoreDataId);
+                if (noMoreData) noMoreData.style.display = 'block';
+            }
+        }
+    }, 100);
+
+    container.addEventListener('scroll', scrollHandler);
 }
