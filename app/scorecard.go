@@ -10,7 +10,7 @@ import (
 
 // Scorecard thresholds
 const (
-	MinScoreForSignal = 38 // Minimum score out of 100 to generate signal (lowered from 45)
+	MinScoreForSignal = 30 // Minimum score out of 100 to generate signal (optimized for momentum capture)
 )
 
 // SignalScorecard represents a weighted scoring system for signal quality evaluation.
@@ -192,13 +192,17 @@ func (se *ScorecardEvaluator) scoreVolumeZScore(z float64) int {
 	case z >= 4.0:
 		return 10 // Very high
 	case z >= 3.0:
-		return 9 // High (was 6)
+		return 9 // High
 	case z >= 2.5:
-		return 7 // Moderate-high (NEW)
+		return 8 // Moderate-high
 	case z >= 2.0:
-		return 5 // Moderate (was 3)
+		return 7 // Moderate
 	case z >= 1.5:
-		return 3 // Slight elevation (NEW)
+		return 5 // Slight elevation
+	case z >= 1.0:
+		return 3 // Early momentum
+	case z >= 0.5:
+		return 1 // Minimal signal
 	default:
 		return 0
 	}
@@ -206,12 +210,12 @@ func (se *ScorecardEvaluator) scoreVolumeZScore(z float64) int {
 
 func (se *ScorecardEvaluator) scoreOrderFlowImbalance(flow *database.OrderFlowImbalance) int {
 	if flow == nil {
-		return 5 // Neutral if no data
+		return 6 // Slightly favorable if no data
 	}
 
 	totalVolume := flow.BuyVolumeLots + flow.SellVolumeLots
 	if totalVolume == 0 {
-		return 5
+		return 6
 	}
 
 	buyPct := (flow.BuyVolumeLots / totalVolume) * 100
@@ -220,15 +224,19 @@ func (se *ScorecardEvaluator) scoreOrderFlowImbalance(flow *database.OrderFlowIm
 	case buyPct > 65:
 		return 10 // Very strong
 	case buyPct > 58:
-		return 8 // Strong (was 55→7)
+		return 9 // Strong
+	case buyPct > 54:
+		return 8 // Good
 	case buyPct > 52:
-		return 6 // Good (was 50→5)
+		return 7 // Moderate buy bias
+	case buyPct > 50:
+		return 6 // Slight buy bias
 	case buyPct > 48:
-		return 4 // Slight (NEW)
+		return 5 // Balanced
 	case buyPct > 45:
-		return 2 // Minimal
+		return 3 // Slight sell bias
 	default:
-		return 0
+		return 1 // Sell pressure
 	}
 }
 
@@ -237,11 +245,13 @@ func (se *ScorecardEvaluator) scoreVolumeVsAvg(pct float64) int {
 	case pct > 250:
 		return 5 // Extreme
 	case pct > 150:
-		return 4 // High (was 200→3)
+		return 4 // High
 	case pct > 100:
-		return 3 // Above average (was 1)
+		return 3 // Above average
 	case pct > 75:
-		return 2 // Moderate (NEW)
+		return 2 // Moderate
+	case pct > 50:
+		return 1 // Slight increase
 	default:
 		return 0
 	}
@@ -249,20 +259,24 @@ func (se *ScorecardEvaluator) scoreVolumeVsAvg(pct float64) int {
 
 func (se *ScorecardEvaluator) scoreVWAPPosition(price, vwap float64) int {
 	if vwap == 0 {
-		return 5 // Neutral
+		return 6 // Slightly favorable neutral
 	}
 
 	deviation := ((price - vwap) / vwap) * 100
 
 	switch {
-	case deviation > 1.0:
-		return 10 // > 1% above VWAP
+	case deviation > 1.5:
+		return 10 // Well above VWAP
+	case deviation > 0.5:
+		return 9 // Above VWAP
 	case deviation > 0.0:
-		return 7 // Above VWAP
-	case deviation > -0.5:
-		return 3 // At VWAP (within 0.5%)
+		return 8 // Slightly above VWAP
+	case deviation > -0.3:
+		return 6 // At VWAP
+	case deviation > -0.7:
+		return 4 // Slightly below
 	default:
-		return 0 // Below VWAP
+		return 2 // Below VWAP
 	}
 }
 
@@ -287,7 +301,7 @@ func (se *ScorecardEvaluator) scoreMTFConfluence(result *MTFResult) int {
 
 func (se *ScorecardEvaluator) scoreRegimeAlignment(regime *database.MarketRegime, decision string) int {
 	if regime == nil {
-		return 3 // Neutral
+		return 4 // Favorable neutral
 	}
 
 	// For BUY signals
@@ -296,15 +310,15 @@ func (se *ScorecardEvaluator) scoreRegimeAlignment(regime *database.MarketRegime
 		case "TRENDING_UP":
 			return 5
 		case "RANGING":
-			return 2
+			return 3 // Range breakout opportunity
 		case "VOLATILE":
-			return 1
+			return 2
 		case "TRENDING_DOWN":
 			return 0
 		}
 	}
 
-	return 2 // Default neutral
+	return 3 // Default neutral
 }
 
 func (se *ScorecardEvaluator) scoreBaselineSampleSize(size int) int {
@@ -312,13 +326,19 @@ func (se *ScorecardEvaluator) scoreBaselineSampleSize(size int) int {
 	case size >= 100:
 		return 10
 	case size >= 70:
-		return 8 // was 80→7
-	case size >= 40:
-		return 6 // was 50→5
+		return 9
+	case size >= 50:
+		return 8
+	case size >= 35:
+		return 7
 	case size >= 25:
-		return 4 // was 30→2
+		return 6
 	case size >= 15:
-		return 2 // NEW
+		return 4
+	case size >= 10:
+		return 3 // Minimal acceptable
+	case size >= 5:
+		return 1 // Very limited data
 	default:
 		return 0
 	}
@@ -327,17 +347,21 @@ func (se *ScorecardEvaluator) scoreBaselineSampleSize(size int) int {
 func (se *ScorecardEvaluator) scoreStrategyWinRate(winRate float64) int {
 	switch {
 	case winRate >= 60:
-		return 10 // was 65
-	case winRate >= 50:
-		return 8 // was 55→7
-	case winRate >= 42:
-		return 6 // was 45→5
+		return 10
+	case winRate >= 52:
+		return 9
+	case winRate >= 45:
+		return 8
+	case winRate >= 40:
+		return 7
 	case winRate >= 35:
-		return 4 // was 30→2
+		return 6
+	case winRate >= 30:
+		return 4
 	case winRate >= 25:
-		return 2 // NEW
+		return 2
 	default:
-		return -3 // Reduced penalty (was -5)
+		return -2 // Minimal penalty
 	}
 }
 
@@ -353,11 +377,13 @@ func (se *ScorecardEvaluator) scoreTimeOfDay(t time.Time) int {
 	case hour >= 9 && hour < 10:
 		return 5 // Morning momentum
 	case hour >= 10 && hour < 12:
-		return 4 // Late morning
+		return 5 // Active morning
 	case hour >= 13 && hour < 14:
-		return 3 // Early afternoon
-	case hour >= 14:
-		return 1 // Late afternoon caution
+		return 4 // Early afternoon
+	case hour >= 14 && hour < 15:
+		return 3 // Late afternoon
+	case hour >= 15:
+		return 2 // Near close
 	default:
 		return 0 // Outside trading hours
 	}
@@ -365,7 +391,7 @@ func (se *ScorecardEvaluator) scoreTimeOfDay(t time.Time) int {
 
 func (se *ScorecardEvaluator) scorePatternDetected(patterns []database.DetectedPattern, decision string) int {
 	if len(patterns) == 0 {
-		return 3 // Neutral instead of penalty (was 0)
+		return 5 // Neutral - no pattern required
 	}
 
 	for _, p := range patterns {
@@ -373,29 +399,33 @@ func (se *ScorecardEvaluator) scorePatternDetected(patterns []database.DetectedP
 			if *p.PatternDirection == decision {
 				return 10 // Confirmed breakout in same direction
 			}
-			return 2 // Pattern exists but different direction
+			return 4 // Pattern exists but different direction
 		}
 	}
 
-	return 5 // Pattern exists
+	return 6 // Pattern exists
 }
 
 func (se *ScorecardEvaluator) scoreWhaleImpactHistory(stats *database.WhaleStats, decision string) int {
 	if stats == nil || stats.TotalWhaleTrades == 0 {
-		return 5 // Neutral
+		return 6 // Favorable neutral - no whale interference
 	}
 
 	// Calculate buy/sell ratio for historical whale activity
 	if decision == "BUY" {
 		if stats.BuyVolumeLots > stats.SellVolumeLots*1.5 {
 			return 10 // Strong buy bias in whale activity
+		} else if stats.BuyVolumeLots > stats.SellVolumeLots*1.2 {
+			return 9 // Good buy bias
 		} else if stats.BuyVolumeLots > stats.SellVolumeLots {
-			return 7 // Moderate buy bias
+			return 8 // Moderate buy bias
+		} else if stats.BuyVolumeLots > stats.SellVolumeLots*0.7 {
+			return 5 // Balanced
 		} else if stats.BuyVolumeLots > stats.SellVolumeLots*0.5 {
 			return 3 // Mixed
 		}
-		return 0 // Strong sell bias
+		return 1 // Strong sell bias
 	}
 
-	return 5 // Default
+	return 6 // Default
 }
