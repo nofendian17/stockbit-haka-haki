@@ -545,6 +545,38 @@ body {
   to { transform: rotate(360deg); }
 }
 
+.loading-more {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.loading-spinner-small {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--info);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.no-more-data {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+  font-size: 0.875rem;
+  font-style: italic;
+}
+
 .placeholder-icon {
   font-size: 2.5rem;
   display: block;

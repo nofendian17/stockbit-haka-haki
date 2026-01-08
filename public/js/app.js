@@ -106,7 +106,17 @@ async function fetchAlerts(reset = false) {
 
     state.isLoading = true;
     const loadingDiv = safeGetElement('loading');
-    if (loadingDiv) loadingDiv.style.display = 'block';
+    const loadingMore = safeGetElement('loading-more');
+    const noMoreData = safeGetElement('no-more-data');
+    
+    if (reset) {
+        if (loadingDiv) loadingDiv.style.display = 'block';
+        if (noMoreData) noMoreData.style.display = 'none';
+    } else {
+        // Show "loading more" indicator at bottom
+        if (loadingMore) loadingMore.style.display = 'flex';
+        if (noMoreData) noMoreData.style.display = 'none';
+    }
 
     try {
         const offset = reset ? 0 : state.currentOffset;
@@ -125,11 +135,17 @@ async function fetchAlerts(reset = false) {
 
         const tbody = safeGetElement('alerts-table-body');
         renderWhaleAlerts(state.alerts, tbody, loadingDiv);
+        
+        // Show "no more data" if we've reached the end
+        if (!state.hasMore && state.alerts.length > 0 && noMoreData) {
+            noMoreData.style.display = 'block';
+        }
     } catch (error) {
         console.error('Failed to fetch alerts:', error);
     } finally {
         state.isLoading = false;
         if (loadingDiv) loadingDiv.style.display = 'none';
+        if (loadingMore) loadingMore.style.display = 'none';
     }
 }
 
@@ -274,8 +290,17 @@ function setupInfiniteScroll() {
     if (container) {
         container.addEventListener('scroll', () => {
             const { scrollTop, scrollHeight, clientHeight } = container;
-            if (scrollHeight - scrollTop - clientHeight < CONFIG.SCROLL_THRESHOLD && state.hasMore && !state.isLoading) {
-                fetchAlerts(false);
+            const noMoreData = safeGetElement('no-more-data');
+            
+            // Check if scrolled near bottom
+            if (scrollHeight - scrollTop - clientHeight < CONFIG.SCROLL_THRESHOLD) {
+                if (state.hasMore && !state.isLoading) {
+                    // Load more data
+                    fetchAlerts(false);
+                } else if (!state.hasMore && noMoreData && state.alerts.length > 0) {
+                    // Show "no more data" message
+                    noMoreData.style.display = 'block';
+                }
             }
         });
     }
