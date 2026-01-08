@@ -112,7 +112,14 @@ func (s *Server) handleGetStatisticalBaselines(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	baseline, err := s.repo.GetLatestBaseline(symbol)
+	var baseline *database.StatisticalBaseline
+	var err error
+
+	if symbol == "IHSG" || symbol == "COMPOSITE" {
+		baseline, err = s.repo.GetAggregateBaseline()
+	} else {
+		baseline, err = s.repo.GetLatestBaseline(symbol)
+	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

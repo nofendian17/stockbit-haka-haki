@@ -60,6 +60,53 @@ func (r *Repository) GetLatestBaseline(symbol string) (*models.StatisticalBaseli
 	return &baseline, nil
 }
 
+// GetAggregateBaseline calculates a composite baseline for the entire market (IHSG)
+func (r *Repository) GetAggregateBaseline() (*models.StatisticalBaseline, error) {
+	type result struct {
+		StockCount  int64
+		TotalValue  float64
+		TotalVolume float64
+		AvgPrice    float64
+	}
+
+	var res result
+	// Aggregate valid baselines from the last 24 hours
+	err := r.db.Raw(`
+		WITH latest_baselines AS (
+			SELECT DISTINCT ON (stock_symbol) *
+			FROM statistical_baselines
+			WHERE calculated_at >= NOW() - INTERVAL '24 hours'
+			ORDER BY stock_symbol, calculated_at DESC
+		)
+		SELECT 
+			COUNT(*) as stock_count,
+			SUM(mean_value) as total_value,
+			SUM(mean_volume_lots) as total_volume,
+			AVG(mean_price) as avg_price
+		FROM latest_baselines
+	`).Scan(&res).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("GetAggregateBaseline: %w", err)
+	}
+
+	if res.StockCount == 0 {
+		return nil, nil
+	}
+
+	// Create composite baseline
+	return &models.StatisticalBaseline{
+		StockSymbol:    "IHSG",
+		CalculatedAt:   time.Now(),
+		LookbackHours:  24,
+		SampleSize:     int(res.StockCount), // Using stock count as proxy for sample size
+		MeanValue:      res.TotalValue,
+		MeanVolumeLots: res.TotalVolume,
+		MeanPrice:      res.AvgPrice,
+		// Leave other fields zero as they don't make sense for aggregate without complex weighting
+	}, nil
+}
+
 // CalculateBaselinesDB calculates statistical baselines directly in the database
 // Uses candle_1min view for efficient aggregation
 func (r *Repository) CalculateBaselinesDB(minutesBack int, minTrades int) ([]models.StatisticalBaseline, error) {

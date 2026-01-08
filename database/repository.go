@@ -809,8 +809,8 @@ func (r *TradeRepository) UpdateSignalOutcome(outcome *SignalOutcome) error {
 	return r.signals.UpdateSignalOutcome(outcome)
 }
 
-func (r *TradeRepository) GetSignalOutcomes(symbol string, status string, startTime, endTime time.Time, limit int) ([]SignalOutcome, error) {
-	return r.signals.GetSignalOutcomes(symbol, status, startTime, endTime, limit)
+func (r *TradeRepository) GetSignalOutcomes(symbol string, status string, startTime, endTime time.Time, limit, offset int) ([]SignalOutcome, error) {
+	return r.signals.GetSignalOutcomes(symbol, status, startTime, endTime, limit, offset)
 }
 
 func (r *TradeRepository) GetSignalOutcomeBySignalID(signalID int64) (*SignalOutcome, error) {
@@ -950,6 +950,10 @@ func (r *TradeRepository) BatchSaveStatisticalBaselines(baselines []models.Stati
 
 func (r *TradeRepository) GetLatestBaseline(symbol string) (*models.StatisticalBaseline, error) {
 	return r.analytics.GetLatestBaseline(symbol)
+}
+
+func (r *TradeRepository) GetAggregateBaseline() (*models.StatisticalBaseline, error) {
+	return r.analytics.GetAggregateBaseline()
 }
 
 func (r *TradeRepository) SaveMarketRegime(regime *models.MarketRegime) error {

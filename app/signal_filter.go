@@ -134,7 +134,7 @@ func (f *StrategyPerformanceFilter) Evaluate(ctx context.Context, signal *databa
 		}
 	}
 
-	multiplier, shouldSkip, reason := f.calculate(strategy)
+	multiplier, shouldSkip, reason := f.calculate(strategy, signal.StockSymbol)
 
 	if f.redis != nil {
 		cacheKey := fmt.Sprintf("strategy:perf:%s", strategy)
@@ -152,9 +152,8 @@ func (f *StrategyPerformanceFilter) Evaluate(ctx context.Context, signal *databa
 	return true, reason, multiplier
 }
 
-func (f *StrategyPerformanceFilter) calculate(strategy string) (float64, bool, string) {
-	since := time.Now().Add(-7 * 24 * time.Hour)
-	outcomes, err := f.repo.GetSignalOutcomes("", "", since, time.Time{}, 0)
+func (f *StrategyPerformanceFilter) calculate(strategy string, symbol string) (float64, bool, string) {
+	outcomes, err := f.repo.GetSignalOutcomes(symbol, "", time.Now().Add(-24*time.Hour), time.Time{}, 0, 0)
 	if err != nil {
 		return 1.0, false, ""
 	}

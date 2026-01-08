@@ -118,7 +118,7 @@ func (r *Repository) UpdateSignalOutcome(outcome *models.SignalOutcome) error {
 }
 
 // GetSignalOutcomes retrieves signal outcomes with filters
-func (r *Repository) GetSignalOutcomes(symbol string, status string, startTime, endTime time.Time, limit int) ([]models.SignalOutcome, error) {
+func (r *Repository) GetSignalOutcomes(symbol string, status string, startTime, endTime time.Time, limit, offset int) ([]models.SignalOutcome, error) {
 	var outcomes []models.SignalOutcome
 	query := r.db.Order("entry_time DESC")
 
@@ -136,6 +136,9 @@ func (r *Repository) GetSignalOutcomes(symbol string, status string, startTime, 
 	}
 	if limit > 0 {
 		query = query.Limit(limit)
+	}
+	if offset > 0 {
+		query = query.Offset(offset)
 	}
 
 	if err := query.Find(&outcomes).Error; err != nil {

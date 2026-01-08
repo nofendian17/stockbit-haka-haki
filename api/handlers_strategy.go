@@ -357,6 +357,13 @@ func (s *Server) handleGetProfitLossHistory(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
+	offset := 0
+	if o := query.Get("offset"); o != "" {
+		if parsed, err := strconv.Atoi(o); err == nil && parsed > 0 {
+			offset = parsed
+		}
+	}
+
 	var startTime, endTime time.Time
 	if start := query.Get("start"); start != "" {
 		startTime, _ = time.Parse(time.RFC3339, start)
@@ -365,10 +372,10 @@ func (s *Server) handleGetProfitLossHistory(w http.ResponseWriter, r *http.Reque
 		endTime, _ = time.Parse(time.RFC3339, end)
 	}
 
-	log.Printf("📊 Fetching P&L history (symbol: %s, strategy: %s, status: %s, limit: %d)",
-		symbol, strategy, status, limit)
+	log.Printf("📊 Fetching P&L history (symbol: %s, strategy: %s, status: %s, limit: %d, offset: %d)",
+		symbol, strategy, status, limit, offset)
 
-	outcomes, err := s.repo.GetSignalOutcomes(symbol, status, startTime, endTime, limit)
+	outcomes, err := s.repo.GetSignalOutcomes(symbol, status, startTime, endTime, limit, offset)
 	if err != nil {
 		log.Printf("❌ Failed to fetch P&L history: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

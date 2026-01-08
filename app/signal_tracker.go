@@ -180,7 +180,7 @@ func (st *SignalTracker) trackSignalOutcomes() {
 	}
 
 	// PART 2: Update existing OPEN outcomes (the critical part!)
-	openOutcomes, err := st.repo.GetSignalOutcomes("", "OPEN", time.Time{}, time.Time{}, 100)
+	openOutcomes, err := st.repo.GetSignalOutcomes("", "OPEN", time.Time{}, time.Time{}, 100, 0)
 	if err != nil {
 		log.Printf("❌ Error getting open outcomes: %v", err)
 		return
@@ -268,13 +268,13 @@ func (st *SignalTracker) shouldCreateOutcome(signal *database.TradingSignalDB) (
 	adaptiveLimit := st.filterService.GetRegimeAdaptiveLimit(signal.StockSymbol)
 
 	// Check if too many open positions globally (with adaptive limit)
-	openOutcomes, err := st.repo.GetSignalOutcomes("", "OPEN", time.Time{}, time.Time{}, 0)
+	openOutcomes, err := st.repo.GetSignalOutcomes("", "OPEN", time.Time{}, time.Time{}, 0, 0)
 	if err == nil && len(openOutcomes) >= adaptiveLimit {
 		return false, fmt.Sprintf("Max open positions reached (%d/%d adaptive)", len(openOutcomes), adaptiveLimit), 0.0
 	}
 
 	// Check if symbol already has open position
-	symbolOutcomes, err := st.repo.GetSignalOutcomes(signal.StockSymbol, "OPEN", time.Time{}, time.Time{}, 0)
+	symbolOutcomes, err := st.repo.GetSignalOutcomes(signal.StockSymbol, "OPEN", time.Time{}, time.Time{}, 0, 0)
 	if err == nil && len(symbolOutcomes) >= st.cfg.Trading.MaxPositionsPerSymbol {
 		return false, fmt.Sprintf("Symbol %s already has %d open position(s)", signal.StockSymbol, len(symbolOutcomes)), 0.0
 	}
@@ -560,7 +560,7 @@ func (st *SignalTracker) updateSignalOutcome(signal *database.TradingSignalDB, o
 // GetOpenPositions returns currently open trading positions with optional filters
 func (st *SignalTracker) GetOpenPositions(symbol, strategy string, limit int) ([]database.SignalOutcome, error) {
 	// Get open signal outcomes
-	outcomes, err := st.repo.GetSignalOutcomes(symbol, "OPEN", time.Time{}, time.Time{}, limit)
+	outcomes, err := st.repo.GetSignalOutcomes(symbol, "OPEN", time.Time{}, time.Time{}, limit, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get open positions: %w", err)
 	}
