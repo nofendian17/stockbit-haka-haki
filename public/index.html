@@ -4,400 +4,281 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Stockbit Whale Radar 🐋</title>
+  <title>Radar Bandar - Stockbit Trading Platform</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=10" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css?v=11" />
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 
 <body>
-  <div class="background-glow"></div>
-
-  <header>
-    <div class="logo">
-      <span class="icon">🐋</span>
-      <div>
-        <h1>Radar Bandar</h1>
-        <span class="subtitle">Pantau Pergerakan Dana Besar Real-time</span>
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="nav-container">
+      <div class="nav-brand">
+        <span class="brand-icon">🐋</span>
+        <span class="brand-text">Radar Bandar</span>
+      </div>
+      <div class="nav-stats">
+        <div class="stat-card">
+          <span class="stat-label">Alerts</span>
+          <span class="stat-value" id="total-alerts">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Win Rate</span>
+          <span class="stat-value success" id="global-win-rate">0%</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Avg Profit</span>
+          <span class="stat-value success" id="global-avg-profit">0%</span>
+        </div>
+      </div>
+      <div class="nav-actions">
+        <span id="market-regime" class="regime-badge" style="display:none;">RANGING</span>
+        <button id="webhook-config-btn" class="icon-btn" title="Webhook Config">🔔</button>
+        <button id="help-btn" class="icon-btn" title="Help">❓</button>
+        <div class="status-live">
+          <span class="pulse-dot"></span>
+          <span>Live</span>
+        </div>
       </div>
     </div>
-    <div class="stats-ticker" id="stats-ticker">
-      <div class="stat-item">
-        <span class="label">Total Alert Bandar</span>
-        <span class="value" id="total-alerts">0</span>
-      </div>
-      <div class="stat-item">
-        <span class="label">Volume Hari Ini</span>
-        <span class="value" id="total-volume">0</span>
-      </div>
-      <div class="stat-item">
-        <span class="label">Transaksi Terbesar</span>
-        <span class="value" id="largest-value">0</span>
-      </div>
-      <div class="stat-item">
-        <span class="label">Win Rate Sistem</span>
-        <span class="value" id="global-win-rate">0%</span>
-      </div>
-      <div class="stat-item">
-        <span class="label">Rata-rata Profit</span>
-        <span class="value" id="global-avg-profit">0%</span>
-      </div>
-    </div>
-    <div class="header-actions">
-      <div id="market-regime-container" class="regime-badge-container">
-        <span id="market-regime" class="status-badge" style="display:none;">RANGING</span>
-      </div>
-      <button id="webhook-config-btn" class="help-button" title="Konfigurasi Webhook">
-        <span class="help-icon">🔔</span>
-      </button>
-      <button id="help-btn" class="help-button" title="Panduan Penggunaan">
-        <span class="help-icon">❓</span>
-      </button>
-      <div class="status-indicator"><span class="dot"></span> Live</div>
-    </div>
-  </header>
+  </nav>
 
-  <main>
-    <!-- Enhanced Filter Controls -->
-    <div class="controls-section">
-
-      <div class="section-title-small">
-        <span class="icon-accent">🔍</span>
-        <h3>Pencarian & Filter</h3>
+  <!-- Main Content -->
+  <main class="container">
+    <!-- Filters -->
+    <section class="filters-section">
+      <div class="filter-group">
+        <input type="text" id="search" class="filter-input" placeholder="🔍 Cari Kode Saham..." />
+        <select id="filter-action" class="filter-select">
+          <option value="ALL">Semua Aksi</option>
+          <option value="BUY">🟢 Beli</option>
+          <option value="SELL">🔴 Jual</option>
+        </select>
+        <select id="filter-amount" class="filter-select">
+          <option value="0">Semua Nilai</option>
+          <option value="100000000">> 100 Jt</option>
+          <option value="500000000">> 500 Jt</option>
+          <option value="1000000000">> 1 M</option>
+          <option value="5000000000">> 5 M</option>
+        </select>
+        <select id="filter-board" class="filter-select">
+          <option value="ALL">Semua Board</option>
+          <option value="RG">Regular</option>
+          <option value="TN">Tunai</option>
+          <option value="NG">Negosiasi</option>
+        </select>
+        <button id="clear-filters-btn" class="btn-clear" style="display: none;">✖ Clear</button>
+        <button id="refresh-btn" class="btn-refresh">🔄 Refresh</button>
       </div>
-      <div class="controls">
-        <div class="control-group">
-          <label for="search" class="control-label">
-            <span class="label-icon">🔎</span>
-            Kode Saham
-          </label>
-          <input type="text" id="search" placeholder="Cari Kode (misal BBCA)..." />
+    </section>
+
+    <!-- Whale Alerts Table -->
+    <section class="card">
+      <div class="card-header">
+        <h2 class="card-title">🐋 Alert Bandar</h2>
+        <p class="card-subtitle">Real-time whale transactions</p>
+      </div>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Waktu</th>
+              <th>Saham</th>
+              <th>Aksi</th>
+              <th>Harga</th>
+              <th class="text-right">Value</th>
+              <th>Volume</th>
+              <th>Detail</th>
+            </tr>
+          </thead>
+          <tbody id="alerts-table-body">
+            <!-- Rows injected here -->
+          </tbody>
+        </table>
+        <div id="loading" class="loading">
+          <div class="loading-spinner"></div>
+          <p>Loading alerts...</p>
         </div>
-        <div class="control-group">
-          <label for="filter-action" class="control-label">
-            <span class="label-icon">⚡</span>
-            Action Type
-          </label>
-          <select id="filter-action">
-            <option value="ALL">Semua Aksi</option>
-            <option value="BUY">Bandar Beli (Akumulasi)</option>
-            <option value="SELL">Bandar Jual (Distribusi)</option>
-          </select>
+      </div>
+    </section>
+
+    <!-- Strategy Signals -->
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h2 class="card-title">🎯 Strategi Trading</h2>
+          <p class="card-subtitle">AI-powered trading signals</p>
         </div>
-        <div class="control-group">
-          <label for="filter-amount" class="control-label">
-            <span class="label-icon">💰</span>
-            Min Nilai
-          </label>
-          <select id="filter-amount">
-            <option value="0">Semua Nilai</option>
-            <option value="100000000">> 100 Juta</option>
-            <option value="500000000">> 500 Juta</option>
-            <option value="1000000000">> 1 Miliar</option>
-            <option value="5000000000">> 5 Miliar</option>
-          </select>
+        <div class="status-badge">
+          <span id="strategy-live-indicator" class="pulse-dot"></span>
+          <span id="strategy-connection-status">Connecting...</span>
         </div>
-        <div class="control-group">
-          <label for="filter-board" class="control-label">
-            <span class="label-icon">📊</span>
-            Board Type
-          </label>
-          <select id="filter-board">
-            <option value="ALL">Semua Papan</option>
-            <option value="RG">Regular (RG)</option>
-            <option value="TN">Tunai (TN)</option>
-            <option value="NG">Negosiasi (NG)</option>
-          </select>
-        </div>
-        <div class="control-group">
-          <button id="clear-filters-btn" class="btn-clear" style="display: none;">
-            <span class="btn-icon">✖️</span>
-            Hapus Filter
-          </button>
-        </div>
-        <div class="control-group">
-          <button id="refresh-btn" class="btn-refresh">
-            <span class="btn-icon">🔄</span>
-            Refresh
-          </button>
-        </div>
+      </div>
+      
+      <div class="tabs">
+        <button class="tab active" data-strategy="ALL">Semua</button>
+        <button class="tab" data-strategy="VOLUME_BREAKOUT">🚀 Volume</button>
+        <button class="tab" data-strategy="MEAN_REVERSION">↩️ Mean Rev</button>
+        <button class="tab" data-strategy="FAKEOUT_FILTER">🛡️ Fakeout</button>
+        <button class="tab" data-strategy="HISTORY">📜 History</button>
       </div>
 
-      <!-- Enhanced Whale Alerts Table -->
-      <div class="whale-alerts-section">
-        <div class="section-header">
-          <div class="header-content">
-            <h2>
-              <span class="section-icon">🐋</span>
-              Radar Alert Bandar
-            </h2>
-            <p class="section-subtitle">Pantau transaksi besar secara real-time</p>
-          </div>
+      <div class="table-wrapper">
+        <table class="data-table" id="signals-table">
+          <thead>
+            <tr>
+              <th>Waktu</th>
+              <th>Saham</th>
+              <th>Strategi</th>
+              <th>Aksi</th>
+              <th>Harga</th>
+              <th class="text-right">Change</th>
+              <th>Confidence</th>
+              <th>Result</th>
+              <th>Reason</th>
+            </tr>
+          </thead>
+          <tbody id="signals-table-body">
+            <!-- Rows will be injected here -->
+          </tbody>
+        </table>
+        <div id="signals-loading" class="loading" style="display: none;">
+          <div class="loading-spinner"></div>
+          <p>Loading signals...</p>
         </div>
-
-        <div class="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th><span class="th-icon">⏰</span> Waktu</th>
-                <th><span class="th-icon">📈</span> Saham <span style="font-size: 0.6em; color: var(--text-secondary);"
-                    title="Klik kodenya untuk melihat statistik teknis">(Klik untuk statistik)</span></th>
-                <th><span class="th-icon">⚡</span> Aksi</th>
-                <th><span class="th-icon">💵</span> Harga</th>
-                <th class="text-right"><span class="th-icon">💰</span> Value</th>
-                <th><span class="th-icon">📊</span> Volume</th>
-                <th><span class="th-icon">ℹ️</span> Detail <span
-                    style="font-size: 0.6em; color: var(--text-secondary);">(Klik untuk analisis)</span></th>
-              </tr>
-            </thead>
-            <tbody id="alerts-table-body">
-              <!-- Rows injected here -->
-            </tbody>
-          </table>
-          <div id="loading" class="loading">
-            <div class="loading-spinner"></div>
-            <p>Mencari aktivitas bandar...</p>
-          </div>
+        <div id="signals-placeholder" class="placeholder">
+          <span class="placeholder-icon">📡</span>
+          <p>Waiting for trading signals...</p>
         </div>
       </div>
+    </section>
 
-      <!-- Enhanced Strategy Signals Section -->
-      <div class="strategy-signals-section" id="strategy-signals">
-        <div class="strategy-header">
-          <div class="header-content">
-            <h2>
-              <span class="section-icon">🎯</span>
-              Strategi Trading
-            </h2>
-            <p class="section-subtitle">Sinyal trading dan deteksi pola berbasis AI</p>
-          </div>
-          <div class="strategy-status">
-            <span id="strategy-live-indicator" class="dot"></span>
-            <span id="strategy-connection-status">Menghubungkan...</span>
-          </div>
+    <!-- Running Positions -->
+    <section class="card">
+      <div class="card-header">
+        <h2 class="card-title">💼 Posisi Aktif</h2>
+        <p class="card-subtitle">Active trading positions</p>
+      </div>
+      <div class="table-wrapper">
+        <table class="data-table" id="positions-table">
+          <thead>
+            <tr>
+              <th>Saham</th>
+              <th>Strategi</th>
+              <th>Entry Time</th>
+              <th class="text-right">Entry Price</th>
+              <th class="text-right">P&L %</th>
+              <th class="text-right">Hold Time</th>
+              <th class="text-right">MAE/MFE</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="positions-table-body">
+            <!-- Rows will be injected here -->
+          </tbody>
+        </table>
+        <div id="positions-loading" class="loading" style="display: none;">
+          <div class="loading-spinner"></div>
+          <p>Loading positions...</p>
         </div>
-
-        <div class="strategy-tabs">
-          <button class="strategy-tab active" data-strategy="ALL">
-            <span class="tab-icon">📋</span>
-            Semua Sinyal
-          </button>
-          <button class="strategy-tab" data-strategy="VOLUME_BREAKOUT">
-            <span class="tab-icon">🚀</span>
-            Lonjakan Volume
-          </button>
-          <button class="strategy-tab" data-strategy="MEAN_REVERSION">
-            <span class="tab-icon">↩️</span>
-            Balik Arah (Mean Reversion)
-          </button>
-          <button class="strategy-tab" data-strategy="FAKEOUT_FILTER">
-            <span class="tab-icon">🛡️</span>
-            Filter Sinyal Palsu
-          </button>
-          <button class="strategy-tab" data-strategy="HISTORY">
-            <span class="tab-icon">📜</span>
-            Arsip Riwayat
-          </button>
+        <div id="positions-placeholder" class="placeholder">
+          <span class="placeholder-icon">💼</span>
+          <p>No active positions</p>
         </div>
+      </div>
+    </section>
 
-        <div class="strategy-content">
-          <div class="table-container">
-            <table id="signals-table">
+    <!-- P&L History -->
+    <section class="card">
+      <div class="card-header">
+        <h2 class="card-title">📈 Riwayat P&L</h2>
+        <p class="card-subtitle">Trading history with outcomes</p>
+      </div>
+
+      <!-- History Filters -->
+      <div class="filter-group history-filters">
+        <select id="history-strategy" class="filter-select">
+          <option value="ALL">All Strategies</option>
+          <option value="VOLUME_BREAKOUT">Volume Breakout</option>
+          <option value="MEAN_REVERSION">Mean Reversion</option>
+          <option value="FAKEOUT_FILTER">Fakeout Filter</option>
+        </select>
+        <select id="history-status" class="filter-select">
+          <option value="">All Status</option>
+          <option value="WIN">🟢 WIN</option>
+          <option value="LOSS">🔴 LOSS</option>
+          <option value="BREAKEVEN">⚪ BREAKEVEN</option>
+          <option value="OPEN">🔵 OPEN</option>
+        </select>
+        <select id="history-limit" class="filter-select">
+          <option value="50">50 Records</option>
+          <option value="100" selected>100 Records</option>
+          <option value="200">200 Records</option>
+          <option value="500">500 Records</option>
+        </select>
+        <button id="history-refresh-btn" class="btn-refresh">🔄 Refresh</button>
+      </div>
+
+      <div class="table-wrapper">
+        <table class="data-table" id="history-table">
+          <thead>
+            <tr>
+              <th>Saham</th>
+              <th>Strategi</th>
+              <th>Entry</th>
+              <th class="text-right">Entry Price</th>
+              <th>Exit</th>
+              <th class="text-right">Exit Price</th>
+              <th class="text-right">P&L %</th>
+              <th class="text-right">Duration</th>
+              <th>MAE/MFE</th>
+              <th>Status</th>
+              <th>Exit Reason</th>
+            </tr>
+          </thead>
+          <tbody id="history-table-body">
+            <!-- Rows will be injected here -->
+          </tbody>
+        </table>
+        <div id="history-loading" class="loading" style="display: none;">
+          <div class="loading-spinner"></div>
+          <p>Loading history...</p>
+        </div>
+        <div id="history-placeholder" class="placeholder">
+          <span class="placeholder-icon">📈</span>
+          <p>Select filters and click Refresh to load history</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Accumulation/Distribution Summary -->
+    <section class="card">
+      <div class="card-header">
+        <h2 class="card-title">📊 Aktivitas Bandar (24h)</h2>
+        <p class="card-subtitle">Top whale activities</p>
+      </div>
+
+      <div class="summary-grid">
+        <!-- Accumulation Table -->
+        <div>
+          <h3 class="subsection-title">
+            📈 Top 20 Akumulasi
+            <span id="accumulation-count" class="count-badge">0</span>
+          </h3>
+          <div class="table-wrapper">
+            <table class="data-table" id="accumulation-table">
               <thead>
                 <tr>
-                  <th><span class="th-icon">⏰</span> Waktu</th>
-                  <th><span class="th-icon">📊</span> Saham</th>
-                  <th><span class="th-icon">🎯</span> Strategi</th>
-                  <th><span class="th-icon">⚡</span> Aksi</th>
-                  <th><span class="th-icon">💵</span> Harga</th>
-                  <th class="text-right"><span class="th-icon">📈</span> Perubahan</th>
-                  <th><span class="th-icon">🎲</span> Keyakinan</th>
-                  <th><span class="th-icon">🏆</span> Hasil</th>
-                  <th><span class="th-icon">💡</span> Alasan</th>
+                  <th>Saham</th>
+                  <th class="text-right">Beli %</th>
+                  <th class="text-right">Jual %</th>
+                  <th class="text-right">Net Value</th>
+                  <th class="text-right">Alerts</th>
+                  <th class="text-right">Total Value</th>
                 </tr>
-              </thead>
-              <tbody id="signals-table-body">
-                <!-- Rows will be injected here -->
-              </tbody>
-            </table>
-            <div id="signals-loading" class="loading" style="display: none;">
-              <div class="loading-spinner"></div>
-              <p>Memuat sinyal...</p>
-            </div>
-            <div id="signals-placeholder" class="placeholder">
-              <span class="placeholder-icon">📡</span>
-              <p>Menunggu sinyal trading...</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Running Positions Section -->
-      <div class="running-positions-section" id="running-positions">
-        <div class="section-header">
-          <div class="header-content">
-            <h2>
-              <span class="section-icon">💼</span>
-              Posisi Trading Aktif
-            </h2>
-            <p class="section-subtitle">Posisi yang sedang berjalan dengan status real-time</p>
-          </div>
-        </div>
-
-        <div class="table-container">
-          <table id="positions-table">
-            <thead>
-              <tr>
-                <th><span class="th-icon">📊</span> Saham</th>
-                <th><span class="th-icon">🎯</span> Strategi</th>
-                <th><span class="th-icon">⏰</span> Entry Time</th>
-                <th class="text-right"><span class="th-icon">💵</span> Entry Price</th>
-                <th class="text-right"><span class="th-icon">📈</span> P&L %</th>
-                <th class="text-right"><span class="th-icon">⏱️</span> Hold Time</th>
-                <th class="text-right"><span class="th-icon">📉</span> MAE/MFE</th>
-                <th><span class="th-icon">🎲</span> Status</th>
-              </tr>
-            </thead>
-            <tbody id="positions-table-body">
-              <!-- Rows will be injected here -->
-            </tbody>
-          </table>
-          <div id="positions-loading" class="loading" style="display: none;">
-            <div class="loading-spinner"></div>
-            <p>Memuat posisi trading...</p>
-          </div>
-          <div id="positions-placeholder" class="placeholder">
-            <span class="placeholder-icon">💼</span>
-            <p>Tidak ada posisi trading yang aktif saat ini</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Profit/Loss History Section -->
-      <div class="history-section" id="pnl-history">
-        <div class="section-header">
-          <div class="header-content">
-            <h2>
-              <span class="section-icon">📈</span>
-              Riwayat Profit & Loss
-            </h2>
-            <p class="section-subtitle">History trading dengan status outcome</p>
-          </div>
-        </div>
-
-        <!-- Filter Controls -->
-        <div class="history-filters" style="display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
-          <div class="control-group" style="flex: 1; min-width: 200px;">
-            <label for="history-strategy" class="control-label">
-              <span class="label-icon">🎯</span>
-              Strategi
-            </label>
-            <select id="history-strategy">
-              <option value="ALL">Semua Strategi</option>
-              <option value="VOLUME_BREAKOUT">Volume Breakout</option>
-              <option value="MEAN_REVERSION">Mean Reversion</option>
-              <option value="FAKEOUT_FILTER">Fakeout Filter</option>
-            </select>
-          </div>
-          <div class="control-group" style="flex: 1; min-width: 200px;">
-            <label for="history-status" class="control-label">
-              <span class="label-icon">🎲</span>
-              Status
-            </label>
-            <select id="history-status">
-              <option value="">Semua Status</option>
-              <option value="WIN">WIN (Profit)</option>
-              <option value="LOSS">LOSS (Rugi)</option>
-              <option value="BREAKEVEN">BREAKEVEN</option>
-              <option value="OPEN">OPEN (Aktif)</option>
-            </select>
-          </div>
-          <div class="control-group" style="flex: 1; min-width: 200px;">
-            <label for="history-limit" class="control-label">
-              <span class="label-icon">📊</span>
-              Jumlah Data
-            </label>
-            <select id="history-limit">
-              <option value="50">50 Terakhir</option>
-              <option value="100" selected>100 Terakhir</option>
-              <option value="200">200 Terakhir</option>
-              <option value="500">500 Terakhir</option>
-            </select>
-          </div>
-          <div class="control-group" style="align-self: flex-end;">
-            <button id="history-refresh-btn" class="btn-refresh">
-              <span class="btn-icon">🔄</span>
-              Refresh
-            </button>
-          </div>
-        </div>
-
-        <div class="table-container">
-          <table id="history-table">
-            <thead>
-              <tr>
-                <th><span class="th-icon">📊</span> Saham</th>
-                <th><span class="th-icon">🎯</span> Strategi</th>
-                <th><span class="th-icon">⏰</span> Entry</th>
-                <th class="text-right"><span class="th-icon">💵</span> Entry Price</th>
-                <th><span class="th-icon">⏰</span> Exit</th>
-                <th class="text-right"><span class="th-icon">💵</span> Exit Price</th>
-                <th class="text-right"><span class="th-icon">📈</span> P&L %</th>
-                <th class="text-right"><span class="th-icon">⏱️</span> Durasi</th>
-                <th><span class="th-icon">📉</span> MAE/MFE</th>
-                <th><span class="th-icon">🎲</span> Status</th>
-                <th><span class="th-icon">💡</span> Exit Reason</th>
-              </tr>
-            </thead>
-            <tbody id="history-table-body">
-              <!-- Rows will be injected here -->
-            </tbody>
-          </table>
-          <div id="history-loading" class="loading" style="display: none;">
-            <div class="loading-spinner"></div>
-            <p>Memuat riwayat P&L...</p>
-          </div>
-          <div id="history-placeholder" class="placeholder">
-            <span class="placeholder-icon">📈</span>
-            <p>Pilih filter dan klik Refresh untuk melihat riwayat P&L</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Accumulation/Distribution Summary Section -->
-      <div class="summary-section" id="accumulation-summary-section">
-        <div class="section-header">
-          <div class="header-content">
-            <h2>
-              <span class="section-icon">📊</span>
-              Aktivitas Bandar (24 Jam)
-            </h2>
-            <p class="section-subtitle">Top 20 Saham yang Paling Banyak Dibeli & Dijual Bandar</p>
-          </div>
-        </div>
-
-        <!-- 2 Column Grid Layout -->
-        <div class="summary-grid">
-          <!-- Top 20 Accumulation Table -->
-          <div class="summary-subsection">
-            <h3 class="subsection-title">
-              <span class="subsection-icon">📈</span>
-              Top 20 Akumulasi
-              <span id="accumulation-count" class="count-badge">0</span>
-            </h3>
-            <div class="table-container">
-              <table id="accumulation-table">
-                <thead>
-                  <tr>
-                    <th><span class="th-icon">📊</span> Saham</th>
-                    <th class="text-right"><span class="th-icon">📈</span> BELI %</th>
-                    <th class="text-right"><span class="th-icon">📉</span> JUAL %</th>
-                    <th class="text-right"><span class="th-icon">💰</span> Nilai Bersih</th>
-                    <th class="text-right"><span class="th-icon">🔔</span> Alert</th>
-                    <th class="text-right"><span class="th-icon">💵</span> Total Nilai</th>
-                  </tr>
                 </thead>
                 <tbody id="accumulation-table-body">
                   <!-- Rows will be injected here -->
@@ -405,28 +286,27 @@
               </table>
               <div id="accumulation-placeholder" class="placeholder" style="display: none;">
                 <span class="placeholder-icon">📈</span>
-                <p>Tidak ada data akumulasi</p>
+                <p>No accumulation data</p>
               </div>
             </div>
           </div>
 
-          <!-- Top 20 Distribution Table -->
-          <div class="summary-subsection">
+          <!-- Distribution Table -->
+          <div>
             <h3 class="subsection-title">
-              <span class="subsection-icon">📉</span>
-              Top 20 Distribusi
+              📉 Top 20 Distribusi
               <span id="distribution-count" class="count-badge">0</span>
             </h3>
-            <div class="table-container">
-              <table id="distribution-table">
+            <div class="table-wrapper">
+              <table class="data-table" id="distribution-table">
                 <thead>
                   <tr>
-                    <th><span class="th-icon">📊</span> Saham</th>
-                    <th class="text-right"><span class="th-icon">📈</span> BELI %</th>
-                    <th class="text-right"><span class="th-icon">📉</span> JUAL %</th>
-                    <th class="text-right"><span class="th-icon">💰</span> Nilai Bersih</th>
-                    <th class="text-right"><span class="th-icon">🔔</span> Alert</th>
-                    <th class="text-right"><span class="th-icon">💵</span> Total Nilai</th>
+                    <th>Saham</th>
+                    <th class="text-right">Beli %</th>
+                    <th class="text-right">Jual %</th>
+                    <th class="text-right">Net Value</th>
+                    <th class="text-right">Alerts</th>
+                    <th class="text-right">Total Value</th>
                   </tr>
                 </thead>
                 <tbody id="distribution-table-body">
@@ -435,7 +315,7 @@
               </table>
               <div id="distribution-placeholder" class="placeholder" style="display: none;">
                 <span class="placeholder-icon">📉</span>
-                <p>Tidak ada data distribusi</p>
+                <p>No distribution data</p>
               </div>
             </div>
           </div>
@@ -443,214 +323,95 @@
 
         <div id="summary-loading" class="loading" style="display: none;">
           <div class="loading-spinner"></div>
-          <p>Memuat ringkasan data...</p>
+          <p>Loading summary data...</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Analytics Hub (Simplified) -->
+    <section class="card">
+      <div class="card-header">
+        <h2 class="card-title">🧠 Analytics Hub</h2>
+        <p class="card-subtitle">Market intelligence and correlations</p>
+      </div>
+
+      <div class="tabs">
+        <button class="tab active" data-target="correlations-view">Korelasi</button>
+        <button class="tab" data-target="performance-view">Performance</button>
+        <button class="tab" data-target="optimization-view">Optimasi</button>
+      </div>
+
+      <div id="correlations-view" class="tab-panel active">
+        <div id="correlation-container" class="placeholder">
+          <span class="placeholder-icon">📊</span>
+          <p>Search for stock code to see correlations</p>
         </div>
       </div>
 
-      <!-- NEW: Market Intelligence & Analytics Hub -->
-      <div class="analytics-row">
-        <!-- Market Intelligence Section -->
-        <div class="intel-section" id="market-intelligence">
-          <div class="section-header">
-            <div class="header-content">
-              <h2>
-                <span class="section-icon">🧠</span>
-                Pusat Analisis Pasar
-              </h2>
-              <p class="section-subtitle">Kondisi pasar dan statistik real-time</p>
-            </div>
-          </div>
-          <div class="intel-grid">
-            <div class="intel-card" id="regime-card">
-              <span class="card-label">KONDISI PASAR</span>
-              <div class="regime-display" id="intel-regime">STABIL</div>
-              <div class="regime-meta" id="intel-regime-desc">Menganalisis kondisi pasar...</div>
-            </div>
-            <div class="intel-card" id="baseline-card">
-              <span class="card-label">STATISTIK DASAR</span>
-              <div class="baseline-stats">
-                <div class="b-stat"><span>Rata-rata Vol:</span> <strong id="b-avg-vol">-</strong></div>
-                <div class="b-stat"><span>Std Dev:</span> <strong id="b-std-dev">-</strong></div>
-              </div>
-            </div>
-            <div class="intel-card" id="orderflow-card">
-              <span class="card-label">TEKANAN JUAL/BELI</span>
-              <div class="pressure-bar-container">
-                <div class="pressure-bar">
-                  <div id="buy-pressure-fill" class="pressure-fill buy" style="width: 50%"></div>
-                  <div id="sell-pressure-fill" class="pressure-fill sell" style="width: 50%"></div>
-                </div>
-                <div class="pressure-labels">
-                  <span id="buy-pressure-pct">50% BELI</span>
-                  <span id="sell-pressure-pct">50% JUAL</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="pattern-feed">
-            <h4>Pola Terkini</h4>
-            <div id="pattern-list" class="pattern-scroll">
-              <div class="placeholder-small">Menunggu pola...</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Correlations & Performance Section -->
-        <div class="performance-section" id="analytics-hub">
-          <div class="section-header">
-            <div class="header-content">
-              <h2>
-                <span class="section-icon">📈</span>
-                Analisis Lanjutan
-              </h2>
-              <p class="section-subtitle">Hubungan antar saham dan metrik performa</p>
-            </div>
-          </div>
-          <div class="stats-tabs">
-            <button class="s-tab active" data-target="correlations-view">Korelasi</button>
-            <button class="s-tab" data-target="performance-view">Pertumbuhan Strategi</button>
-            <button class="s-tab" data-target="optimization-view">📊 Optimasi Sinyal</button>
-            <button id="export-ml-btn" onclick="window.location.href='/api/analytics/export/ml-data'"
-              class="btn-export">
-              <span style="font-size: 1.1em;">📥</span> ML Data
-            </button>
-          </div>
-          <div class="tab-viewport">
-            <!-- Correlation View -->
-            <div id="correlations-view" class="tab-panel active">
-              <div class="correlation-grid" id="correlation-container">
-                <div class="placeholder-small">Cari kode saham untuk melihat korelasi</div>
-              </div>
-            </div>
-            <!-- Performance View -->
-            <div id="performance-view" class="tab-panel">
-              <div class="mini-table-container">
-                <table id="daily-performance-table">
-                  <thead>
-                    <tr>
-                      <th><span class="th-icon">📊</span> Saham</th>
-                      <th><span class="th-icon">📅</span> Hari</th>
-                      <th><span class="th-icon">🎯</span> Strategi</th>
-                      <th class="text-right"><span class="th-icon">🏆</span> Win Rate</th>
-                      <th class="text-right"><span class="th-icon">💰</span> Profit & Entry</th>
-                      <th class="text-right"><span class="th-icon">📈</span> Avg Win/Loss</th>
-                      <th class="text-right"><span class="th-icon">⭐</span> Best/Worst</th>
-                      <th class="text-right"><span class="th-icon">⏱️</span> Hold Time</th>
-                    </tr>
-                  </thead>
-                  <tbody id="daily-performance-body">
-                    <!-- Rows injected here -->
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <!-- Strategy Optimization View (NEW) -->
-            <div id="optimization-view" class="tab-panel">
-              <div class="optimization-grid"
-                style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
-                <!-- Expected Values Card -->
-                <div class="intel-card" style="padding: 1rem;">
-                  <span class="card-label">📈 EXPECTED VALUE (EV)</span>
-                  <div id="ev-list" style="margin-top: 0.5rem;">
-                    <div class="placeholder-small">Memuat data...</div>
-                  </div>
-                </div>
-                <!-- Optimal Thresholds Card -->
-                <div class="intel-card" style="padding: 1rem;">
-                  <span class="card-label">🎯 CONFIDENCE THRESHOLD OPTIMAL</span>
-                  <div id="threshold-list" style="margin-top: 0.5rem;">
-                    <div class="placeholder-small">Memuat data...</div>
-                  </div>
-                </div>
-              </div>
-              <!-- Strategy Effectiveness Table -->
-              <div style="margin-top: 1rem;">
-                <h4 style="margin-bottom: 0.5rem; color: var(--text-primary);">📊 Efektivitas per Market Regime</h4>
-                <div class="mini-table-container">
-                  <table id="effectiveness-table">
-                    <thead>
-                      <tr>
-                        <th><span class="th-icon">🎯</span> Strategi</th>
-                        <th><span class="th-icon">📊</span> Regime</th>
-                        <th class="text-right"><span class="th-icon">🔢</span> Sinyal</th>
-                        <th class="text-right"><span class="th-icon">🏆</span> Win Rate</th>
-                        <th class="text-right"><span class="th-icon">💰</span> Avg Profit</th>
-                        <th class="text-right"><span class="th-icon">📈</span> EV</th>
-                      </tr>
-                    </thead>
-                    <tbody id="effectiveness-body">
-                      <tr>
-                        <td colspan="6" class="text-center">Memuat data...</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-              <div style="margin-top: 0.5rem; text-align: center;">
-                <button id="refresh-optimization-btn" class="btn-refresh" onclick="window.loadOptimizationData()">
-                  <span class="btn-icon">🔄</span> Refresh Data
-                </button>
-              </div>
-            </div>
-          </div>
+      <div id="performance-view" class="tab-panel" style="display:none;">
+        <div class="table-wrapper">
+          <table class="data-table" id="daily-performance-table">
+            <thead>
+              <tr>
+                <th>Saham</th>
+                <th>Hari</th>
+                <th>Strategi</th>
+                <th class="text-right">Win Rate</th>
+                <th class="text-right">Profit & Entry</th>
+                <th class="text-right">Avg Win/Loss</th>
+                <th class="text-right">Best/Worst</th>
+                <th class="text-right">Hold Time</th>
+              </tr>
+            </thead>
+            <tbody id="daily-performance-body">
+              <!-- Rows injected here -->
+            </tbody>
+          </table>
         </div>
       </div>
 
-      <!-- Pattern Analysis Section -->
-      <div class="pattern-analysis-section" id="pattern-analysis">
-        <div class="pattern-header">
-          <h2>🤖 Analisis Pola AI</h2>
-          <div class="pattern-status">
-            <span id="llm-status" class="status-badge">Siap</span>
-          </div>
+      <div id="optimization-view" class="tab-panel" style="display:none;">
+        <div id="ev-list" class="placeholder">
+          <span class="placeholder-icon">📈</span>
+          <p>Loading optimization data...</p>
         </div>
+      </div>
+    </section>
 
-        <div class="pattern-tabs">
-          <button class="tab-btn active" data-type="accumulation">
-            <span class="tab-icon">📈</span>
-            <span>Akumulasi</span>
-          </button>
-          <button class="tab-btn" data-type="anomalies">
-            <span class="tab-icon">⚡</span>
-            <span>Anomali</span>
-          </button>
-          <button class="tab-btn" data-type="timing">
-            <span class="tab-icon">⏰</span>
-            <span>Timing</span>
-          </button>
-          <button class="tab-btn" data-type="symbol">
-            <span class="tab-icon">🎯</span>
-            <span>Saham</span>
-          </button>
+    <!-- AI Pattern Analysis -->
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h2 class="card-title">🤖 AI Pattern Analysis</h2>
+          <p class="card-subtitle">Real-time AI-powered pattern detection</p>
         </div>
-
-        <div class="pattern-content">
-          <!-- Symbol Input (for Symbol tab) -->
-          <div id="symbol-input-container" class="symbol-input-container" style="display:none;">
-            <input type="text" id="symbol-input" placeholder="Masukkan kode saham (contoh: BBCA, TLKM)" maxlength="4"
-              style="text-transform: uppercase;" />
-          </div>
-
-          <!-- LLM Stream Output (for other tabs) -->
-          <div id="llm-stream-output" class="stream-output">
-            <div class="placeholder">
-              <span class="placeholder-icon">🧠</span>
-              <p>Click "Start Analysis" untuk memulai analisis AI real-time</p>
-            </div>
-          </div>
-          <div class="pattern-controls">
-            <button id="start-analysis-btn" class="btn-primary">
-              <span class="btn-icon">▶</span> Mulai Analisis
-            </button>
-            <button id="stop-analysis-btn" class="btn-secondary" style="display:none;">
-              <span class="btn-icon">⏹</span> Stop
-            </button>
-          </div>
+        <div class="status-badge">
+          <span id="llm-status">Ready</span>
         </div>
       </div>
 
+      <div class="tabs">
+        <button class="tab active" data-type="accumulation">📈 Akumulasi</button>
+        <button class="tab" data-type="anomalies">⚡ Anomali</button>
+        <button class="tab" data-type="timing">⏰ Timing</button>
+        <button class="tab" data-type="symbol">🎯 Symbol</button>
+      </div>
 
-    </div>
+      <div id="symbol-input-container" style="display:none; margin-bottom: 1rem;">
+        <input type="text" id="symbol-input" class="filter-input" placeholder="Enter stock code (e.g., BBCA)" maxlength="4" style="text-transform: uppercase;" />
+      </div>
+
+      <div id="llm-stream-output" class="placeholder">
+        <span class="placeholder-icon">🧠</span>
+        <p>Click "Start Analysis" to begin AI real-time analysis</p>
+      </div>
+
+      <div style="display: flex; gap: 0.75rem; margin-top: 1rem;">
+        <button id="start-analysis-btn" class="btn-primary">▶ Start Analysis</button>
+        <button id="stop-analysis-btn" class="btn-secondary" style="display:none;">⏹ Stop</button>
+      </div>
+    </section>
+
   </main>
 
   <!-- Help Modal -->
