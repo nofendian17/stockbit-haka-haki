@@ -629,18 +629,21 @@ export function renderMarketIntelligence(data) {
     }
 
     // 2. Render Statistical Baseline
-    // Baseline might be in data.baseline
-    const baseline = data.baseline || {};
+    // Check both possible locations for baseline data
+    const baseline = data.baseline || data;
     const avgVolEl = document.getElementById('b-avg-vol');
     const stdDevEl = document.getElementById('b-std-dev');
 
-    if (baseline && (baseline.mean_volume_lots || baseline.mean_volume)) {
+    if (baseline && (baseline.mean_volume_lots || baseline.mean_volume || baseline.mean_price)) {
+        // Use mean_volume_lots if available, otherwise mean_volume
         const meanVol = baseline.mean_volume_lots || baseline.mean_volume || 0;
-        const stdDev = baseline.std_dev_price || 0; // Or std_dev_volume depending on what we want to show
+        // Display standard deviation of price if available
+        const stdDev = baseline.std_dev_price || baseline.std_dev_volume || 0;
 
         if (avgVolEl) avgVolEl.textContent = formatNumber(meanVol);
-        if (stdDevEl) stdDevEl.textContent = stdDev.toFixed(2);
+        if (stdDevEl) stdDevEl.textContent = stdDev > 0 ? stdDev.toFixed(2) : '-';
     } else {
+        // Show placeholders if no baseline data
         if (avgVolEl) avgVolEl.textContent = '-';
         if (stdDevEl) stdDevEl.textContent = '-';
     }

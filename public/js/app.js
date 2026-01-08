@@ -908,20 +908,29 @@ function startAnalyticsPolling() {
             return;
         }
 
+        // Get symbol from search filter for baseline, default to IHSG
+        const symbol = state.currentFilters.search || 'IHSG';
+
         // OPTIMIZATION: Only fetch data relevant to active view
         const promises = [
             // Always fetch these (critical for main dashboard)
             API.fetchOrderFlow().then(renderOrderFlow).catch(() => null),
-            API.fetchMarketRegime('IHSG').then(renderMarketIntelligence).catch(() => {
+            API.fetchMarketRegime(symbol).then(renderMarketIntelligence).catch(() => {
                 renderMarketIntelligence({ regime: 'UNKNOWN', confidence: 0 });
             }),
             API.fetchRunningPositions().then(renderPositions).catch(() => null)
         ];
 
-        // Fetch pattern feed only if market intel section is visible
+        // Fetch market intelligence including baseline and patterns
         promises.push(
-            API.fetchMarketIntelligence().then(data => {
+            API.fetchMarketIntelligence(symbol).then(data => {
+                // Render patterns
                 renderPatternFeed(data.patterns);
+                
+                // Render baseline data
+                if (data.baseline) {
+                    renderMarketIntelligence({ baseline: data.baseline });
+                }
             }).catch(() => null)
         );
 

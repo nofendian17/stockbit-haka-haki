@@ -207,21 +207,28 @@ export async function fetchDailyPerformance() {
 
 /**
  * Fetch market intelligence data
+ * @param {string} symbol - Optional symbol filter (defaults to IHSG for baseline)
  * @returns {Promise<Object>} Market intelligence data
  */
-export async function fetchMarketIntelligence() {
+export async function fetchMarketIntelligence(symbol = '') {
     try {
-        // Only fetch endpoints that don't require specific symbol
+        // Fetch patterns without symbol requirement (gets all recent patterns)
         const patternsData = await fetchDetectedPatterns().catch(() => null);
         // Backend returns { patterns: [...], count: ... }
         const patternsList = patternsData ? (patternsData.patterns || []) : [];
 
+        // Fetch baseline for symbol if provided, otherwise for IHSG
+        const baselineSymbol = symbol || 'IHSG';
+        const baseline = await fetchStatisticalBaselines(baselineSymbol).catch(() => null);
+
         return {
-            patterns: patternsList
+            patterns: patternsList,
+            baseline: baseline,
+            symbol: baselineSymbol
         };
     } catch (error) {
         console.error('Failed to fetch market intelligence:', error);
-        return { patterns: [] };
+        return { patterns: [], baseline: null };
     }
 }
 

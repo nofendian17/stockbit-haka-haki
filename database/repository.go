@@ -965,6 +965,10 @@ func (r *TradeRepository) GetRecentPatterns(symbol string, since time.Time) ([]m
 	return r.analytics.GetRecentPatterns(symbol, since)
 }
 
+func (r *TradeRepository) GetAllRecentPatterns(since time.Time) ([]models.DetectedPattern, error) {
+	return r.analytics.GetAllRecentPatterns(since)
+}
+
 func (r *TradeRepository) UpdatePatternOutcome(id int64, outcome string, breakout bool, maxMove float64) error {
 	return r.analytics.UpdatePatternOutcome(id, outcome, breakout, maxMove)
 }

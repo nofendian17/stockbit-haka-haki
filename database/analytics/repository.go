@@ -220,6 +220,16 @@ func (r *Repository) GetRecentPatterns(symbol string, since time.Time) ([]models
 	return patterns, nil
 }
 
+// GetAllRecentPatterns retrieves recently detected patterns for all symbols
+func (r *Repository) GetAllRecentPatterns(since time.Time) ([]models.DetectedPattern, error) {
+	var patterns []models.DetectedPattern
+	err := r.db.Where("detected_at >= ?", since).Order("detected_at DESC").Limit(50).Find(&patterns).Error
+	if err != nil {
+		return nil, fmt.Errorf("GetAllRecentPatterns: %w", err)
+	}
+	return patterns, nil
+}
+
 // UpdatePatternOutcome updates the outcome of a detected pattern
 func (r *Repository) UpdatePatternOutcome(id int64, outcome string, breakout bool, maxMove float64) error {
 	if err := r.db.Model(&models.DetectedPattern{}).Where("id = ?", id).Updates(map[string]interface{}{

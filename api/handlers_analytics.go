@@ -542,7 +542,15 @@ func (s *Server) handleGetDetectedPatterns(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	patterns, err := s.repo.GetRecentPatterns(symbol, since)
+	// If no symbol specified, get patterns for all symbols
+	var patterns []database.DetectedPattern
+	var err error
+	if symbol != "" {
+		patterns, err = s.repo.GetRecentPatterns(symbol, since)
+	} else {
+		patterns, err = s.repo.GetAllRecentPatterns(since)
+	}
+
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
