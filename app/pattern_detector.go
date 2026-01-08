@@ -3,7 +3,6 @@ package app
 import (
 	"fmt"
 	"log"
-	"math"
 	"time"
 
 	"stockbit-haka-haki/database"
@@ -171,11 +170,6 @@ func (pd *PatternDetector) analyzeStructures(symbol string, candlesData []map[st
 		patterns = append(patterns, *breakout)
 	}
 
-	// 2. Detect Double Top/Bottom
-	if double := pd.detectDoubleExtreme(symbol, highs, lows, baseline); double != nil {
-		patterns = append(patterns, *double)
-	}
-
 	return patterns
 }
 
@@ -255,107 +249,6 @@ func (pd *PatternDetector) detectRangeBreakout(symbol string, closes, highs, low
 			Confidence:       0.7,
 			BreakoutLevel:    &rangeLow,
 			Outcome:          &pendingOutcome,
-		}
-	}
-
-	return nil
-}
-
-func (pd *PatternDetector) detectDoubleExtreme(symbol string, highs, lows []float64, baseline *database.StatisticalBaseline) *database.DetectedPattern {
-	n := len(highs)
-	if n < 50 {
-		return nil
-	}
-
-	// Look for Double Bottom (W shape) - Bullish Reversal
-	// Logic: Low1 (at i), High (at j), Low2 (at k)
-	// Low1 approx equal Low2
-	// Current price breaking above High (Neckline)
-
-	// Simplified scanner: Check last 50 candles for 2 distinct lows
-	// Use 5% tolerance
-	tolerance := 0.05
-	pendingOutcome := "PENDING"
-
-	// Find global low in last 50
-	minIdx := -1
-	minVal := 100000000.0
-	for i := n - 50; i < n; i++ {
-		if lows[i] < minVal {
-			minVal = lows[i]
-			minIdx = i
-		}
-	}
-
-	if minIdx == -1 {
-		return nil
-	}
-
-	// Find second low (at least 10 bars apart)
-	minIdx2 := -1
-	minVal2 := 100000000.0
-
-	startSearch := minIdx + 10
-	if startSearch >= n {
-		startSearch = n - 5 // Fallback? No, just can't find second low to right.
-		// Try search to left
-		endSearch := minIdx - 10
-		if endSearch > n-50 {
-			for i := n - 50; i < endSearch; i++ {
-				if lows[i] < minVal2 { // Searching for local min
-					// Check if it's a local trough
-					if i > 0 && i < n-1 && lows[i] < lows[i-1] && lows[i] < lows[i+1] {
-						// Check proximity to main low
-						if math.Abs(lows[i]-minVal)/minVal < tolerance {
-							minVal2 = lows[i]
-							minIdx2 = i
-						}
-					}
-				}
-			}
-		}
-	} else {
-		// Search to right
-		for i := startSearch; i < n; i++ {
-			if lows[i] < minVal2 { // Searching for local min
-				if i < n-1 && lows[i] < lows[i-1] && lows[i] < lows[i+1] {
-					if math.Abs(lows[i]-minVal)/minVal < tolerance {
-						minVal2 = lows[i]
-						minIdx2 = i
-					}
-				}
-			}
-		}
-	}
-
-	if minIdx2 != -1 {
-		// Found two lows. Find the peak in between (Neckline)
-		start := minIdx
-		end := minIdx2
-		if start > end {
-			start, end = end, start
-		}
-
-		maxNeck := 0.0
-		for k := start; k <= end; k++ {
-			if highs[k] > maxNeck {
-				maxNeck = highs[k]
-			}
-		}
-
-		// Check if we are breaking the neckline
-		currentPrice := highs[n-1] // Use high to check breakout test
-		if currentPrice > maxNeck {
-			direction := "BULLISH"
-			return &database.DetectedPattern{
-				StockSymbol:      symbol,
-				DetectedAt:       time.Now(),
-				PatternType:      "DOUBLE_BOTTOM",
-				PatternDirection: &direction,
-				Confidence:       0.8, // Strong pattern
-				BreakoutLevel:    &maxNeck,
-				Outcome:          &pendingOutcome,
-			}
 		}
 	}
 
