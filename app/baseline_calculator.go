@@ -59,9 +59,9 @@ func (bc *BaselineCalculator) calculateBaselines() {
 		hours     int
 		minTrades int
 	}{
-		{24 * time.Hour, 24, 10}, // Primary: 24 hours with 10 trades minimum
-		{2 * time.Hour, 2, 5},    // Fallback 1: 2 hours with 5 trades
-		{30 * time.Minute, 0, 3}, // Fallback 2: 30 minutes with 3 trades (hours=0 handles as <1h in logic if needed, but DB query uses hours param)
+		{24 * time.Hour, 24, 3},  // Primary: 24 hours with 3 trades minimum (lowered from 10)
+		{2 * time.Hour, 2, 3},    // Fallback 1: 2 hours with 3 trades
+		{30 * time.Minute, 0, 2}, // Fallback 2: 30 minutes with 2 trades minimum
 	}
 
 	calculated := 0

@@ -510,7 +510,7 @@ func (r *Repository) GetStrategySignals(lookbackMinutes int, minConfidence float
 		volumeLots := alert.TriggerVolumeLots
 		var zscores *types.ZScoreData
 
-		if baseline.SampleSize > 30 {
+		if baseline.SampleSize > 10 {
 			// Calculate Z-Score using persistent baseline (more accurate)
 			// Prevent division by zero - if stddev is 0 or very small, skip
 			if baseline.StdDevPrice <= 0.0001 || baseline.StdDevVolume <= 0.0001 {
