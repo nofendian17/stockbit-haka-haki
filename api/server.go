@@ -50,60 +50,11 @@ func (s *Server) Start(port int) error {
 	mux := http.NewServeMux()
 
 	// Register routes
-	mux.Handle("GET /api/events", s.broker) // SSE Endpoint
-	mux.HandleFunc("GET /api/whales", s.handleGetWhales)
-	mux.HandleFunc("GET /api/whales/stats", s.handleGetWhaleStats)
-	// Webhook Management Routes
-	mux.HandleFunc("GET /api/config/webhooks", s.handleGetWebhooks)
-	mux.HandleFunc("POST /api/config/webhooks", s.handleCreateWebhook)
-	mux.HandleFunc("PUT /api/config/webhooks/{id}", s.handleUpdateWebhook)
-	mux.HandleFunc("DELETE /api/config/webhooks/{id}", s.handleDeleteWebhook)
-
-	// Pattern Analysis Routes (LLM)
-	mux.HandleFunc("GET /api/patterns/accumulation", s.handleAccumulationPattern)
-	mux.HandleFunc("GET /api/patterns/anomalies", s.handleExtremeAnomalies)
-	mux.HandleFunc("GET /api/patterns/timing", s.handleTimeBasedStats)
-
-	// Pattern Analysis Streaming Routes (LLM SSE)
-	mux.HandleFunc("GET /api/patterns/accumulation/stream", s.handleAccumulationPatternStream)
-	mux.HandleFunc("GET /api/patterns/anomalies/stream", s.handleExtremeAnomaliesStream)
-	mux.HandleFunc("GET /api/patterns/timing/stream", s.handleTimeBasedStatsStream)
-	mux.HandleFunc("GET /api/patterns/symbol/stream", s.handleSymbolAnalysisStream)
-
-	// Trading Strategy Routes
-	mux.HandleFunc("GET /api/strategies/signals", s.handleGetStrategySignals)
-	mux.HandleFunc("GET /api/strategies/signals/stream", s.handleStrategySignalsStream)
-
-	// Phase 1 Enhancement Routes
-	mux.HandleFunc("GET /api/signals/history", s.handleGetSignalHistory)
-	mux.HandleFunc("GET /api/signals/performance", s.handleGetSignalPerformance)
-	mux.HandleFunc("GET /api/signals/{id}/outcome", s.handleGetSignalOutcome)
-	mux.HandleFunc("GET /api/whales/{id}/followup", s.handleGetWhaleFollowup)
-	mux.HandleFunc("GET /api/whales/followups", s.handleGetWhaleFollowups)
-	mux.HandleFunc("GET /api/orderflow", s.handleGetOrderFlow)
-
-	// Phase 2 Enhancement Routes
-	mux.HandleFunc("GET /api/baselines", s.handleGetStatisticalBaselines)
-	mux.HandleFunc("GET /api/regimes", s.handleGetMarketRegimes)
-	mux.HandleFunc("GET /api/patterns", s.handleGetDetectedPatterns)
-	mux.HandleFunc("GET /api/candles", s.handleGetCandles)
-
-	// Phase 3 Enhancement Routes
-	mux.HandleFunc("GET /api/analytics/export/ml-data", s.handleExportMLData)
-	mux.HandleFunc("GET /api/analytics/ml-data/stats", s.handleMLDataStats) // Diagnostic endpoint
-	mux.HandleFunc("GET /api/analytics/correlations", s.handleGetStockCorrelations)
-	mux.HandleFunc("GET /api/analytics/performance/daily", s.handleGetDailyPerformance)
-	mux.HandleFunc("GET /api/positions/open", s.handleGetOpenPositions)
-	mux.HandleFunc("GET /api/positions/history", s.handleGetProfitLossHistory)
-
-	// Signal Effectiveness Analysis Routes (Optimization)
-	mux.HandleFunc("GET /api/analytics/strategy-effectiveness", s.handleGetStrategyEffectiveness)
-	mux.HandleFunc("GET /api/analytics/optimal-thresholds", s.handleGetOptimalThresholds)
-	mux.HandleFunc("GET /api/analytics/time-effectiveness", s.handleGetTimeEffectiveness)
-	mux.HandleFunc("GET /api/analytics/expected-values", s.handleGetExpectedValues)
-
-	// Accumulation/Distribution Summary Route
-	mux.HandleFunc("GET /api/accumulation-summary", s.handleAccumulationSummary)
+	s.registerMarketRoutes(mux)
+	s.registerWebhookRoutes(mux)
+	s.registerPatternRoutes(mux)
+	s.registerStrategyRoutes(mux)
+	s.registerAnalyticsRoutes(mux)
 
 	mux.HandleFunc("GET /health", s.handleHealth)
 
@@ -185,4 +136,65 @@ func (s *Server) gzipMiddleware(next http.Handler) http.Handler {
 // - handlers_market.go: Raw market data (Whales, Candles, OrderFlow)
 // - handlers_strategy.go: Trading strategies and signals
 // - handlers_analytics.go: AI analysis, regimes, baselines
-// - handlers_config.go: System config, webhooks, health check
+// Route registration helpers
+
+func (s *Server) registerMarketRoutes(mux *http.ServeMux) {
+	mux.Handle("GET /api/events", s.broker) // SSE Endpoint
+	mux.HandleFunc("GET /api/whales", s.handleGetWhales)
+	mux.HandleFunc("GET /api/whales/stats", s.handleGetWhaleStats)
+	mux.HandleFunc("GET /api/whales/{id}/followup", s.handleGetWhaleFollowup)
+	mux.HandleFunc("GET /api/whales/followups", s.handleGetWhaleFollowups)
+	mux.HandleFunc("GET /api/orderflow", s.handleGetOrderFlow)
+	mux.HandleFunc("GET /api/candles", s.handleGetCandles)
+}
+
+func (s *Server) registerWebhookRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /api/config/webhooks", s.handleGetWebhooks)
+	mux.HandleFunc("POST /api/config/webhooks", s.handleCreateWebhook)
+	mux.HandleFunc("PUT /api/config/webhooks/{id}", s.handleUpdateWebhook)
+	mux.HandleFunc("DELETE /api/config/webhooks/{id}", s.handleDeleteWebhook)
+}
+
+func (s *Server) registerPatternRoutes(mux *http.ServeMux) {
+	// Standard Endpoints
+	mux.HandleFunc("GET /api/patterns/accumulation", s.handleAccumulationPattern)
+	mux.HandleFunc("GET /api/patterns/anomalies", s.handleExtremeAnomalies)
+	mux.HandleFunc("GET /api/patterns/timing", s.handleTimeBasedStats)
+	mux.HandleFunc("GET /api/patterns", s.handleGetDetectedPatterns)
+	mux.HandleFunc("GET /api/accumulation-summary", s.handleAccumulationSummary)
+
+	// Streaming Endpoints
+	mux.HandleFunc("GET /api/patterns/accumulation/stream", s.handleAccumulationPatternStream)
+	mux.HandleFunc("GET /api/patterns/anomalies/stream", s.handleExtremeAnomaliesStream)
+	mux.HandleFunc("GET /api/patterns/timing/stream", s.handleTimeBasedStatsStream)
+	mux.HandleFunc("GET /api/patterns/symbol/stream", s.handleSymbolAnalysisStream)
+}
+
+func (s *Server) registerStrategyRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /api/strategies/signals", s.handleGetStrategySignals)
+	mux.HandleFunc("GET /api/strategies/signals/stream", s.handleStrategySignalsStream)
+
+	// Signal History & Outcomes
+	mux.HandleFunc("GET /api/signals/history", s.handleGetSignalHistory)
+	mux.HandleFunc("GET /api/signals/performance", s.handleGetSignalPerformance)
+	mux.HandleFunc("GET /api/signals/{id}/outcome", s.handleGetSignalOutcome)
+	mux.HandleFunc("GET /api/positions/open", s.handleGetOpenPositions)
+	mux.HandleFunc("GET /api/positions/history", s.handleGetProfitLossHistory)
+}
+
+func (s *Server) registerAnalyticsRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /api/baselines", s.handleGetStatisticalBaselines)
+	mux.HandleFunc("GET /api/regimes", s.handleGetMarketRegimes)
+	mux.HandleFunc("GET /api/analytics/correlations", s.handleGetStockCorrelations)
+	mux.HandleFunc("GET /api/analytics/performance/daily", s.handleGetDailyPerformance)
+
+	// ML Data & Stats
+	mux.HandleFunc("GET /api/analytics/export/ml-data", s.handleExportMLData)
+	mux.HandleFunc("GET /api/analytics/ml-data/stats", s.handleMLDataStats)
+
+	// Effectiveness & Optimization
+	mux.HandleFunc("GET /api/analytics/strategy-effectiveness", s.handleGetStrategyEffectiveness)
+	mux.HandleFunc("GET /api/analytics/optimal-thresholds", s.handleGetOptimalThresholds)
+	mux.HandleFunc("GET /api/analytics/time-effectiveness", s.handleGetTimeEffectiveness)
+	mux.HandleFunc("GET /api/analytics/expected-values", s.handleGetExpectedValues)
+}

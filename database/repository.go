@@ -755,6 +755,11 @@ func (r *TradeRepository) GetWhaleFollowup(alertID int64) (*WhaleAlertFollowup, 
 	return r.whales.GetWhaleFollowup(alertID)
 }
 
+// GetWhaleFollowupsByAlertIDs batch retrieves whale followups
+func (r *TradeRepository) GetWhaleFollowupsByAlertIDs(alertIDs []int64) ([]models.WhaleAlertFollowup, error) {
+	return r.whales.GetWhaleFollowupsByAlertIDs(alertIDs)
+}
+
 func (r *TradeRepository) GetPendingFollowups(maxAge time.Duration) ([]WhaleAlertFollowup, error) {
 	return r.whales.GetPendingFollowups(maxAge)
 }

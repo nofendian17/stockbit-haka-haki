@@ -346,6 +346,19 @@ func (r *Repository) GetWhaleFollowup(alertID int64) (*models.WhaleAlertFollowup
 	return &followup, nil
 }
 
+// GetWhaleFollowupsByAlertIDs retrieves followups for a list of alert IDs (batch fetch)
+func (r *Repository) GetWhaleFollowupsByAlertIDs(alertIDs []int64) ([]models.WhaleAlertFollowup, error) {
+	if len(alertIDs) == 0 {
+		return nil, nil
+	}
+
+	var followups []models.WhaleAlertFollowup
+	if err := r.db.Where("whale_alert_id IN ?", alertIDs).Find(&followups).Error; err != nil {
+		return nil, fmt.Errorf("GetWhaleFollowupsByAlertIDs: %w", err)
+	}
+	return followups, nil
+}
+
 // GetPendingFollowups retrieves whale alerts that need followup updates
 func (r *Repository) GetPendingFollowups(maxAge time.Duration) ([]models.WhaleAlertFollowup, error) {
 	var followups []models.WhaleAlertFollowup

@@ -16,19 +16,8 @@ import (
 
 // handleAccumulationPattern returns accumulation patterns
 func (s *Server) handleAccumulationPattern(w http.ResponseWriter, r *http.Request) {
-	hoursBack := 24
-	if h := r.URL.Query().Get("hours"); h != "" {
-		if parsed, err := strconv.Atoi(h); err == nil {
-			hoursBack = parsed
-		}
-	}
-
-	minAlerts := 3
-	if m := r.URL.Query().Get("min_alerts"); m != "" {
-		if parsed, err := strconv.Atoi(m); err == nil {
-			minAlerts = parsed
-		}
-	}
+	hoursBack := getIntParam(r, "hours", 24, nil, nil)
+	minAlerts := getIntParam(r, "min_alerts", 3, nil, nil)
 
 	patterns, err := s.repo.GetAccumulationPattern(hoursBack, minAlerts)
 	if err != nil {
@@ -66,19 +55,8 @@ func (s *Server) handleAccumulationPattern(w http.ResponseWriter, r *http.Reques
 
 // handleExtremeAnomalies returns extreme anomalies
 func (s *Server) handleExtremeAnomalies(w http.ResponseWriter, r *http.Request) {
-	minZScore := 5.0
-	if z := r.URL.Query().Get("min_z"); z != "" {
-		if parsed, err := strconv.ParseFloat(z, 64); err == nil {
-			minZScore = parsed
-		}
-	}
-
-	hoursBack := 48
-	if h := r.URL.Query().Get("hours"); h != "" {
-		if parsed, err := strconv.Atoi(h); err == nil {
-			hoursBack = parsed
-		}
-	}
+	minZScore := getFloatParam(r, "min_z", 5.0)
+	hoursBack := getIntParam(r, "hours", 48, nil, nil)
 
 	anomalies, err := s.repo.GetExtremeAnomalies(minZScore, hoursBack)
 	if err != nil {
@@ -119,12 +97,7 @@ func (s *Server) handleExtremeAnomalies(w http.ResponseWriter, r *http.Request) 
 
 // handleTimeBasedStats returns time-based statistics
 func (s *Server) handleTimeBasedStats(w http.ResponseWriter, r *http.Request) {
-	daysBack := 7
-	if d := r.URL.Query().Get("days"); d != "" {
-		if parsed, err := strconv.Atoi(d); err == nil {
-			daysBack = parsed
-		}
-	}
+	daysBack := getIntParam(r, "days", 7, nil, nil)
 
 	stats, err := s.repo.GetTimeBasedStats(daysBack)
 	if err != nil {
@@ -162,24 +135,13 @@ func (s *Server) handleAccumulationPatternStream(w http.ResponseWriter, r *http.
 	}
 
 	// Parse query params
-	hoursBack := 24
-	if h := r.URL.Query().Get("hours"); h != "" {
-		if parsed, err := strconv.Atoi(h); err == nil {
-			hoursBack = parsed
-		}
-	}
-
-	minAlerts := 3
-	if m := r.URL.Query().Get("min_alerts"); m != "" {
-		if parsed, err := strconv.Atoi(m); err == nil {
-			minAlerts = parsed
-		}
-	}
+	hoursBack := getIntParam(r, "hours", 24, nil, nil)
+	minAlerts := getIntParam(r, "min_alerts", 3, nil, nil)
 
 	// Get patterns data
 	patterns, err := s.repo.GetAccumulationPattern(hoursBack, minAlerts)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		respondWithError(w, http.StatusInternalServerError, err.Error(), err)
 		return
 	}
 
@@ -189,14 +151,9 @@ func (s *Server) handleAccumulationPatternStream(w http.ResponseWriter, r *http.
 	}
 
 	// Set SSE headers
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("X-Accel-Buffering", "no")
-
-	flusher, ok := w.(http.Flusher)
+	flusher, ok := setupSSE(w)
 	if !ok {
-		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+		respondWithError(w, http.StatusInternalServerError, "Streaming not supported", nil)
 		return
 	}
 
@@ -247,24 +204,13 @@ func (s *Server) handleExtremeAnomaliesStream(w http.ResponseWriter, r *http.Req
 	}
 
 	// Parse query params
-	minZScore := 5.0
-	if z := r.URL.Query().Get("min_z"); z != "" {
-		if parsed, err := strconv.ParseFloat(z, 64); err == nil {
-			minZScore = parsed
-		}
-	}
-
-	hoursBack := 48
-	if h := r.URL.Query().Get("hours"); h != "" {
-		if parsed, err := strconv.Atoi(h); err == nil {
-			hoursBack = parsed
-		}
-	}
+	minZScore := getFloatParam(r, "min_z", 5.0)
+	hoursBack := getIntParam(r, "hours", 48, nil, nil)
 
 	// Get anomalies data
 	anomalies, err := s.repo.GetExtremeAnomalies(minZScore, hoursBack)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		respondWithError(w, http.StatusInternalServerError, err.Error(), err)
 		return
 	}
 
@@ -274,14 +220,9 @@ func (s *Server) handleExtremeAnomaliesStream(w http.ResponseWriter, r *http.Req
 	}
 
 	// Set SSE headers
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("X-Accel-Buffering", "no")
-
-	flusher, ok := w.(http.Flusher)
+	flusher, ok := setupSSE(w)
 	if !ok {
-		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+		respondWithError(w, http.StatusInternalServerError, "Streaming not supported", nil)
 		return
 	}
 
@@ -334,17 +275,12 @@ func (s *Server) handleTimeBasedStatsStream(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Parse query params
-	daysBack := 7
-	if d := r.URL.Query().Get("days"); d != "" {
-		if parsed, err := strconv.Atoi(d); err == nil {
-			daysBack = parsed
-		}
-	}
+	daysBack := getIntParam(r, "days", 7, nil, nil)
 
 	// Get time-based stats
 	stats, err := s.repo.GetTimeBasedStats(daysBack)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		respondWithError(w, http.StatusInternalServerError, err.Error(), err)
 		return
 	}
 
@@ -354,14 +290,9 @@ func (s *Server) handleTimeBasedStatsStream(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Set SSE headers
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("X-Accel-Buffering", "no")
-
-	flusher, ok := w.(http.Flusher)
+	flusher, ok := setupSSE(w)
 	if !ok {
-		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+		respondWithError(w, http.StatusInternalServerError, "Streaming not supported", nil)
 		return
 	}
 
@@ -410,18 +341,14 @@ func (s *Server) handleSymbolAnalysisStream(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Get limit (default 20)
-	limit := 20
-	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
-		if parsed, err := strconv.Atoi(limitStr); err == nil && parsed > 0 && parsed <= 50 {
-			limit = parsed
-		}
-	}
+	// Get limit (default 20, max 50)
+	maxLimit := 50
+	limit := getIntParam(r, "limit", 20, nil, &maxLimit)
 
 	// Get recent alerts for symbol
 	alerts, err := s.repo.GetRecentAlertsBySymbol(symbol, limit)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		respondWithError(w, http.StatusInternalServerError, err.Error(), err)
 		return
 	}
 
@@ -435,23 +362,23 @@ func (s *Server) handleSymbolAnalysisStream(w http.ResponseWriter, r *http.Reque
 	baseline, _ := s.repo.GetLatestBaseline(symbol)
 	orderFlow, _ := s.repo.GetLatestOrderFlow(symbol)
 
-	// Fetch followups for the specific alerts retrieved
-	var followups []database.WhaleAlertFollowup
+	// OPTIMIZATION: Use batch query to avoid N+1 problem
+	var alertIDs []int64
 	for _, a := range alerts {
-		if f, err := s.repo.GetWhaleFollowup(a.ID); err == nil && f != nil {
-			followups = append(followups, *f)
-		}
+		alertIDs = append(alertIDs, a.ID)
+	}
+
+	followups, err := s.repo.GetWhaleFollowupsByAlertIDs(alertIDs)
+	if err != nil {
+		log.Printf("Warning: failed to batch fetch followups: %v", err)
+		// Non-fatal error, continue without followups
+		followups = []database.WhaleAlertFollowup{}
 	}
 
 	// Set SSE headers
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("X-Accel-Buffering", "no")
-
-	flusher, ok := w.(http.Flusher)
+	flusher, ok := setupSSE(w)
 	if !ok {
-		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+		respondWithError(w, http.StatusInternalServerError, "Streaming not supported", nil)
 		return
 	}
 
