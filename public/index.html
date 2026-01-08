@@ -119,11 +119,11 @@
       </div>
       
       <div class="tabs">
-        <button class="tab active" data-strategy="ALL">Semua</button>
-        <button class="tab" data-strategy="VOLUME_BREAKOUT">🚀 Volume</button>
-        <button class="tab" data-strategy="MEAN_REVERSION">↩️ Mean Rev</button>
-        <button class="tab" data-strategy="FAKEOUT_FILTER">🛡️ Fakeout</button>
-        <button class="tab" data-strategy="HISTORY">📜 History</button>
+        <button class="tab strategy-tab active" data-strategy="ALL">Semua</button>
+        <button class="tab strategy-tab" data-strategy="VOLUME_BREAKOUT">🚀 Volume</button>
+        <button class="tab strategy-tab" data-strategy="MEAN_REVERSION">↩️ Mean Rev</button>
+        <button class="tab strategy-tab" data-strategy="FAKEOUT_FILTER">🛡️ Fakeout</button>
+        <button class="tab strategy-tab" data-strategy="HISTORY">📜 History</button>
       </div>
 
       <div class="table-wrapper">
@@ -328,17 +328,68 @@
       </div>
     </section>
 
-    <!-- Analytics Hub (Simplified) -->
+    <!-- Market Intelligence -->
     <section class="card">
       <div class="card-header">
-        <h2 class="card-title">🧠 Analytics Hub</h2>
-        <p class="card-subtitle">Market intelligence and correlations</p>
+        <h2 class="card-title">🧠 Market Intelligence</h2>
+        <p class="card-subtitle">Real-time market conditions and statistics</p>
+      </div>
+
+      <div class="intel-grid">
+        <div class="intel-card" id="regime-card">
+          <div class="card-label">KONDISI PASAR</div>
+          <div class="regime-display" id="intel-regime">STABIL</div>
+          <div class="regime-meta" id="intel-regime-desc">Menganalisis kondisi pasar...</div>
+        </div>
+
+        <div class="intel-card" id="baseline-card">
+          <div class="card-label">STATISTIK DASAR</div>
+          <div class="baseline-stats">
+            <div class="stat-row">
+              <span>Rata-rata Vol:</span>
+              <strong id="b-avg-vol">-</strong>
+            </div>
+            <div class="stat-row">
+              <span>Std Dev:</span>
+              <strong id="b-std-dev">-</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="intel-card" id="orderflow-card">
+          <div class="card-label">TEKANAN JUAL/BELI</div>
+          <div class="pressure-bar-container">
+            <div class="pressure-bar">
+              <div id="buy-pressure-fill" class="pressure-fill buy" style="width: 50%"></div>
+              <div id="sell-pressure-fill" class="pressure-fill sell" style="width: 50%"></div>
+            </div>
+            <div class="pressure-labels">
+              <span id="buy-pressure-pct">50% BELI</span>
+              <span id="sell-pressure-pct">50% JUAL</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pattern-feed">
+        <h4>Pola Terkini</h4>
+        <div id="pattern-list" class="pattern-scroll">
+          <div class="placeholder-small">Menunggu pola...</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Analytics Hub -->
+    <section class="card">
+      <div class="card-header">
+        <h2 class="card-title">📈 Analytics Hub</h2>
+        <p class="card-subtitle">Correlations and performance metrics</p>
       </div>
 
       <div class="tabs">
-        <button class="tab active" data-target="correlations-view">Korelasi</button>
-        <button class="tab" data-target="performance-view">Performance</button>
-        <button class="tab" data-target="optimization-view">Optimasi</button>
+        <button class="tab s-tab active" data-target="correlations-view">Korelasi</button>
+        <button class="tab s-tab" data-target="performance-view">Performance</button>
+        <button class="tab s-tab" data-target="optimization-view">Optimasi</button>
       </div>
 
       <div id="correlations-view" class="tab-panel active">
@@ -348,7 +399,7 @@
         </div>
       </div>
 
-      <div id="performance-view" class="tab-panel" style="display:none;">
+      <div id="performance-view" class="tab-panel">
         <div class="table-wrapper">
           <table class="data-table" id="daily-performance-table">
             <thead>
@@ -370,10 +421,47 @@
         </div>
       </div>
 
-      <div id="optimization-view" class="tab-panel" style="display:none;">
-        <div id="ev-list" class="placeholder">
-          <span class="placeholder-icon">📈</span>
-          <p>Loading optimization data...</p>
+      <div id="optimization-view" class="tab-panel">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+          <div class="intel-card">
+            <div class="card-label">📈 EXPECTED VALUE (EV)</div>
+            <div id="ev-list" style="margin-top: 0.5rem;">
+              <div class="placeholder-small">Loading data...</div>
+            </div>
+          </div>
+          <div class="intel-card">
+            <div class="card-label">🎯 OPTIMAL CONFIDENCE THRESHOLD</div>
+            <div id="threshold-list" style="margin-top: 0.5rem;">
+              <div class="placeholder-small">Loading data...</div>
+            </div>
+          </div>
+        </div>
+        
+        <h4 style="margin-bottom: 0.75rem; color: var(--text-primary);">📊 Strategy Effectiveness by Market Regime</h4>
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Strategi</th>
+                <th>Regime</th>
+                <th class="text-right">Signals</th>
+                <th class="text-right">Win Rate</th>
+                <th class="text-right">Avg Profit</th>
+                <th class="text-right">EV</th>
+              </tr>
+            </thead>
+            <tbody id="effectiveness-body">
+              <tr>
+                <td colspan="6" class="text-center">Loading data...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        
+        <div style="margin-top: 1rem; text-align: center;">
+          <button id="refresh-optimization-btn" class="btn-refresh" onclick="window.loadOptimizationData()">
+            🔄 Refresh Data
+          </button>
         </div>
       </div>
     </section>
@@ -391,10 +479,10 @@
       </div>
 
       <div class="tabs">
-        <button class="tab active" data-type="accumulation">📈 Akumulasi</button>
-        <button class="tab" data-type="anomalies">⚡ Anomali</button>
-        <button class="tab" data-type="timing">⏰ Timing</button>
-        <button class="tab" data-type="symbol">🎯 Symbol</button>
+        <button class="tab tab-btn active" data-type="accumulation">📈 Akumulasi</button>
+        <button class="tab tab-btn" data-type="anomalies">⚡ Anomali</button>
+        <button class="tab tab-btn" data-type="timing">⏰ Timing</button>
+        <button class="tab tab-btn" data-type="symbol">🎯 Symbol</button>
       </div>
 
       <div id="symbol-input-container" style="display:none; margin-bottom: 1rem;">

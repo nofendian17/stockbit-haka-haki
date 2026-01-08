@@ -359,6 +359,20 @@ body {
   color: var(--text-primary);
   background: var(--bg-hover);
   border-bottom: 2px solid var(--info);
+  position: relative;
+}
+
+.tab.active::after,
+.strategy-tab.active::after,
+.tab-btn.active::after,
+.s-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -0.5rem;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--info);
 }
 
 .tab-panel {
@@ -455,6 +469,11 @@ body {
 .badge.info {
   background: rgba(59, 130, 246, 0.15);
   color: var(--info);
+}
+
+.badge.unknown {
+  background: rgba(132, 142, 156, 0.15);
+  color: var(--text-secondary);
 }
 
 .status-badge {
@@ -886,16 +905,38 @@ footer {
 }
 
 /* Symbol code styling */
-.symbol-code {
+.symbol-code,
+.clickable-symbol {
   font-family: var(--font-mono);
   font-weight: 700;
   font-size: 0.95em;
   color: var(--text-primary);
+  cursor: pointer;
+  transition: var(--transition);
 }
 
-.symbol-code:hover {
+.symbol-code:hover,
+.clickable-symbol:hover {
   color: var(--info);
-  cursor: pointer;
+}
+
+/* Confidence levels */
+.confidence-low {
+  color: var(--text-muted);
+}
+
+.confidence-medium {
+  color: var(--warning);
+}
+
+.confidence-high {
+  color: var(--warning);
+  font-weight: 600;
+}
+
+.confidence-extreme {
+  color: var(--danger);
+  font-weight: 700;
 }
 
 /* Action badges in tables */
@@ -1058,4 +1099,162 @@ footer {
 
 .th-icon {
   margin-right: 0.375rem;
+}
+
+/* ==========================================
+   MARKET INTELLIGENCE GRID
+   ========================================== */
+
+.intel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: var(--space-lg);
+  margin-bottom: var(--space-lg);
+}
+
+.intel-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  transition: var(--transition);
+}
+
+.intel-card:hover {
+  border-color: var(--border-hover);
+}
+
+.card-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: var(--space-sm);
+  display: block;
+}
+
+.regime-meta {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-top: var(--space-sm);
+}
+
+/* Baseline Stats */
+.baseline-stats {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.stat-row,
+.b-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.stat-row strong,
+.b-stat strong {
+  color: var(--text-primary);
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+
+/* Pressure Bar */
+.pressure-bar-container {
+  margin-top: var(--space-sm);
+}
+
+.pressure-bar {
+  display: flex;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  margin-bottom: var(--space-sm);
+}
+
+.pressure-fill {
+  transition: width 0.5s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.pressure-fill.buy {
+  background: linear-gradient(90deg, var(--success), rgba(14, 203, 129, 0.7));
+}
+
+.pressure-fill.sell {
+  background: linear-gradient(90deg, rgba(246, 70, 93, 0.7), var(--danger));
+}
+
+.pressure-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.pressure-labels span:first-child {
+  color: var(--success);
+}
+
+.pressure-labels span:last-child {
+  color: var(--danger);
+}
+
+/* Pattern Feed */
+.pattern-feed {
+  margin-top: var(--space-lg);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--border-color);
+}
+
+.pattern-feed h4 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: var(--space-md);
+  color: var(--text-primary);
+}
+
+.pattern-scroll {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.pattern-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-xs);
+}
+
+.p-symbol {
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+}
+
+.p-time {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.pattern-detail {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+}
+
+.p-type {
+  font-weight: 600;
+}
+
+.p-conf {
+  color: var(--text-secondary);
 }

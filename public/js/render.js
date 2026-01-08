@@ -334,6 +334,7 @@ export function updateStatsTicker(stats) {
     const avgProfitEl = document.getElementById('global-avg-profit');
 
     if (totalAlertsEl) totalAlertsEl.innerText = formatNumber(totalTrades);
+    // totalVolumeEl and largestValueEl removed in new UI design
     if (totalVolumeEl) totalVolumeEl.innerText = formatNumber(buyVol + sellVol) + " Lot";
     if (largestValueEl) largestValueEl.innerText = formatCurrency(largestVal);
 

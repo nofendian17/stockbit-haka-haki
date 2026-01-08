@@ -268,7 +268,9 @@ function highlightActiveFilters() {
  * Setup infinite scroll
  */
 function setupInfiniteScroll() {
-    const container = document.querySelector('.whale-alerts-section .table-container');
+    // Find the first table-wrapper in the whale alerts section (first card with alerts-table-body)
+    const alertsTable = document.getElementById('alerts-table-body');
+    const container = alertsTable?.closest('.table-wrapper');
     if (container) {
         container.addEventListener('scroll', () => {
             const { scrollTop, scrollHeight, clientHeight } = container;
