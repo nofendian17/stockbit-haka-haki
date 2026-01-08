@@ -27,11 +27,11 @@ import (
 // App represents the main application
 type App struct {
 	config          *config.Config
-	authClient      *auth.AuthClient
-	tradingWS       *websocket.Client
+	authManager     *auth.AuthManager
+	wsManager       *websocket.ConnectionManager
 	handlerManager  *handlers.HandlerManager
 	db              *database.Database
-	redis           *cache.RedisClient // Add Redis client to App struct
+	redis           *cache.RedisClient
 	tradeRepo       *database.TradeRepository
 	webhookManager  *notifications.WebhookManager
 	broker          *realtime.Broker
@@ -42,19 +42,26 @@ type App struct {
 	patternDetector *PatternDetector      // Phase 2: Chart pattern detection
 	correlationAnal *CorrelationAnalyzer  // Phase 3: Stock correlations
 	perfRefresher   *PerformanceRefresher // Phase 3: Performance view refresher
-	lastMessageTime time.Time             // Track last message for health monitoring
-	lastMessageMu   sync.RWMutex
 }
 
 // New creates a new application instance
 func New(cfg *config.Config) *App {
+	// Initialize Auth Client and Manager
+	authClient := auth.NewAuthClient(auth.Credentials{
+		PlayerID: cfg.PlayerID,
+		Email:    cfg.Username,
+		Password: cfg.Password,
+	})
+	tokenCacheFile := "/app/cache/.token_cache.json"
+	authManager := auth.NewAuthManager(authClient, tokenCacheFile)
+
+	// Initialize WebSocket Manager
+	wsManager := websocket.NewConnectionManager(cfg.TradingWSURL, authManager)
+
 	return &App{
-		config: cfg,
-		authClient: auth.NewAuthClient(auth.Credentials{
-			PlayerID: cfg.PlayerID,
-			Email:    cfg.Username,
-			Password: cfg.Password,
-		}),
+		config:         cfg,
+		authManager:    authManager,
+		wsManager:      wsManager,
 		handlerManager: handlers.NewHandlerManager(),
 		db:             nil, // Will be initialized in Start()
 		redis:          nil, // Will be initialized in Start()
@@ -95,10 +102,7 @@ func (a *App) Start() error {
 		a.config.RedisPort,
 		a.config.RedisPassword,
 	)
-	// We don't error out if Redis fails, but it's good practice to check nil return if NewRedisClient handles error that way.
-	// In the implementation I wrote, NewRedisClient returns nil on ping failure.
-	// For robustness let's allow proceeding without Redis or we can act strict.
-	// User said "add redis for cache", usually cache is optional but let's log warning.
+
 	if redisClient == nil {
 		fmt.Println("⚠️  Redis connection failed. Caching disabled.")
 	} else {
@@ -118,72 +122,26 @@ func (a *App) Start() error {
 	a.broker = realtime.NewBroker()
 	go a.broker.Run()
 
-	// 2. Authentication
-	const tokenCacheFile = "/app/cache/.token_cache.json"
-	if err := a.ensureAuthenticated(tokenCacheFile); err != nil {
+	// 3. Authentication
+	if err := a.authManager.EnsureAuthenticated(); err != nil {
 		return fmt.Errorf("authentication failed: %w", err)
 	}
 
-	// 3. Connect Trading WebSocket
-	accessToken := a.authClient.GetAccessToken()
-	fmt.Println("🔌 Connecting to trading WebSocket...")
-	a.tradingWS = websocket.NewClient(a.config.TradingWSURL, accessToken)
-
-	if err := a.tradingWS.Connect(); err != nil {
+	// 4. Connect Trading WebSocket
+	if err := a.wsManager.Connect(); err != nil {
 		return fmt.Errorf("trading WebSocket connection failed: %w", err)
 	}
-	fmt.Println("✅ Trading WebSocket connected!")
 
-	// 4. Get WebSocket key for subscription (with retry on token expiry)
-	fmt.Println("🔑 Fetching WebSocket key...")
-	wsKey, err := a.authClient.GetWebSocketKey()
-	if err != nil {
-		// If token expired, try to refresh and retry once
-		if strings.Contains(err.Error(), "401") || strings.Contains(err.Error(), "kedaluwarsa") {
-			log.Println("⚠️  WebSocket key fetch failed (token expired), refreshing token...")
-
-			// Try to refresh token
-			if refreshErr := a.authClient.RefreshToken(); refreshErr != nil {
-				log.Println("⚠️  Token refresh failed, re-authenticating...")
-				// If refresh fails, try full re-login
-				if loginErr := a.authClient.Login(); loginErr != nil {
-					return fmt.Errorf("failed to re-authenticate: %w", loginErr)
-				}
-				// Save new token to cache
-				_ = a.authClient.SaveTokenToFile(tokenCacheFile)
-			}
-
-			// Update WebSocket client with new token
-			accessToken := a.authClient.GetAccessToken()
-			a.tradingWS = websocket.NewClient(a.config.TradingWSURL, accessToken)
-			if err := a.tradingWS.Connect(); err != nil {
-				return fmt.Errorf("websocket reconnection failed: %w", err)
-			}
-
-			// Retry getting WebSocket key
-			wsKey, err = a.authClient.GetWebSocketKey()
-			if err != nil {
-				return fmt.Errorf("failed to get websocket key after token refresh: %w", err)
-			}
-		} else {
-			return fmt.Errorf("failed to get websocket key: %w", err)
-		}
-	}
-	fmt.Println("✅ WebSocket key obtained!")
-
-	// 5. Subscribe to all stocks (wildcard)
-	userID := fmt.Sprintf("%d", a.authClient.GetUserID())
-	if err := a.tradingWS.SubscribeToStocks(nil, userID, wsKey); err != nil {
-		log.Printf("Warning: Subscription failed: %v", err)
-	}
+	// 5. Start ping (handled by manager, but we can explicit start or rely on Connect implicitly doing it?
+	// The Manager's Connect calls AuthenticateAndSubscribe, but we should ensure ping is started.
+	// In the refactor, I added StartPing implicitly in Reconnect, but maybe not in Connect.
+	// Let's call it here explicitly to be safe as per original code.)
+	a.wsManager.StartPing(25 * time.Second)
 
 	// 6. Setup handlers
 	a.setupHandlers()
 
-	// 7. Start ping
-	a.tradingWS.StartPing(25 * time.Second)
-
-	// 8. Initialize LLM client if enabled
+	// 7. Initialize LLM client if enabled
 	var llmClient *llm.Client
 	if a.config.LLM.Enabled {
 		llmClient = llm.NewClient(a.config.LLM.Endpoint, a.config.LLM.APIKey, a.config.LLM.Model)
@@ -192,14 +150,14 @@ func (a *App) Start() error {
 		log.Println("ℹ️  LLM Pattern Recognition DISABLED")
 	}
 
-	// 9. Start Phase 1 Enhancement Trackers
+	// 8. Start Phase 1 Enhancement Trackers
 	log.Println("🚀 Starting Phase 1 enhancement trackers...")
 
 	// Signal Outcome Tracker
 	a.signalTracker = NewSignalTracker(a.tradeRepo, a.redis, a.config)
 	go a.signalTracker.Start()
 
-	// 10. Start API Server (AFTER signal tracker is initialized)
+	// 9. Start API Server (AFTER signal tracker is initialized)
 	apiServer := api.NewServer(a.tradeRepo, a.webhookManager, a.broker, llmClient, a.config.LLM.Enabled)
 
 	// Inject signal tracker into API server BEFORE starting the server
@@ -216,7 +174,7 @@ func (a *App) Start() error {
 	a.whaleFollowup = NewWhaleFollowupTracker(a.tradeRepo)
 	go a.whaleFollowup.Start()
 
-	// 11. Start Phase 2 Enhancement Trackers
+	// 10. Start Phase 2 Enhancement Trackers
 	log.Println("🚀 Starting Phase 2 enhancement calculators...")
 
 	// Statistical Baseline Calculator
@@ -231,7 +189,7 @@ func (a *App) Start() error {
 	a.patternDetector = NewPatternDetector(a.tradeRepo)
 	go a.patternDetector.Start()
 
-	// 12. Start Phase 3 Enhancement Trackers
+	// 11. Start Phase 3 Enhancement Trackers
 	log.Println("🚀 Starting Phase 3 advanced analytics...")
 
 	// Correlation Analyzer
@@ -245,81 +203,34 @@ func (a *App) Start() error {
 	// Setup WaitGroup for goroutines
 	var wg sync.WaitGroup
 
-	// 6. Start background token refresh monitoring
+	// 12. Start background token refresh monitoring
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		a.monitorTokenExpiry(ctx, tokenCacheFile)
+		// On successful refresh, update the websocket connection
+		a.authManager.RunTokenMonitor(ctx, func(newToken string) {
+			a.wsManager.UpdateToken(newToken)
+		})
 	}()
 
-	// 7. Start WebSocket health monitoring
+	// 13. Start WebSocket health monitoring
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		a.monitorWebSocketHealth(ctx)
+		a.wsManager.RunHealthMonitor(ctx)
 	}()
 
-	// 8. Start message processing
+	// 14. Start message processing
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		a.readAndProcessMessages(ctx)
 	}()
 
-	// 9. Wait for interrupt and perform graceful shutdown
+	// 15. Wait for interrupt and perform graceful shutdown
 	err = a.gracefulShutdown(cancel)
 	wg.Wait()
 	return err
-}
-
-// ensureAuthenticated handles the complex authentication and caching logic
-func (a *App) ensureAuthenticated(cacheFile string) error {
-	fmt.Println("🔐 Authenticating to Stockbit...")
-
-	// Try to load and use cached token
-	if err := a.authClient.LoadTokenFromFile(cacheFile); err == nil {
-		if a.authClient.IsTokenValid() {
-			fmt.Println("✅ Using cached token")
-		} else {
-			fmt.Println("⚠️  Cached token expired, refreshing...")
-			if err := a.authClient.RefreshToken(); err != nil {
-				fmt.Println("⚠️  Token refresh failed, logging in...")
-				if err := a.authClient.Login(); err != nil {
-					return err
-				}
-			} else {
-				fmt.Println("✅ Token refreshed successfully")
-			}
-			_ = a.authClient.SaveTokenToFile(cacheFile)
-		}
-	} else {
-		fmt.Println("🔑 No cached token, logging in...")
-		if err := a.authClient.Login(); err != nil {
-			return err
-		}
-		fmt.Println("✅ Login successful!")
-		_ = a.authClient.SaveTokenToFile(cacheFile)
-	}
-
-	// Double check user ID
-	if a.authClient.GetUserID() == 0 {
-		if err := a.authClient.GetUserInfo(); err != nil {
-			log.Printf("Warning: Failed to get user info: %v", err)
-		} else {
-			_ = a.authClient.SaveTokenToFile(cacheFile)
-		}
-	}
-
-	fmt.Printf("📝 Access Token: %s...\n", a.authClient.GetAccessToken()[:m(50, len(a.authClient.GetAccessToken()))])
-	fmt.Printf("⏰ Token expires at: %s\n", a.authClient.GetExpiryTime().Format("2006-01-02 15:04:05"))
-	return nil
-}
-
-func m(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 // gracefulShutdown handles graceful shutdown with timeout
@@ -373,13 +284,11 @@ func (a *App) gracefulShutdown(cancel context.CancelFunc) error {
 		}
 
 		// Close WebSocket connection
-		if a.tradingWS != nil {
-			fmt.Println("📡 Closing trading WebSocket connection...")
-			if err := a.tradingWS.Close(); err != nil {
-				log.Printf("Error closing trading WebSocket: %v", err)
-			} else {
-				fmt.Println("✅ Trading WebSocket closed")
-			}
+		fmt.Println("📡 Closing trading WebSocket connection...")
+		if err := a.wsManager.Close(); err != nil {
+			log.Printf("Error closing trading WebSocket: %v", err)
+		} else {
+			fmt.Println("✅ Trading WebSocket closed")
 		}
 
 		// Close database connection
@@ -424,7 +333,7 @@ func (a *App) readAndProcessMessages(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		default:
-			message, err := a.tradingWS.ReadMessage()
+			message, err := a.wsManager.ReadMessage()
 			if err != nil {
 				select {
 				case <-ctx.Done():
@@ -447,8 +356,8 @@ func (a *App) readAndProcessMessages(ctx context.Context) {
 					case <-time.After(reconnectDelay):
 					}
 
-					// Try to reconnect
-					if err := a.reconnectWebSocket(); err != nil {
+					// Try to reconnect via manager
+					if err := a.wsManager.Reconnect(); err != nil {
 						log.Printf("❌ Reconnection failed: %v", err)
 						// Exponential backoff
 						reconnectDelay = reconnectDelay * 2
@@ -460,13 +369,9 @@ func (a *App) readAndProcessMessages(ctx context.Context) {
 
 					// Reset delay on successful reconnection
 					reconnectDelay = 5 * time.Second
-					log.Println("✅ Reconnected successfully, resuming message processing")
 					continue
 				}
 			}
-
-			// Update last message time for health monitoring
-			a.updateLastMessageTime()
 
 			// Process the protobuf wrapper message
 			err = a.handlerManager.HandleProtoMessage("running_trade", message)
@@ -479,217 +384,12 @@ func (a *App) readAndProcessMessages(ctx context.Context) {
 	}
 }
 
-// reconnectWebSocket attempts to reconnect the WebSocket connection
-func (a *App) reconnectWebSocket() error {
-	const tokenCacheFile = "/app/cache/.token_cache.json"
-
-	// Close existing connection
-	if a.tradingWS != nil {
-		_ = a.tradingWS.Close()
-	}
-
-	// Get fresh access token (might be expired)
-	if !a.authClient.IsTokenValid() {
-		log.Println("🔑 Token expired, refreshing...")
-		if err := a.authClient.RefreshToken(); err != nil {
-			log.Println("⚠️  Token refresh failed, logging in again...")
-			if err := a.authClient.Login(); err != nil {
-				return fmt.Errorf("login failed: %w", err)
-			}
-			// Save new token after successful login
-			_ = a.authClient.SaveTokenToFile(tokenCacheFile)
-		}
-	}
-
-	// Reconnect WebSocket
-	accessToken := a.authClient.GetAccessToken()
-	a.tradingWS = websocket.NewClient(a.config.TradingWSURL, accessToken)
-
-	if err := a.tradingWS.Connect(); err != nil {
-		return fmt.Errorf("websocket connection failed: %w", err)
-	}
-
-	// Get WebSocket key with retry on token expiry
-	wsKey, err := a.authClient.GetWebSocketKey()
-	if err != nil {
-		// If token expired (401 error), try to refresh and retry once
-		if strings.Contains(err.Error(), "401") || strings.Contains(err.Error(), "kedaluwarsa") {
-			log.Println("⚠️  WebSocket key fetch failed (token expired), refreshing token...")
-
-			// Try to refresh token
-			if refreshErr := a.authClient.RefreshToken(); refreshErr != nil {
-				log.Println("⚠️  Token refresh failed, re-authenticating...")
-				// If refresh fails, try full re-login
-				if loginErr := a.authClient.Login(); loginErr != nil {
-					return fmt.Errorf("failed to re-authenticate: %w", loginErr)
-				}
-				// Save new token to cache
-				_ = a.authClient.SaveTokenToFile(tokenCacheFile)
-			}
-
-			// Update WebSocket client with new token
-			accessToken = a.authClient.GetAccessToken()
-			_ = a.tradingWS.Close()
-			a.tradingWS = websocket.NewClient(a.config.TradingWSURL, accessToken)
-			if err := a.tradingWS.Connect(); err != nil {
-				return fmt.Errorf("websocket reconnection failed: %w", err)
-			}
-
-			// Retry getting WebSocket key
-			wsKey, err = a.authClient.GetWebSocketKey()
-			if err != nil {
-				return fmt.Errorf("failed to get websocket key after token refresh: %w", err)
-			}
-		} else {
-			return fmt.Errorf("failed to get websocket key: %w", err)
-		}
-	}
-
-	// Re-subscribe to stocks
-	userID := fmt.Sprintf("%d", a.authClient.GetUserID())
-	if err := a.tradingWS.SubscribeToStocks(nil, userID, wsKey); err != nil {
-		return fmt.Errorf("subscription failed: %w", err)
-	}
-
-	// Restart ping
-	a.tradingWS.StartPing(25 * time.Second)
-
-	log.Println("✅ Reconnection successful with refreshed token")
-	return nil
-}
-
 // setupHandlers initializes and registers all message handlers
 func (a *App) setupHandlers() {
 	// 4. Register Message Handlers
-	// Running Trade Handler
 	// Running Trade Handler
 	// Initialize Volatility Provider (ExitStrategyCalculator) for Adaptive Thresholds
 	volatilityProv := NewExitStrategyCalculator(a.tradeRepo, a.config)
 	runningTradeHandler := handlers.NewRunningTradeHandler(a.tradeRepo, a.webhookManager, a.redis, a.broker, volatilityProv)
 	a.handlerManager.RegisterHandler("running_trade", runningTradeHandler)
-}
-
-// monitorTokenExpiry monitors token expiry and refreshes proactively
-func (a *App) monitorTokenExpiry(ctx context.Context, tokenCacheFile string) {
-	ticker := time.NewTicker(5 * time.Minute) // Check every 5 minutes
-	defer ticker.Stop()
-
-	log.Println("🔄 Token expiry monitoring started")
-
-	for {
-		select {
-		case <-ctx.Done():
-			log.Println("🛑 Token monitoring stopped")
-			return
-		case <-ticker.C:
-			// Check if token will expire in the next 10 minutes
-			expiryTime := a.authClient.GetExpiryTime()
-			timeUntilExpiry := time.Until(expiryTime)
-
-			if timeUntilExpiry <= 10*time.Minute {
-				log.Printf("⚠️  Token will expire in %v, refreshing proactively...", timeUntilExpiry)
-
-				if err := a.authClient.RefreshToken(); err != nil {
-					log.Printf("❌ Token refresh failed: %v, attempting re-login...", err)
-					if loginErr := a.authClient.Login(); loginErr != nil {
-						log.Printf("❌ Re-login failed: %v", loginErr)
-						continue
-					}
-					log.Println("✅ Re-login successful")
-				} else {
-					log.Println("✅ Token refreshed successfully")
-				}
-
-				// Save updated token to cache
-				if err := a.authClient.SaveTokenToFile(tokenCacheFile); err != nil {
-					log.Printf("⚠️  Failed to save refreshed token to cache: %v", err)
-				} else {
-					log.Println("💾 Token cache updated")
-				}
-
-				// Update WebSocket connection with new token
-				accessToken := a.authClient.GetAccessToken()
-				if a.tradingWS != nil {
-					log.Println("🔄 Updating WebSocket connection with refreshed token...")
-					_ = a.tradingWS.Close()
-					a.tradingWS = websocket.NewClient(a.config.TradingWSURL, accessToken)
-
-					if err := a.tradingWS.Connect(); err != nil {
-						log.Printf("⚠️  Failed to reconnect WebSocket: %v", err)
-						continue
-					}
-
-					// Re-subscribe
-					wsKey, err := a.authClient.GetWebSocketKey()
-					if err != nil {
-						log.Printf("⚠️  Failed to get WebSocket key: %v", err)
-						continue
-					}
-
-					userID := fmt.Sprintf("%d", a.authClient.GetUserID())
-					if err := a.tradingWS.SubscribeToStocks(nil, userID, wsKey); err != nil {
-						log.Printf("⚠️  Failed to re-subscribe: %v", err)
-					}
-
-					a.tradingWS.StartPing(25 * time.Second)
-					log.Println("✅ WebSocket reconnected with new token")
-				}
-			} else if timeUntilExpiry > 0 {
-				log.Printf("🔐 Token valid, expires in %v", timeUntilExpiry.Round(time.Minute))
-			}
-		}
-	}
-}
-
-// monitorWebSocketHealth monitors WebSocket connection health
-func (a *App) monitorWebSocketHealth(ctx context.Context) {
-	ticker := time.NewTicker(60 * time.Second) // Check every 60 seconds
-	defer ticker.Stop()
-
-	log.Println("💓 WebSocket health monitoring started")
-
-	for {
-		select {
-		case <-ctx.Done():
-			log.Println("🛑 WebSocket health monitoring stopped")
-			return
-		case <-ticker.C:
-			lastMsg := a.getLastMessageTime()
-			if lastMsg.IsZero() {
-				// First check, set initial time
-				a.updateLastMessageTime()
-				continue
-			}
-
-			timeSinceLastMessage := time.Since(lastMsg)
-
-			// If no message received in 5 minutes, consider connection unhealthy
-			if timeSinceLastMessage > 5*time.Minute {
-				log.Printf("⚠️  No WebSocket message received for %v, reconnecting...", timeSinceLastMessage.Round(time.Second))
-
-				if err := a.reconnectWebSocket(); err != nil {
-					log.Printf("❌ WebSocket reconnection failed: %v", err)
-				} else {
-					log.Println("✅ WebSocket reconnected successfully")
-					a.updateLastMessageTime()
-				}
-			} else {
-				log.Printf("💓 WebSocket healthy, last message %v ago", timeSinceLastMessage.Round(time.Second))
-			}
-		}
-	}
-}
-
-// updateLastMessageTime updates the timestamp of the last received message
-func (a *App) updateLastMessageTime() {
-	a.lastMessageMu.Lock()
-	defer a.lastMessageMu.Unlock()
-	a.lastMessageTime = time.Now()
-}
-
-// getLastMessageTime returns the timestamp of the last received message
-func (a *App) getLastMessageTime() time.Time {
-	a.lastMessageMu.RLock()
-	defer a.lastMessageMu.RUnlock()
-	return a.lastMessageTime
 }

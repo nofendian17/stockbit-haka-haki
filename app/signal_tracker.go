@@ -100,7 +100,8 @@ type SignalTracker struct {
 	cfg   *config.Config
 	done  chan bool
 
-	exitCalc *ExitStrategyCalculator // ATR-based exit strategy calculator
+	exitCalc      *ExitStrategyCalculator // ATR-based exit strategy calculator
+	filterService *SignalFilterService    // Dedicated service for signal filtering logic
 }
 
 // NewSignalTracker creates a new signal outcome tracker
@@ -108,6 +109,8 @@ func NewSignalTracker(repo *database.TradeRepository, redis *cache.RedisClient, 
 
 	// Initialize Exit Strategy Calculator
 	exitCalc := NewExitStrategyCalculator(repo, cfg)
+	// Initialize Signal Filter Service
+	filterService := NewSignalFilterService(repo, redis, cfg)
 
 	return &SignalTracker{
 		repo:  repo,
@@ -115,7 +118,8 @@ func NewSignalTracker(repo *database.TradeRepository, redis *cache.RedisClient, 
 		cfg:   cfg,
 		done:  make(chan bool),
 
-		exitCalc: exitCalc,
+		exitCalc:      exitCalc,
+		filterService: filterService,
 	}
 }
 
@@ -232,138 +236,69 @@ func (st *SignalTracker) trackSignalOutcomes() {
 }
 
 // shouldCreateOutcome checks if we should create an outcome for this signal
-// Returns: (shouldCreate bool, reason string)
-func (st *SignalTracker) shouldCreateOutcome(signal *database.TradingSignalDB) (bool, string) {
+// Returns: (shouldCreate bool, reason string, multiplier float64)
+func (st *SignalTracker) shouldCreateOutcome(signal *database.TradingSignalDB) (bool, string, float64) {
 	ctx := context.Background()
 
-	// OPTIMIZATION #10: Strategy Performance Check (disable underperforming strategies)
-	strategyMult, shouldSkip, reason := st.getStrategyPerformanceMultiplier(signal.Strategy)
-	if shouldSkip {
-		return false, reason
+	// 1. Evaluate signal using SignalFilterService (Consolidated Logic)
+	shouldTrade, reason, multiplier := st.filterService.Evaluate(signal)
+	if !shouldTrade {
+		return false, reason, 0.0
 	}
 
-	// OPTIMIZATION #8: Baseline Quality Check
-	baselinePassed, _, baselineReason := st.checkBaselineQuality(signal.StockSymbol)
-	if !baselinePassed {
-		return false, baselineReason
-	}
-
-	// OPTIMIZATION NEW: "Smart Volume" & "Trend" Adaptive Logic
-	// 1. Calculate Volume Z-Score Multiplier (High Volume = Higher Confidence)
-	isHighVolume := signal.VolumeZScore > 2.5
-
-	// 2. Trend Alignment Check (Price vs VWAP)
-	isTrendAligned := false
-	baseline, _ := st.repo.GetLatestBaseline(signal.StockSymbol)
-	if baseline != nil && baseline.MeanVolumeLots > 0 {
-		vwap := baseline.MeanValue / baseline.MeanVolumeLots
-		if signal.TriggerPrice > vwap {
-			isTrendAligned = true
-		}
-	}
-
-	// OPTIMIZATION NEW #1: Dynamic Confidence Threshold (Historical Data Driven)
-	optimalThreshold, thresholdReason := st.getDynamicConfidenceThreshold(signal.Strategy)
-
-	// Adaptive: Relax confidence if High Volume or Trend Aligned
-	if isHighVolume {
-		optimalThreshold *= 0.95 // 5% relaxation
-		thresholdReason += " (Relaxed due to High Volume)"
-	} else if isTrendAligned {
-		optimalThreshold *= 0.98 // 2% relaxation
-		thresholdReason += " (Relaxed due to Trend Alignment)"
-	}
-
-	if signal.Confidence < optimalThreshold {
-		return false, fmt.Sprintf("Below optimal confidence threshold (%.2f < %.2f): %s",
-			signal.Confidence, optimalThreshold, thresholdReason)
-	}
-
-	// OPTIMIZATION NEW #2: Regime-Specific Effectiveness Check
-	regimePassed, regimeReason := st.checkRegimeEffectiveness(signal.Strategy, signal.StockSymbol)
-	if !regimePassed {
-		return false, regimeReason
-	}
-
-	// OPTIMIZATION NEW #3: Expected Value Filter (Reject Negative EV Strategies)
-	evPassed, ev, evReason := st.checkSignalExpectedValue(signal.Strategy)
-	if !evPassed {
-		return false, evReason
-	}
-	if ev > 0 {
-		log.Printf("📈 Signal EV check passed for %s: +%.4f", signal.Strategy, ev)
-	}
-
-	// 0. Order Flow Imbalance Check (Adaptive)
-	// Default to standard threshold, but relax if strong momentum indicators exist
-	dynamicFlowThreshold := st.cfg.Trading.OrderFlowBuyThreshold
-	if isHighVolume || isTrendAligned {
-		dynamicFlowThreshold = st.cfg.Trading.OrderFlowBuyThreshold * 0.9 // Relax by 10%
-	}
-
-	flowPassed, _, flowReason := st.checkOrderFlowImbalance(signal.StockSymbol, signal.Decision, dynamicFlowThreshold)
-	if !flowPassed {
-		return false, flowReason
-	}
-
-	// 0. Redis Optimizations: Check cooldowns first (fastest)
+	// 2. Redis Optimizations: Check cooldowns (fastest)
 	if st.redis != nil {
 		// Check cooldown key: signal:cooldown:{symbol}:{strategy}
 		cooldownKey := fmt.Sprintf("signal:cooldown:%s:%s", signal.StockSymbol, signal.Strategy)
 		var cooldownSignalID int64
 		// Verify if key exists AND is not the current signal
 		if err := st.redis.Get(ctx, cooldownKey, &cooldownSignalID); err == nil && cooldownSignalID != 0 && cooldownSignalID != signal.ID {
-			return false, fmt.Sprintf("In cooldown period for %s (Signal %d)", signal.Strategy, cooldownSignalID)
+			return false, fmt.Sprintf("In cooldown period for %s (Signal %d)", signal.Strategy, cooldownSignalID), 0.0
 		}
 
 		// Check recent duplicate key: signal:recent:{symbol}
 		recentKey := fmt.Sprintf("signal:recent:%s", signal.StockSymbol)
 		var recentSignalID int64
 		if err := st.redis.Get(ctx, recentKey, &recentSignalID); err == nil && recentSignalID != 0 && recentSignalID != signal.ID {
-			return false, fmt.Sprintf("Recent signal %d exists for %s (too soon)", recentSignalID, signal.StockSymbol)
+			return false, fmt.Sprintf("Recent signal %d exists for %s (too soon)", recentSignalID, signal.StockSymbol), 0.0
 		}
 	}
 
-	// OPTIMIZATION #5: Regime-Adaptive Position Limit
-	adaptiveLimit := st.getRegimeAdaptiveLimit(signal.StockSymbol)
+	// 3. Regime-Adaptive Position Limit
+	adaptiveLimit := st.filterService.GetRegimeAdaptiveLimit(signal.StockSymbol)
 
-	// 1. Check if too many open positions globally (with adaptive limit)
+	// Check if too many open positions globally (with adaptive limit)
 	openOutcomes, err := st.repo.GetSignalOutcomes("", "OPEN", time.Time{}, time.Time{}, 0)
 	if err == nil && len(openOutcomes) >= adaptiveLimit {
-		return false, fmt.Sprintf("Max open positions reached (%d/%d adaptive)", len(openOutcomes), adaptiveLimit)
+		return false, fmt.Sprintf("Max open positions reached (%d/%d adaptive)", len(openOutcomes), adaptiveLimit), 0.0
 	}
 
-	// 2. Check if symbol already has open position
+	// Check if symbol already has open position
 	symbolOutcomes, err := st.repo.GetSignalOutcomes(signal.StockSymbol, "OPEN", time.Time{}, time.Time{}, 0)
 	if err == nil && len(symbolOutcomes) >= st.cfg.Trading.MaxPositionsPerSymbol {
-		return false, fmt.Sprintf("Symbol %s already has %d open position(s)", signal.StockSymbol, len(symbolOutcomes))
+		return false, fmt.Sprintf("Symbol %s already has %d open position(s)", signal.StockSymbol, len(symbolOutcomes)), 0.0
 	}
 
-	// 3. Check for recent signals within time window (duplicate prevention)
+	// Check for recent signals within time window (duplicate prevention)
 	recentSignalTime := signal.GeneratedAt.Add(-time.Duration(st.cfg.Trading.SignalTimeWindowMinutes) * time.Minute)
 	recentSignals, err := st.repo.GetTradingSignals(signal.StockSymbol, signal.Strategy, "BUY", recentSignalTime, signal.GeneratedAt, 10)
 	if err == nil && len(recentSignals) > 1 {
-		return false, fmt.Sprintf("Duplicate signal within %d minute window", st.cfg.Trading.SignalTimeWindowMinutes)
+		return false, fmt.Sprintf("Duplicate signal within %d minute window", st.cfg.Trading.SignalTimeWindowMinutes), 0.0
 	}
 
-	// 4. Check minimum interval since last signal for this symbol
+	// Check minimum interval since last signal for this symbol
 	lastSignalTime := signal.GeneratedAt.Add(-time.Duration(st.cfg.Trading.MinSignalIntervalMinutes) * time.Minute)
 	lastSignals, err := st.repo.GetTradingSignals(signal.StockSymbol, "", "BUY", lastSignalTime, time.Time{}, 1)
 	if err == nil && len(lastSignals) > 0 {
 		if lastSignals[0].ID != signal.ID {
 			timeSince := signal.GeneratedAt.Sub(lastSignals[0].GeneratedAt).Minutes()
 			if timeSince < float64(st.cfg.Trading.MinSignalIntervalMinutes) {
-				return false, fmt.Sprintf("Signal too soon (%.1f min < %d min required)", timeSince, st.cfg.Trading.MinSignalIntervalMinutes)
+				return false, fmt.Sprintf("Signal too soon (%.1f min < %d min required)", timeSince, st.cfg.Trading.MinSignalIntervalMinutes), 0.0
 			}
 		}
 	}
 
-	// Log optimization results
-	if strategyMult != 1.0 {
-		log.Printf("📊 Strategy multiplier for %s: %.2fx (%s)", signal.Strategy, strategyMult, reason)
-	}
-
-	return true, ""
+	return true, "", multiplier
 }
 
 // createSignalOutcome creates a new outcome record for a signal
@@ -396,16 +331,8 @@ func (st *SignalTracker) createSignalOutcome(signal *database.TradingSignalDB) (
 		return false, nil
 	}
 
-	// OPTIMIZATION #6: Time-of-Day Filtering
-	timeMultiplier, timeReason := st.getTimeOfDayMultiplier(signal.GeneratedAt)
-	if timeMultiplier == 0.0 {
-		log.Printf("⏰ Skipping signal %d (%s): %s", signal.ID, signal.StockSymbol, timeReason)
-		st.createSkippedOutcome(signal, timeReason)
-		return false, nil
-	}
-
 	// Check duplicate prevention and position limits (with ALL optimizations)
-	shouldCreate, reason := st.shouldCreateOutcome(signal)
+	shouldCreate, reason, multiplier := st.shouldCreateOutcome(signal)
 	if !shouldCreate {
 		log.Printf("⏭️ Skipping signal %d (%s): %s", signal.ID, signal.StockSymbol, reason)
 		st.createSkippedOutcome(signal, reason)
@@ -413,12 +340,8 @@ func (st *SignalTracker) createSignalOutcome(signal *database.TradingSignalDB) (
 	}
 
 	session := getTradingSession(signal.GeneratedAt)
-	log.Printf("✅ Creating outcome for signal %d (%s) - Session: %s (Time Mult: %.2fx)",
-		signal.ID, signal.StockSymbol, session, timeMultiplier)
-
-	if timeReason != "" {
-		log.Printf("   └─ %s", timeReason)
-	}
+	log.Printf("✅ Creating outcome for signal %d (%s) - Session: %s (Mult: %.2fx)",
+		signal.ID, signal.StockSymbol, session, multiplier)
 
 	// Calculate ATR-based exit levels for initial setup
 	exitLevels := st.exitCalc.GetExitLevels(signal.StockSymbol, signal.TriggerPrice)
@@ -634,271 +557,6 @@ func (st *SignalTracker) updateSignalOutcome(signal *database.TradingSignalDB, o
 	return st.repo.UpdateSignalOutcome(outcome)
 }
 
-// OPTIMIZATION HELPER FUNCTIONS
-
-// checkOrderFlowImbalance validates order flow for BUY signals
-// Returns: (passed bool, confidenceMultiplier float64, reason string)
-func (st *SignalTracker) checkOrderFlowImbalance(symbol string, decision string, requiredThreshold float64) (bool, float64, string) {
-	if decision != "BUY" {
-		return true, 1.0, "" // Only check for BUY signals
-	}
-
-	orderFlow, err := st.repo.GetLatestOrderFlow(symbol)
-	if err != nil || orderFlow == nil {
-		// New Fail-Safe Logic
-		if st.cfg.Trading.RequireOrderFlow {
-			return false, 0.0, "Order flow data missing (Fail-Safe triggered)"
-		}
-		// No order flow data - allow but don't boost
-		return true, 1.0, ""
-	}
-
-	totalVolume := orderFlow.BuyVolumeLots + orderFlow.SellVolumeLots
-	if totalVolume == 0 {
-		return true, 1.0, ""
-	}
-
-	// Fail-Safe: If order flow is required but missing/invalid, reject
-	// Note: We already checked for nil, but here we can enforce stricter policies
-	if st.cfg.Trading.RequireOrderFlow && totalVolume < 100 { // Just sanity check
-		return false, 0.0, "Insufficient order flow volume (Fail-Safe)"
-	}
-
-	// Calculate buy pressure
-	buyPressure := (orderFlow.BuyVolumeLots / totalVolume)
-
-	// Check aggressive buyers if available
-	if orderFlow.AggressiveBuyPct != nil && *orderFlow.AggressiveBuyPct < st.cfg.Trading.AggressiveBuyThreshold {
-		// Only penalize if buy pressure is also weak
-		if buyPressure < 0.6 {
-			return false, 0.7, fmt.Sprintf("Low aggressive buy pressure (%.1f%% < %.0f%%)", *orderFlow.AggressiveBuyPct, st.cfg.Trading.AggressiveBuyThreshold)
-		}
-	}
-
-	// Check buy imbalance
-	if buyPressure < requiredThreshold {
-		// New: Aggressive Haka Override
-		// If buyers are aggressively hitting the ask (>60%), accept lower passive balance
-		if orderFlow.AggressiveBuyPct != nil && *orderFlow.AggressiveBuyPct > st.cfg.Trading.AggressiveBuyThreshold {
-			if buyPressure > 0.4 { // Hard floor
-				return true, 1.2, fmt.Sprintf("Aggressive Haka detected (%.1f%%)", *orderFlow.AggressiveBuyPct)
-			}
-		}
-		return false, 0.7, fmt.Sprintf("Insufficient buy pressure (%.1f%% < %.0f%%)", buyPressure*100, requiredThreshold*100)
-	}
-
-	// Strong buy pressure - boost confidence
-	if buyPressure > 0.6 {
-		return true, 1.3, "Strong buy pressure detected"
-	}
-
-	return true, 1.0, ""
-}
-
-// checkBaselineQuality validates statistical baseline quality
-// Returns: (passed bool, confidenceMultiplier float64, reason string)
-func (st *SignalTracker) checkBaselineQuality(symbol string) (bool, float64, string) {
-	// OPTIMIZATION: Try Redis cache first (5-minute TTL)
-	if st.redis != nil {
-		ctx := context.Background()
-		cacheKey := fmt.Sprintf("baseline:%s", symbol)
-
-		var baseline database.StatisticalBaseline
-		if err := st.redis.Get(ctx, cacheKey, &baseline); err == nil {
-			// Cache hit - use cached baseline
-			return st.evaluateBaselineQuality(&baseline)
-		}
-	}
-
-	// Cache miss or no Redis - fetch from database
-	baseline, err := st.repo.GetLatestBaseline(symbol)
-	if err != nil || baseline == nil {
-		return false, 0.0, "No statistical baseline available"
-	}
-
-	// Cache the result for 5 minutes
-	if st.redis != nil {
-		ctx := context.Background()
-		cacheKey := fmt.Sprintf("baseline:%s", symbol)
-		if err := st.redis.Set(ctx, cacheKey, baseline, 5*time.Minute); err != nil {
-			log.Printf("⚠️ Failed to cache baseline for %s: %v", symbol, err)
-		}
-	}
-
-	return st.evaluateBaselineQuality(baseline)
-}
-
-// evaluateBaselineQuality performs the actual baseline quality evaluation
-func (st *SignalTracker) evaluateBaselineQuality(baseline *database.StatisticalBaseline) (bool, float64, string) {
-	// Strict quality check
-	if baseline.SampleSize < st.cfg.Trading.MinBaselineSampleSize {
-		return false, 0.0, fmt.Sprintf("Insufficient baseline data (%d < %d trades)", baseline.SampleSize, st.cfg.Trading.MinBaselineSampleSize)
-	}
-
-	// Penalize weak baselines
-	if baseline.SampleSize < st.cfg.Trading.MinBaselineSampleSizeStrict {
-		return true, 0.6, fmt.Sprintf("Limited baseline data (%d trades)", baseline.SampleSize)
-	}
-
-	// Good baseline quality
-	return true, 1.0, ""
-}
-
-// getTimeOfDayMultiplier returns confidence multiplier based on trading session
-func (st *SignalTracker) getTimeOfDayMultiplier(t time.Time) (float64, string) {
-	loc, _ := time.LoadLocation(MarketTimeZone)
-	if loc == nil {
-		loc = time.FixedZone("WIB", 7*60*60)
-	}
-
-	localTime := t.In(loc)
-	hour := localTime.Hour()
-	session := getTradingSession(t)
-
-	// Skip low-liquidity sessions
-	if session == "PRE_OPENING" || session == "LUNCH_BREAK" || session == "POST_MARKET" {
-		return 0.0, fmt.Sprintf("Low liquidity session: %s", session)
-	}
-
-	// Morning momentum boost (before 10:00)
-	if session == "SESSION_1" && hour < MorningBoostHour {
-		return 1.2, "Morning momentum period"
-	}
-
-	// Afternoon caution (after 14:00)
-	if session == "SESSION_2" && hour >= AfternoonCautionHour {
-		return 0.8, "Afternoon caution period"
-	}
-
-	return 1.0, ""
-}
-
-// getStrategyPerformanceMultiplier calculates confidence adjustment based on strategy win rate
-// Returns: (multiplier float64, shouldSkip bool, reason string)
-func (st *SignalTracker) getStrategyPerformanceMultiplier(strategy string) (float64, bool, string) {
-	// OPTIMIZATION: Try Redis cache first (5-minute TTL) - Quick Win #3
-	if st.redis != nil {
-		ctx := context.Background()
-		cacheKey := fmt.Sprintf("strategy:perf:%s", strategy)
-
-		type CachedPerf struct {
-			Multiplier float64
-			ShouldSkip bool
-			Reason     string
-		}
-
-		var cached CachedPerf
-		if err := st.redis.Get(ctx, cacheKey, &cached); err == nil {
-			// Cache hit
-			return cached.Multiplier, cached.ShouldSkip, cached.Reason
-		}
-	}
-
-	// Cache miss or no Redis - calculate from database
-	multiplier, shouldSkip, reason := st.calculateStrategyPerformance(strategy)
-
-	// Cache the result for 5 minutes
-	if st.redis != nil {
-		ctx := context.Background()
-		cacheKey := fmt.Sprintf("strategy:perf:%s", strategy)
-
-		cached := struct {
-			Multiplier float64
-			ShouldSkip bool
-			Reason     string
-		}{
-			Multiplier: multiplier,
-			ShouldSkip: shouldSkip,
-			Reason:     reason,
-		}
-
-		if err := st.redis.Set(ctx, cacheKey, cached, 5*time.Minute); err != nil {
-			log.Printf("⚠️ Failed to cache strategy performance for %s: %v", strategy, err)
-		}
-	}
-
-	return multiplier, shouldSkip, reason
-}
-
-// calculateStrategyPerformance performs the actual strategy performance calculation
-func (st *SignalTracker) calculateStrategyPerformance(strategy string) (float64, bool, string) {
-	// Get recent outcomes for this strategy (last 7 days)
-	since := time.Now().Add(-7 * 24 * time.Hour)
-	outcomes, err := st.repo.GetSignalOutcomes("", "", since, time.Time{}, 0)
-	if err != nil {
-		return 1.0, false, ""
-	}
-
-	// Filter by strategy and count wins/losses
-	var totalSignals, wins, losses int
-	for _, outcome := range outcomes {
-		signal, err := st.repo.GetSignalByID(outcome.SignalID)
-		if err != nil || signal == nil || signal.Strategy != strategy {
-			continue
-		}
-
-		if outcome.OutcomeStatus == "WIN" || outcome.OutcomeStatus == "LOSS" || outcome.OutcomeStatus == "BREAKEVEN" {
-			totalSignals++
-			if outcome.OutcomeStatus == "WIN" {
-				wins++
-			} else if outcome.OutcomeStatus == "LOSS" {
-				losses++
-			}
-		}
-	}
-
-	// Need minimum signals for evaluation
-	if totalSignals < st.cfg.Trading.MinStrategySignals {
-		return 1.0, false, ""
-	}
-
-	winRate := float64(wins) / float64(totalSignals) * 100
-
-	// Disable underperforming strategies
-	if winRate < st.cfg.Trading.LowWinRateThreshold {
-		return 0.0, true, fmt.Sprintf("Strategy %s underperforming (WR: %.1f%% < %.0f%%)", strategy, winRate, st.cfg.Trading.LowWinRateThreshold)
-	}
-
-	// Boost high-performing strategies
-	if winRate > st.cfg.Trading.HighWinRateThreshold {
-		return 1.2, false, fmt.Sprintf("Strategy %s performing well (WR: %.1f%%)", strategy, winRate)
-	}
-
-	// Moderate performance
-	if winRate < 45 {
-		return 0.9, false, fmt.Sprintf("Strategy %s moderate performance (WR: %.1f%%)", strategy, winRate)
-	}
-
-	return 1.0, false, ""
-}
-
-// getRegimeAdaptiveLimit returns max positions based on market regime
-func (st *SignalTracker) getRegimeAdaptiveLimit(symbol string) int {
-	regime, err := st.repo.GetLatestRegime(symbol)
-	if err != nil || regime == nil {
-		return st.cfg.Trading.MaxOpenPositions // Default
-	}
-
-	// Aggressive in trending markets
-	if regime.Regime == "TRENDING_UP" && regime.Confidence > 0.7 {
-		return 15
-	}
-
-	// Conservative in volatile markets
-	if regime.Regime == "VOLATILE" {
-		if regime.ATR != nil && regime.Volatility != nil && *regime.Volatility > 3.0 {
-			return 5
-		}
-	}
-
-	// Moderate in ranging markets
-	if regime.Regime == "RANGING" {
-		return 8
-	}
-
-	return st.cfg.Trading.MaxOpenPositions
-}
-
 // GetOpenPositions returns currently open trading positions with optional filters
 func (st *SignalTracker) GetOpenPositions(symbol, strategy string, limit int) ([]database.SignalOutcome, error) {
 	// Get open signal outcomes
@@ -921,167 +579,4 @@ func (st *SignalTracker) GetOpenPositions(symbol, strategy string, limit int) ([
 	}
 
 	return outcomes, nil
-}
-
-// ============================================================================
-// SIGNAL OPTIMIZATION FUNCTIONS (Historical Data Driven)
-// ============================================================================
-
-// getDynamicConfidenceThreshold returns the optimal confidence threshold for a strategy
-// based on historical data. This replaces static thresholds with data-driven values.
-func (st *SignalTracker) getDynamicConfidenceThreshold(strategy string) (float64, string) {
-	// OPTIMIZATION: Try Redis cache first (10-minute TTL)
-	if st.redis != nil {
-		ctx := context.Background()
-		cacheKey := fmt.Sprintf("opt:threshold:%s", strategy)
-
-		type CachedThreshold struct {
-			Threshold float64
-			Reason    string
-		}
-
-		var cached CachedThreshold
-		if err := st.redis.Get(ctx, cacheKey, &cached); err == nil {
-			return cached.Threshold, cached.Reason
-		}
-	}
-
-	// Fetch from database (last 30 days)
-	thresholds, err := st.repo.GetOptimalConfidenceThresholds(30)
-	if err != nil || len(thresholds) == 0 {
-		return 0.6, "Using default threshold (no historical data)"
-	}
-
-	// Find threshold for this strategy
-	var optThreshold float64 = 0.6
-	var reason string = "Using default threshold"
-	for _, t := range thresholds {
-		if t.Strategy == strategy {
-			optThreshold = t.RecommendedMinConf
-			reason = fmt.Sprintf("Optimal threshold %.0f%% based on %d signals (win rate %.1f%%)",
-				t.OptimalConfidence*100, t.SampleSize, t.WinRateAtThreshold)
-			break
-		}
-	}
-
-	// Cache the result for 10 minutes
-	if st.redis != nil {
-		ctx := context.Background()
-		cacheKey := fmt.Sprintf("opt:threshold:%s", strategy)
-		cached := struct {
-			Threshold float64
-			Reason    string
-		}{Threshold: optThreshold, Reason: reason}
-
-		if err := st.redis.Set(ctx, cacheKey, cached, 10*time.Minute); err != nil {
-			log.Printf("⚠️ Failed to cache optimal threshold for %s: %v", strategy, err)
-		}
-	}
-
-	return optThreshold, reason
-}
-
-// checkRegimeEffectiveness validates that a strategy performs well in the current regime
-// Returns: (passed bool, reason string)
-func (st *SignalTracker) checkRegimeEffectiveness(strategy string, symbol string) (bool, string) {
-	// Get current regime
-	regime, err := st.repo.GetLatestRegime(symbol)
-	if err != nil || regime == nil {
-		return true, "" // No regime data - allow
-	}
-
-	// OPTIMIZATION: Try Redis cache first (10-minute TTL)
-	cacheKey := fmt.Sprintf("opt:regime_eff:%s:%s", strategy, regime.Regime)
-	if st.redis != nil {
-		ctx := context.Background()
-		var cachedWinRate float64
-		if err := st.redis.Get(ctx, cacheKey, &cachedWinRate); err == nil {
-			if cachedWinRate < 40.0 {
-				return false, fmt.Sprintf("%s underperforms in %s regime (%.1f%% win rate)",
-					strategy, regime.Regime, cachedWinRate)
-			}
-			return true, ""
-		}
-	}
-
-	// Fetch effectiveness data
-	effectiveness, err := st.repo.GetStrategyEffectivenessByRegime(30)
-	if err != nil || len(effectiveness) == 0 {
-		return true, "" // No historical data - allow
-	}
-
-	// Find win rate for this strategy + regime combination
-	var winRate float64 = 50.0 // Default to neutral
-	for _, eff := range effectiveness {
-		if eff.Strategy == strategy && eff.MarketRegime == regime.Regime {
-			winRate = eff.WinRate
-			break
-		}
-	}
-
-	// Cache the result
-	if st.redis != nil {
-		ctx := context.Background()
-		if err := st.redis.Set(ctx, cacheKey, winRate, 10*time.Minute); err != nil {
-			log.Printf("⚠️ Failed to cache regime effectiveness: %v", err)
-		}
-	}
-
-	// Reject if win rate is below 40% in this regime
-	if winRate < 40.0 {
-		return false, fmt.Sprintf("%s underperforms in %s regime (%.1f%% win rate)",
-			strategy, regime.Regime, winRate)
-	}
-
-	return true, ""
-}
-
-// checkSignalExpectedValue validates that a strategy has positive expected value
-// EV = (Win Rate × Avg Win) - ((1 - Win Rate) × |Avg Loss|)
-// Returns: (passed bool, ev float64, reason string)
-func (st *SignalTracker) checkSignalExpectedValue(strategy string) (bool, float64, string) {
-	// OPTIMIZATION: Try Redis cache first (10-minute TTL)
-	cacheKey := fmt.Sprintf("opt:ev:%s", strategy)
-	if st.redis != nil {
-		ctx := context.Background()
-		var cachedEV float64
-		if err := st.redis.Get(ctx, cacheKey, &cachedEV); err == nil {
-			if cachedEV < 0 {
-				return false, cachedEV, fmt.Sprintf("Negative EV: %.4f (strategy not profitable)", cachedEV)
-			}
-			return true, cachedEV, ""
-		}
-	}
-
-	// Fetch expected value data
-	evData, err := st.repo.GetSignalExpectedValues(30)
-	if err != nil || len(evData) == 0 {
-		return true, 0, "" // No data - allow
-	}
-
-	// Find EV for this strategy
-	var ev float64 = 0.0
-	var found bool
-	for _, e := range evData {
-		if e.Strategy == strategy {
-			ev = e.ExpectedValue
-			found = true
-			break
-		}
-	}
-
-	// Cache the result
-	if st.redis != nil && found {
-		ctx := context.Background()
-		if err := st.redis.Set(ctx, cacheKey, ev, 10*time.Minute); err != nil {
-			log.Printf("⚠️ Failed to cache EV: %v", err)
-		}
-	}
-
-	// Reject negative EV strategies
-	if found && ev < 0 {
-		return false, ev, fmt.Sprintf("Negative EV: %.4f (strategy not profitable)", ev)
-	}
-
-	return true, ev, ""
 }
