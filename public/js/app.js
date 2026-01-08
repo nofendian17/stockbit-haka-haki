@@ -7,7 +7,7 @@ import { CONFIG } from './config.js';
 import { debounce, safeGetElement } from './utils.js';
 import * as API from './api.js';
 import { renderWhaleAlerts, renderRunningPositions, renderSummaryTable, updateStatsTicker, renderStockCorrelations, renderProfitLossHistory, renderMarketIntelligence, renderOrderFlow, renderPatternFeed, renderDailyPerformance } from './render.js';
-import { createWhaleAlertSSE, createPatternAnalysisSSE } from './sse-handler.js';
+import { createWhaleAlertSSE, createPatternAnalysisSSE, createCustomPromptSSE } from './sse-handler.js';
 import { initStrategySystem } from './strategy-manager.js';
 import { initWebhookManagement } from './webhook-config.js';
 
@@ -794,8 +794,14 @@ function setupPatternAnalysis() {
             state.currentPatternType = tab.dataset.type;
 
             const symbolInput = safeGetElement('symbol-input-container');
+            const customPromptContainer = safeGetElement('custom-prompt-container');
+            
             if (symbolInput) {
                 symbolInput.style.display = state.currentPatternType === 'symbol' ? 'block' : 'none';
+            }
+            
+            if (customPromptContainer) {
+                customPromptContainer.style.display = state.currentPatternType === 'custom' ? 'block' : 'none';
             }
         });
     });
@@ -819,6 +825,11 @@ function startPatternAnalysis() {
     const stopBtn = safeGetElement('stop-analysis-btn');
 
     let symbol = '';
+    let customPrompt = '';
+    let customSymbols = [];
+    let hoursBack = 24;
+    let includeData = 'alerts,regimes';
+
     if (state.currentPatternType === 'symbol') {
         symbol = document.getElementById('symbol-input')?.value.trim().toUpperCase() || '';
         if (!symbol) {
@@ -827,6 +838,22 @@ function startPatternAnalysis() {
             }
             return;
         }
+    } else if (state.currentPatternType === 'custom') {
+        customPrompt = document.getElementById('custom-prompt-input')?.value.trim() || '';
+        if (!customPrompt) {
+            if (outputDiv) {
+                outputDiv.innerHTML = '<div class="placeholder"><span class="placeholder-icon">⚠️</span><p style="color: var(--accent-sell);">Silakan masukkan prompt terlebih dahulu</p></div>';
+            }
+            return;
+        }
+        
+        const symbolsInput = document.getElementById('custom-symbols-input')?.value.trim() || '';
+        if (symbolsInput) {
+            customSymbols = symbolsInput.split(',').map(s => s.trim().toUpperCase()).filter(s => s);
+        }
+        
+        hoursBack = parseInt(document.getElementById('custom-hours-input')?.value || '24');
+        includeData = document.getElementById('custom-data-type')?.value || 'alerts,regimes';
     }
 
     if (startBtn) startBtn.style.display = 'none';
@@ -839,43 +866,84 @@ function startPatternAnalysis() {
     if (outputDiv) outputDiv.innerHTML = '<div class="stream-loading">🤖 Menganalisis data...</div>';
 
     let streamText = '';
-    state.patternSSE = createPatternAnalysisSSE(state.currentPatternType, symbol, {
-        onChunk: (chunk) => {
-            if (streamText === '' && outputDiv) {
-                outputDiv.innerHTML = '<div class="message-bubble"><div class="streaming-text"></div></div>';
-            }
+    
+    if (state.currentPatternType === 'custom') {
+        state.patternSSE = createCustomPromptSSE(customPrompt, customSymbols, hoursBack, includeData, {
+            onChunk: (chunk) => {
+                if (streamText === '' && outputDiv) {
+                    outputDiv.innerHTML = '<div class="message-bubble"><div class="streaming-text"></div></div>';
+                }
 
-            streamText += chunk;
-            const htmlContent = marked.parse(streamText);
+                streamText += chunk;
+                const htmlContent = marked.parse(streamText);
 
-            const textContainer = outputDiv?.querySelector('.streaming-text');
-            if (textContainer) {
-                textContainer.innerHTML = `${htmlContent}<span class="streaming-cursor"></span>`;
-            }
+                const textContainer = outputDiv?.querySelector('.streaming-text');
+                if (textContainer) {
+                    textContainer.innerHTML = `${htmlContent}<span class="streaming-cursor"></span>`;
+                }
 
-            if (outputDiv) outputDiv.scrollTop = outputDiv.scrollHeight;
-        },
-        onDone: () => {
-            const htmlContent = marked.parse(streamText);
-            if (outputDiv) {
-                outputDiv.innerHTML = `<div class="message-bubble"><div class="streaming-text">${htmlContent}</div></div>`;
-            }
+                if (outputDiv) outputDiv.scrollTop = outputDiv.scrollHeight;
+            },
+            onDone: () => {
+                const htmlContent = marked.parse(streamText);
+                if (outputDiv) {
+                    outputDiv.innerHTML = `<div class="message-bubble"><div class="streaming-text">${htmlContent}</div></div>`;
+                }
 
-            if (statusBadge) {
-                statusBadge.textContent = 'Completed';
-                statusBadge.className = 'status-badge';
-            }
+                if (statusBadge) {
+                    statusBadge.textContent = 'Completed';
+                    statusBadge.className = 'status-badge';
+                }
 
-            if (startBtn) startBtn.style.display = 'flex';
-            if (stopBtn) stopBtn.style.display = 'none';
-        },
-        onError: () => {
-            if (statusBadge) {
-                statusBadge.textContent = 'Error';
-                statusBadge.className = 'status-badge error';
+                if (startBtn) startBtn.style.display = 'flex';
+                if (stopBtn) stopBtn.style.display = 'none';
+            },
+            onError: () => {
+                if (statusBadge) {
+                    statusBadge.textContent = 'Error';
+                    statusBadge.className = 'status-badge error';
+                }
             }
-        }
-    });
+        });
+    } else {
+        state.patternSSE = createPatternAnalysisSSE(state.currentPatternType, symbol, {
+            onChunk: (chunk) => {
+                if (streamText === '' && outputDiv) {
+                    outputDiv.innerHTML = '<div class="message-bubble"><div class="streaming-text"></div></div>';
+                }
+
+                streamText += chunk;
+                const htmlContent = marked.parse(streamText);
+
+                const textContainer = outputDiv?.querySelector('.streaming-text');
+                if (textContainer) {
+                    textContainer.innerHTML = `${htmlContent}<span class="streaming-cursor"></span>`;
+                }
+
+                if (outputDiv) outputDiv.scrollTop = outputDiv.scrollHeight;
+            },
+            onDone: () => {
+                const htmlContent = marked.parse(streamText);
+                if (outputDiv) {
+                    outputDiv.innerHTML = `<div class="message-bubble"><div class="streaming-text">${htmlContent}</div></div>`;
+                }
+
+                if (statusBadge) {
+                    statusBadge.textContent = 'Completed';
+                    statusBadge.className = 'status-badge';
+                }
+
+                if (startBtn) startBtn.style.display = 'flex';
+                if (stopBtn) stopBtn.style.display = 'none';
+            },
+            onError: () => {
+                if (statusBadge) {
+                    statusBadge.textContent = 'Error';
+                    statusBadge.className = 'status-badge error';
+                }
+            }
+        });
+    }
 }
 
 /**

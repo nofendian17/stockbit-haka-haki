@@ -168,6 +168,7 @@ func (s *Server) registerPatternRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/patterns/anomalies/stream", s.handleExtremeAnomaliesStream)
 	mux.HandleFunc("GET /api/patterns/timing/stream", s.handleTimeBasedStatsStream)
 	mux.HandleFunc("GET /api/patterns/symbol/stream", s.handleSymbolAnalysisStream)
+	mux.HandleFunc("POST /api/patterns/custom/stream", s.handleCustomPromptStream)
 }
 
 func (s *Server) registerStrategyRoutes(mux *http.ServeMux) {

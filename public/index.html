@@ -483,10 +483,41 @@
         <button class="tab tab-btn" data-type="anomalies">⚡ Anomali</button>
         <button class="tab tab-btn" data-type="timing">⏰ Timing</button>
         <button class="tab tab-btn" data-type="symbol">🎯 Symbol</button>
+        <button class="tab tab-btn" data-type="custom">✍️ Custom</button>
       </div>
 
       <div id="symbol-input-container" style="display:none; margin-bottom: 1rem;">
         <input type="text" id="symbol-input" class="filter-input" placeholder="Enter stock code (e.g., BBCA)" maxlength="4" style="text-transform: uppercase;" />
+      </div>
+
+      <!-- Custom Prompt Input -->
+      <div id="custom-prompt-container" style="display:none; margin-bottom: 1rem;">
+        <textarea id="custom-prompt-input" class="filter-input" placeholder="Tanyakan apa saja tentang data di database... Contoh: 'Saham mana yang paling banyak akumulasi hari ini?' atau 'Analisis pola BBCA dalam 24 jam terakhir'" rows="4" style="width: 100%; resize: vertical; padding: 0.75rem;"></textarea>
+        
+        <div style="display: flex; gap: 1rem; margin-top: 0.75rem; flex-wrap: wrap;">
+          <div style="flex: 1; min-width: 200px;">
+            <label style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem; color: var(--text-secondary);">Symbols (opsional):</label>
+            <input type="text" id="custom-symbols-input" class="filter-input" placeholder="e.g., BBCA,TLKM,BMRI" style="text-transform: uppercase;" />
+          </div>
+          
+          <div style="flex: 1; min-width: 200px;">
+            <label style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem; color: var(--text-secondary);">Include Data:</label>
+            <select id="custom-data-type" class="filter-select">
+              <option value="alerts,regimes">Alerts + Regimes</option>
+              <option value="alerts,regimes,patterns">+ Patterns</option>
+              <option value="alerts,regimes,patterns,signals">+ Signals</option>
+              <option value="alerts">Alerts Only</option>
+              <option value="regimes">Regimes Only</option>
+              <option value="patterns">Patterns Only</option>
+              <option value="signals">Signals Only</option>
+            </select>
+          </div>
+          
+          <div style="flex: 0 0 150px;">
+            <label style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem; color: var(--text-secondary);">Hours Back:</label>
+            <input type="number" id="custom-hours-input" class="filter-input" value="24" min="1" max="168" />
+          </div>
+        </div>
       </div>
 
       <div id="llm-stream-output" class="placeholder">

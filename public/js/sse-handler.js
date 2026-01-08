@@ -109,6 +109,94 @@ export function createPatternAnalysisSSE(patternType, symbol = '', handlers = {}
 }
 
 /**
+ * Create SSE connection for custom prompt analysis
+ * @param {string} prompt - User's custom prompt
+ * @param {Array<string>} symbols - Optional symbols to analyze
+ * @param {number} hoursBack - Hours of data to include
+ * @param {string} includeData - Types of data to include (comma-separated)
+ * @param {Object} handlers - Event handlers {onChunk, onDone, onError}
+ * @returns {Object} Object with abort controller for cancellation
+ */
+export function createCustomPromptSSE(prompt, symbols = [], hoursBack = 24, includeData = 'alerts,regimes', handlers = {}) {
+    const { onChunk, onDone, onError } = handlers;
+
+    const url = `/api/patterns/custom/stream`;
+    const controller = new AbortController();
+
+    const requestBody = {
+        prompt: prompt,
+        symbols: symbols,
+        hours_back: hoursBack,
+        include_data: includeData
+    };
+
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        function processStream() {
+            reader.read().then(({ done, value }) => {
+                if (done) {
+                    if (onDone) onDone();
+                    return;
+                }
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop(); // Keep incomplete line in buffer
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const chunk = line.substring(6);
+                        if (onChunk) onChunk(chunk);
+                    } else if (line.startsWith('event: done')) {
+                        if (onDone) onDone();
+                        return;
+                    } else if (line.startsWith('event: error')) {
+                        if (onError) onError(new Error('Stream error'));
+                        return;
+                    }
+                }
+
+                processStream();
+            }).catch(err => {
+                if (err.name !== 'AbortError') {
+                    console.error('Custom Prompt SSE Error:', err);
+                    if (onError) onError(err);
+                }
+            });
+        }
+
+        processStream();
+    })
+    .catch(err => {
+        if (err.name !== 'AbortError') {
+            console.error('Custom Prompt Fetch Error:', err);
+            if (onError) onError(err);
+        }
+    });
+
+    // Return object with close method for consistency
+    return {
+        close: () => controller.abort(),
+        readyState: controller.signal.aborted ? 2 : 1
+    };
+}
+
+/**
  * Safely close an EventSource connection
  * @param {EventSource} eventSource - EventSource to close
  */
