@@ -95,29 +95,27 @@ func getTradingSession(t time.Time) string {
 
 // SignalTracker monitors trading signals and tracks their outcomes
 type SignalTracker struct {
-	repo        *database.TradeRepository
-	redis       *cache.RedisClient
-	cfg         *config.Config
-	done        chan bool
-	mtfAnalyzer *MTFAnalyzer            // Multi-timeframe analyzer
-	exitCalc    *ExitStrategyCalculator // ATR-based exit strategy calculator
+	repo  *database.TradeRepository
+	redis *cache.RedisClient
+	cfg   *config.Config
+	done  chan bool
+
+	exitCalc *ExitStrategyCalculator // ATR-based exit strategy calculator
 }
 
 // NewSignalTracker creates a new signal outcome tracker
 func NewSignalTracker(repo *database.TradeRepository, redis *cache.RedisClient, cfg *config.Config) *SignalTracker {
-	// Initialize MTF Analyzer
-	mtf := NewMTFAnalyzer(repo)
 
 	// Initialize Exit Strategy Calculator
 	exitCalc := NewExitStrategyCalculator(repo, cfg)
 
 	return &SignalTracker{
-		repo:        repo,
-		redis:       redis,
-		cfg:         cfg,
-		done:        make(chan bool),
-		mtfAnalyzer: mtf,
-		exitCalc:    exitCalc,
+		repo:  repo,
+		redis: redis,
+		cfg:   cfg,
+		done:  make(chan bool),
+
+		exitCalc: exitCalc,
 	}
 }
 

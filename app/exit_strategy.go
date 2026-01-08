@@ -253,3 +253,23 @@ func clamp(value, min, max float64) float64 {
 	}
 	return value
 }
+
+// Helper function to safely extract float from map
+func getFloat(m map[string]interface{}, key string) float64 {
+	if m == nil {
+		return 0
+	}
+	if v, ok := m[key]; ok {
+		switch val := v.(type) {
+		case float64:
+			return val
+		case float32:
+			return float64(val)
+		case int:
+			return float64(val)
+		case int64:
+			return float64(val)
+		}
+	}
+	return 0
+}
