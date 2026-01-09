@@ -39,11 +39,6 @@ func NewTradeRepository(db *Database) *TradeRepository {
 	}
 }
 
-// SetMinLiquidityValue sets the minimum liquidity threshold for signal generation
-func (r *TradeRepository) SetMinLiquidityValue(val float64) {
-	r.signals.SetMinLiquidityValue(val)
-}
-
 // Close closes the database connection
 func (r *TradeRepository) Close() error {
 	return r.db.Close()

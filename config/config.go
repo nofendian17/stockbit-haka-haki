@@ -55,7 +55,6 @@ type TradingConfig struct {
 	AggressiveBuyThreshold      float64
 	MinBaselineSampleSize       int
 	MinBaselineSampleSizeStrict int
-	MinLiquidityValue           float64 // Minimum Mean Value per minute to consider "Ramai"
 
 	// Strategy Performance
 	MinStrategySignals   int
@@ -120,7 +119,6 @@ func LoadFromEnv() *Config {
 			AggressiveBuyThreshold:      getEnvFloat("TRADING_AGGRESSIVE_BUY_THRESHOLD", 55.0),
 			MinBaselineSampleSize:       getEnvInt("TRADING_MIN_BASELINE_SAMPLE", 30),
 			MinBaselineSampleSizeStrict: getEnvInt("TRADING_MIN_BASELINE_SAMPLE_STRICT", 50),
-			MinLiquidityValue:           getEnvFloat("TRADING_MIN_LIQUIDITY_VALUE", 100000000), // Default 100M IDR per minute (proxy for "Ramai")
 
 			MinStrategySignals:   getEnvInt("TRADING_MIN_STRATEGY_SIGNALS", 10),
 			LowWinRateThreshold:  getEnvFloat("TRADING_LOW_WIN_RATE", 40.0), // Was 30.0

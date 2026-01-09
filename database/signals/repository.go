@@ -15,14 +15,8 @@ import (
 
 // Repository handles database operations for trading signals
 type Repository struct {
-	db                *gorm.DB
-	analytics         *analytics.Repository
-	minLiquidityValue float64
-}
-
-// SetMinLiquidityValue sets the minimum liquidity threshold
-func (r *Repository) SetMinLiquidityValue(val float64) {
-	r.minLiquidityValue = val
+	db        *gorm.DB
+	analytics *analytics.Repository
 }
 
 // SetAnalyticsRepository sets the analytics repository for strategy evaluation
@@ -550,12 +544,6 @@ func (r *Repository) GetStrategySignals(lookbackMinutes int, minConfidence float
 		baseline, err := r.analytics.GetLatestBaseline(alert.StockSymbol)
 		if err != nil || baseline == nil {
 			log.Printf("⚠️ No baseline found for %s, skipping signal generation", alert.StockSymbol)
-			continue
-		}
-
-		// LIQUIDITY FILTER: Only trade "Ramai" stocks
-		if r.minLiquidityValue > 0 && baseline.MeanValue < r.minLiquidityValue {
-			// Skip low liquidity stocks
 			continue
 		}
 
