@@ -1,0 +1,239 @@
+syntax = "proto3";
+
+package securities.transactional.datafeed.v1.datafeed;
+
+import "google/protobuf/timestamp.proto";
+import "financial/order_trade/entity/v1/market_mover.proto";
+
+option java_package = "com.stockbit.protobuf.securities.transactional.datafeed.v1.datafeed";
+option go_package = "github.com/stockbit/protobuf/securities/transactional/datafeed/v1/datafeed";
+
+// TradeType enum
+enum TradeType {
+  TRADE_TYPE_UNSPECIFIED = 0;
+  TRADE_TYPE_BUY = 1;
+  TRADE_TYPE_SELL = 2;
+}
+
+// BoardType enum (from consumer package)
+enum BoardType {
+  BOARD_TYPE_UNSPECIFIED = 0;
+  BOARD_TYPE_REGULAR = 1;
+  BOARD_TYPE_NEGOTIATED = 2;
+  BOARD_TYPE_CASH = 3;
+  BOARD_TYPE_NDF = 4;
+}
+
+// ErrorCode enum
+enum ErrorCode {
+  ERROR_CODE_UNSPECIFIED = 0;
+  ERROR_CODE_INVALID_REQUEST = 1;
+  ERROR_CODE_UNAUTHORIZED = 2;
+  ERROR_CODE_INTERNAL_SERVER_ERROR = 3;
+}
+
+// Top20Type enum
+enum Top20Type {
+  TOP20_TYPE_UNSPECIFIED = 0;
+  TOP20_TYPE_GAINER = 1;
+  TOP20_TYPE_LOSER = 2;
+  TOP20_TYPE_ACTIVE = 3;
+}
+
+// WebsocketRequest for subscribing to channels
+message WebsocketRequest {
+  string user_id = 1;
+  WebsocketChannel channel = 2;
+  string key = 3;
+  PingRequest ping = 4;
+}
+
+// WebsocketChannel defines subscription channels
+message WebsocketChannel {
+  repeated string watchlist = 1;
+  repeated string order_book = 2;
+  repeated string running_trade = 3;
+  bool is_hotlist = 4;
+  repeated string running_trade_batch = 5;
+  repeated string liveprice = 6;
+  repeated string iepiev = 7;
+  repeated string intraday = 8;
+  repeated string best_bid_offer = 9;
+  repeated financial.order_trade.entity.v1.MarketMoverWebsocketRequest market_mover = 10;
+}
+
+// RunningTrade message for real-time trade data
+message RunningTrade {
+  google.protobuf.Timestamp websocket_time = 1;
+  string stock = 2;
+  double price = 3;
+  double volume = 4;
+  TradeType action = 5;
+  bool is_global = 6;
+  google.protobuf.Timestamp time = 7;
+  Change change = 8;
+  int32 trade_number = 9;
+  BoardType market_board = 10;
+}
+
+// RunningTradeBatch for batch trade updates
+message RunningTradeBatch {
+  string stock = 1;
+  repeated RunningTrade trades = 2;
+}
+
+// Change message for price changes
+message Change {
+  double absolute = 1;
+  double percent = 2;
+  double previous_close = 3;
+}
+
+// BestBidOffer for best bid/ask prices
+message BestBidOffer {
+  string stock = 1;
+  double bid = 2;
+  double ask = 3;
+  int64 bid_volume = 4;
+  int64 ask_volume = 5;
+  google.protobuf.Timestamp time = 6;
+}
+
+// BestBidOfferWS for websocket streaming
+message BestBidOfferWS {
+  repeated BestBidOffer best_bid_offer = 1;
+}
+
+// BestOrder for order book data
+message BestOrder {
+  repeated Bid bid = 1;
+  repeated Offer offer = 2;
+}
+
+// Bid message
+message Bid {
+  double price = 1;
+  int64 volume = 2;
+}
+
+// Offer message
+message Offer {
+  double price = 1;
+  int64 volume = 2;
+}
+
+// Orderbook message
+message Orderbook {
+  OrderBookHeader header = 1;
+  OrderBookBody body = 2;
+}
+
+// OrderBookHeader
+message OrderBookHeader {
+  string stock = 1;
+  google.protobuf.Timestamp time = 2;
+}
+
+// OrderBookBody
+message OrderBookBody {
+  repeated Bid bid = 1;
+  repeated Offer offer = 2;
+}
+
+// PingRequest for keepalive
+message PingRequest {
+  string message = 1;
+}
+
+// PingResponse for keepalive response
+message PingResponse {
+  string message = 1;
+}
+
+// Ping message wrapper
+message Ping {
+  oneof ping_type {
+    PingRequest request = 1;
+    PingResponse response = 2;
+  }
+}
+
+// Price message
+message Price {
+  double value = 1;
+  google.protobuf.Timestamp time = 2;
+}
+
+// Value message
+message Value {
+  double amount = 1;
+  string currency = 2;
+}
+
+// Error message
+message Error {
+  ErrorCode code = 1;
+  string message = 2;
+}
+
+// Hotlist message
+message Hotlist {
+  repeated string stocks = 1;
+  HotlistType type = 2;
+}
+
+// HotlistType enum
+enum HotlistType {
+  HOTLIST_TYPE_UNSPECIFIED = 0;
+  HOTLIST_TYPE_GAINER = 1;
+  HOTLIST_TYPE_LOSER = 2;
+  HOTLIST_TYPE_ACTIVE = 3;
+}
+
+// IepIev message
+message IepIev {
+  string stock = 1;
+  double price = 2;
+  google.protobuf.Timestamp time = 3;
+}
+
+// Top20 message
+message Top20 {
+  Top20Type type = 1;
+  repeated string stocks = 2;
+}
+
+// Watchlist message
+message Watchlist {
+  repeated string stocks = 1;
+  google.protobuf.Timestamp time = 2;
+}
+
+// Entity message wrapper
+message Entity {
+  oneof entity_type {
+    RunningTrade running_trade = 1;
+    BestBidOffer best_bid_offer = 2;
+    Orderbook orderbook = 3;
+    Hotlist hotlist = 4;
+    Watchlist watchlist = 5;
+    IepIev iepiev = 6;
+    Top20 top20 = 7;
+  }
+}
+
+// Websocket message wrapper
+message Websocket {
+  oneof message_type {
+    WebsocketRequest request = 1;
+    Entity entity = 2;
+    Error error = 3;
+    Ping ping = 4;
+  }
+}
+
+// WebsocketWrapMessageChannel for wrapped messages
+message WebsocketWrapMessageChannel {
+  string channel = 1;
+  Websocket message = 2;
+}
