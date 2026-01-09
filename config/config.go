@@ -115,13 +115,13 @@ func LoadFromEnv() *Config {
 			MaxPositionsPerSymbol:    getEnvInt("TRADING_MAX_POSITIONS_PER_SYMBOL", 1),
 			SignalTimeWindowMinutes:  getEnvInt("TRADING_SIGNAL_TIME_WINDOW", 5),
 
-			OrderFlowBuyThreshold:       getEnvFloat("TRADING_ORDER_FLOW_THRESHOLD", 0.45),
+			OrderFlowBuyThreshold:       getEnvFloat("TRADING_ORDER_FLOW_THRESHOLD", 0.50), // Was 0.45
 			AggressiveBuyThreshold:      getEnvFloat("TRADING_AGGRESSIVE_BUY_THRESHOLD", 55.0),
 			MinBaselineSampleSize:       getEnvInt("TRADING_MIN_BASELINE_SAMPLE", 30),
 			MinBaselineSampleSizeStrict: getEnvInt("TRADING_MIN_BASELINE_SAMPLE_STRICT", 50),
 
 			MinStrategySignals:   getEnvInt("TRADING_MIN_STRATEGY_SIGNALS", 10),
-			LowWinRateThreshold:  getEnvFloat("TRADING_LOW_WIN_RATE", 30.0),
+			LowWinRateThreshold:  getEnvFloat("TRADING_LOW_WIN_RATE", 40.0), // Was 30.0
 			HighWinRateThreshold: getEnvFloat("TRADING_HIGH_WIN_RATE", 65.0),
 
 			RequireOrderFlow: getEnvOrDefault("TRADING_REQUIRE_ORDER_FLOW", "false") == "true", // Default false for now to match previous behavior (soft check), plan to enable later

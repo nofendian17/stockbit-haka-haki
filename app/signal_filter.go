@@ -480,7 +480,7 @@ func (f *OrderFlowFilter) Evaluate(ctx context.Context, signal *database.Trading
 
 	if buyPressure < requiredThreshold {
 		if orderFlow.AggressiveBuyPct != nil && *orderFlow.AggressiveBuyPct > f.cfg.Trading.AggressiveBuyThreshold {
-			if buyPressure > 0.4 {
+			if buyPressure > 0.45 { // Was 0.4 - tightened to avoid falling knives
 				return true, fmt.Sprintf("Aggressive Haka detected (%.1f%%)", *orderFlow.AggressiveBuyPct), 1.2
 			}
 		}

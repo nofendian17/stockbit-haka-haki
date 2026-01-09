@@ -196,65 +196,112 @@ func (r *Repository) GetAccumulationDistributionSummary(startTime time.Time) (ac
 		startTime = time.Now().Add(-24 * time.Hour)
 	}
 
-	baseQuery := `
-		WITH symbol_stats AS (
-			SELECT 
-				stock_symbol,
-				SUM(CASE WHEN action = 'BUY' THEN 1 ELSE 0 END) as buy_count,
-				SUM(CASE WHEN action = 'SELL' THEN 1 ELSE 0 END) as sell_count,
-				SUM(CASE WHEN action = 'BUY' THEN trigger_value ELSE 0 END) as buy_value,
-				SUM(CASE WHEN action = 'SELL' THEN trigger_value ELSE 0 END) as sell_value,
-				COUNT(*) as total_count,
-				SUM(trigger_value) as total_value
-			FROM whale_alerts
-			WHERE detected_at >= ?
-			GROUP BY stock_symbol
-		)
+	// Single query to get all raw stats
+	query := `
 		SELECT 
 			stock_symbol,
-			buy_count,
-			sell_count,
-			buy_value,
-			sell_value,
-			total_count,
-			total_value,
-			CASE 
-				WHEN total_count > 0 THEN ROUND((buy_count::DECIMAL / total_count * 100), 2)
-				ELSE 0 
-			END as buy_percentage,
-			CASE 
-				WHEN total_count > 0 THEN ROUND((sell_count::DECIMAL / total_count * 100), 2)
-				ELSE 0 
-			END as sell_percentage,
-			CASE 
-				WHEN buy_count > sell_count AND (buy_count::DECIMAL / NULLIF(total_count, 0)) > 0.55 THEN 'ACCUMULATION'
-				WHEN sell_count > buy_count AND (sell_count::DECIMAL / NULLIF(total_count, 0)) > 0.55 THEN 'DISTRIBUTION'
-				ELSE 'NEUTRAL'
-			END as status,
-			buy_value - sell_value as net_value
-		FROM symbol_stats
+			SUM(CASE WHEN action = 'BUY' THEN 1 ELSE 0 END) as buy_count,
+			SUM(CASE WHEN action = 'SELL' THEN 1 ELSE 0 END) as sell_count,
+			SUM(CASE WHEN action = 'BUY' THEN trigger_value ELSE 0 END) as buy_value,
+			SUM(CASE WHEN action = 'SELL' THEN trigger_value ELSE 0 END) as sell_value,
+			COUNT(*) as total_count,
+			SUM(trigger_value) as total_value
+		FROM whale_alerts
+		WHERE detected_at >= ?
+		GROUP BY stock_symbol
 	`
 
-	// Get top 20 ACCUMULATION (sorted by net_value DESC - highest positive)
-	accumulationQuery := baseQuery + `
-		WHERE (buy_count::DECIMAL / NULLIF(total_count, 0)) > 0.55 
-		  AND buy_count > sell_count
-		ORDER BY net_value DESC
-		LIMIT 20
-	`
-	if err := r.db.Raw(accumulationQuery, startTime).Scan(&accumulation).Error; err != nil {
+	rows, err := r.db.Raw(query, startTime).Rows()
+	if err != nil {
 		return nil, nil, fmt.Errorf("GetAccumulationDistributionSummary: %w", err)
 	}
+	defer rows.Close()
 
-	// Get top 20 DISTRIBUTION (sorted by net_value ASC - highest negative)
-	distributionQuery := baseQuery + `
-		WHERE (sell_count::DECIMAL / NULLIF(total_count, 0)) > 0.55 
-		  AND sell_count > buy_count
-		ORDER BY net_value ASC
-		LIMIT 20
-	`
-	if err := r.db.Raw(distributionQuery, startTime).Scan(&distribution).Error; err != nil {
-		return nil, nil, fmt.Errorf("GetAccumulationDistributionSummary: %w", err)
+	var allStats []types.AccumulationDistributionSummary
+
+	for rows.Next() {
+		var s types.AccumulationDistributionSummary
+		// We scan into a temporary struct or directly into types.AccumulationDistributionSummary fields if they map 1:1
+		// Since types.AccumulationDistributionSummary likely has json tags and calculated fields, we scan into raw vars first
+		var symbol string
+		var buyCount, sellCount, totalCount int64
+		var buyValue, sellValue, totalValue float64
+
+		if err := rows.Scan(&symbol, &buyCount, &sellCount, &buyValue, &sellValue, &totalCount, &totalValue); err != nil {
+			continue // Skip malformed rows
+		}
+
+		s.StockSymbol = symbol
+		s.BuyCount = buyCount
+		s.SellCount = sellCount
+		s.BuyValue = buyValue
+		s.SellValue = sellValue
+		s.TotalCount = totalCount
+		s.TotalValue = totalValue
+		s.NetValue = buyValue - sellValue
+
+		// Safe division for percentages
+		if totalCount > 0 {
+			s.BuyPercentage = float64(buyCount) / float64(totalCount) * 100
+			s.SellPercentage = float64(sellCount) / float64(totalCount) * 100
+		}
+
+		// Apply Logic:
+		// Accumulation: Buy Count Dominance (>55%) AND Positive Net Value
+		// Distribution: Sell Count Dominance (>55%) AND Negative Net Value
+		if s.BuyPercentage > 55 && s.NetValue > 0 {
+			s.Status = "ACCUMULATION"
+			allStats = append(allStats, s)
+		} else if s.SellPercentage > 55 && s.NetValue < 0 {
+			s.Status = "DISTRIBUTION"
+			allStats = append(allStats, s)
+		}
+		// Neutral is ignored for the summary lists
+	}
+
+	// Split into two lists
+	for _, s := range allStats {
+		if s.Status == "ACCUMULATION" {
+			accumulation = append(accumulation, s)
+		} else if s.Status == "DISTRIBUTION" {
+			distribution = append(distribution, s)
+		}
+	}
+
+	// Sort Accumulation: Highest Positive Net Value first
+	// We need to implement sort, or just bubble sort since list is small, or use sort.Slice
+	// Since we can't import "sort" easily inside a function without modifying the file imports,
+	// I will check if "sort" is imported. If not, I'll add it in a separate tool call.
+	// Wait, I can't see the imports in this Replace call.
+	// I will use a simple bubble sort here since it's likely < 100 items per category, which is negligible.
+	// ACTUALLY, "sort" is a standard library, but if not imported, it breaks.
+	// Safe bet: Bubble sort (easy to write inline) or request import.
+	// Let's use a simple inline sort for safety to avoid import errors.
+
+	// Sort Accumulation (Descending NetValue)
+	for i := 0; i < len(accumulation); i++ {
+		for j := i + 1; j < len(accumulation); j++ {
+			if accumulation[j].NetValue > accumulation[i].NetValue {
+				accumulation[i], accumulation[j] = accumulation[j], accumulation[i]
+			}
+		}
+	}
+
+	// Sort Distribution (Ascending NetValue - most negative first)
+	for i := 0; i < len(distribution); i++ {
+		for j := i + 1; j < len(distribution); j++ {
+			if distribution[j].NetValue < distribution[i].NetValue {
+				distribution[i], distribution[j] = distribution[j], distribution[i]
+			}
+		}
+	}
+
+	// Limit to top 20
+	if len(accumulation) > 20 {
+		accumulation = accumulation[:20]
+	}
+	if len(distribution) > 20 {
+		distribution = distribution[:20]
 	}
 
 	return accumulation, distribution, nil
