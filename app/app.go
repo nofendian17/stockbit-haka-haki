@@ -115,6 +115,9 @@ func (a *App) Start() error {
 		return fmt.Errorf("schema initialization failed: %w", err)
 	}
 
+	// Set configuration parameters
+	a.tradeRepo.SetMinLiquidityValue(a.config.Trading.MinLiquidityValue)
+
 	// Initialize Webhook Manager (with Redis)
 	a.webhookManager = notifications.NewWebhookManager(a.tradeRepo, a.redis)
 

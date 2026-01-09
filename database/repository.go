@@ -39,6 +39,16 @@ func NewTradeRepository(db *Database) *TradeRepository {
 	}
 }
 
+// SetMinLiquidityValue sets the minimum liquidity threshold for signal generation
+func (r *TradeRepository) SetMinLiquidityValue(val float64) {
+	r.signals.SetMinLiquidityValue(val)
+}
+
+// Close closes the database connection
+func (r *TradeRepository) Close() error {
+	return r.db.Close()
+}
+
 // ============================================================================
 // Schema Initialization (kept in main repository)
 // ============================================================================
@@ -838,8 +848,8 @@ func (r *TradeRepository) GetDailyStrategyPerformance(strategy, symbol string, l
 	return r.signals.GetDailyStrategyPerformance(strategy, symbol, limit)
 }
 
-func (r *TradeRepository) EvaluateVolumeBreakoutStrategy(alert *models.WhaleAlert, zscores *types.ZScoreData, vwap float64) *TradingSignal {
-	signal := r.signals.EvaluateVolumeBreakoutStrategy(alert, zscores, nil, vwap)
+func (r *TradeRepository) EvaluateVolumeBreakoutStrategy(alert *models.WhaleAlert, zscores *types.ZScoreData, vwap float64, orderFlow *models.OrderFlowImbalance) *TradingSignal {
+	signal := r.signals.EvaluateVolumeBreakoutStrategy(alert, zscores, nil, vwap, orderFlow)
 	// Convert models.TradingSignal back to TradingSignal
 	return &TradingSignal{
 		StockSymbol:  signal.StockSymbol,
@@ -856,8 +866,8 @@ func (r *TradeRepository) EvaluateVolumeBreakoutStrategy(alert *models.WhaleAler
 	}
 }
 
-func (r *TradeRepository) EvaluateMeanReversionStrategy(alert *models.WhaleAlert, zscores *types.ZScoreData, prevVolumeZScore float64, vwap float64) *TradingSignal {
-	signal := r.signals.EvaluateMeanReversionStrategy(alert, zscores, prevVolumeZScore, nil, vwap)
+func (r *TradeRepository) EvaluateMeanReversionStrategy(alert *models.WhaleAlert, zscores *types.ZScoreData, prevVolumeZScore float64, vwap float64, orderFlow *models.OrderFlowImbalance) *TradingSignal {
+	signal := r.signals.EvaluateMeanReversionStrategy(alert, zscores, prevVolumeZScore, nil, vwap, orderFlow)
 	// Convert models.TradingSignal back to TradingSignal
 	return &TradingSignal{
 		StockSymbol:  signal.StockSymbol,
