@@ -258,10 +258,10 @@ func (f *DynamicConfidenceFilter) Evaluate(ctx context.Context, signal *database
 
 	// Adaptive: Relax confidence if High Volume or Trend Aligned
 	if isHighVolume {
-		optimalThreshold *= 0.95 // 5% relaxation
+		optimalThreshold *= 0.90 // 10% relaxation (was 5%)
 		thresholdReason += " (Relaxed due to High Volume)"
 	} else if isTrendAligned {
-		optimalThreshold *= 0.98 // 2% relaxation
+		optimalThreshold *= 0.95 // 5% relaxation (was 2%)
 		thresholdReason += " (Relaxed due to Trend Alignment)"
 	}
 
@@ -288,10 +288,10 @@ func (f *DynamicConfidenceFilter) getOptimalThreshold(ctx context.Context, strat
 
 	thresholds, err := f.repo.GetOptimalConfidenceThresholds(30)
 	if err != nil || len(thresholds) == 0 {
-		return 0.6, "Using default threshold (no historical data)"
+		return 0.5, "Using default threshold (no historical data)"
 	}
 
-	var optThreshold float64 = 0.6
+	var optThreshold float64 = 0.5
 	var reason string = "Using default threshold"
 	for _, t := range thresholds {
 		if t.Strategy == strategy {

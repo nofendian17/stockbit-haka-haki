@@ -352,10 +352,10 @@ func (r *Repository) EvaluateVolumeBreakoutStrategy(alert *models.WhaleAlert, zs
 	// ENHANCEMENT: Check VWAP for trend confirmation (Price > VWAP)
 	isBullishTrend := alert.TriggerPrice > vwap
 
-	if zscores.PriceChange > 2.0 && zscores.VolumeZScore > 3.0 {
+	if zscores.PriceChange > 2.0 && zscores.VolumeZScore > 2.5 {
 		if isBullishTrend {
 			signal.Decision = "BUY"
-			signal.Confidence = calculateConfidence(zscores.VolumeZScore, 3.0, 6.0)
+			signal.Confidence = calculateConfidence(zscores.VolumeZScore, 2.5, 5.5)
 			signal.Reason = r.generateAIReasoning(signal, "Strong buying volume detected above VWAP", regime, vwap)
 		} else {
 			// Breakout but below VWAP - weaker signal
@@ -363,7 +363,7 @@ func (r *Repository) EvaluateVolumeBreakoutStrategy(alert *models.WhaleAlert, zs
 			signal.Confidence = 0.4
 			signal.Reason = r.generateAIReasoning(signal, "Volume breakout but price below VWAP (Trend unconfirmed)", regime, vwap)
 		}
-	} else if zscores.PriceChange > 2.0 && zscores.VolumeZScore <= 3.0 {
+	} else if zscores.PriceChange > 2.0 && zscores.VolumeZScore <= 2.5 {
 		signal.Decision = "WAIT"
 		signal.Confidence = 0.3
 		signal.Reason = r.generateAIReasoning(signal, "Volume not confirming price action yet", regime, vwap)
@@ -395,21 +395,21 @@ func (r *Repository) EvaluateMeanReversionStrategy(alert *models.WhaleAlert, zsc
 	volumeDeclining := zscores.VolumeZScore < prevVolumeZScore
 
 	// Check conditions: price_z_score > 4 AND volume declining
-	if zscores.PriceZScore > 4.0 && volumeDeclining {
+	if zscores.PriceZScore > 3.0 && volumeDeclining {
 		signal.Decision = "SELL"
-		signal.Confidence = calculateConfidence(zscores.PriceZScore, 4.0, 7.0)
+		signal.Confidence = calculateConfidence(zscores.PriceZScore, 3.0, 7.0)
 		signal.Reason = r.generateAIReasoning(signal, "Price overextended with fading volume", regime, vwap)
-	} else if zscores.PriceZScore > 4.0 {
+	} else if zscores.PriceZScore > 3.0 {
 		signal.Decision = "WAIT"
 		signal.Confidence = 0.5
 		signal.Reason = r.generateAIReasoning(signal, "Overbought but volume remains high", regime, vwap)
-	} else if zscores.PriceZScore < -4.0 {
+	} else if zscores.PriceZScore < -3.0 {
 		// ENHANCEMENT: Check simple oversold vs VWAP
 		// If price is significantly below VWAP, it strengthens the reversal thesis
 		isDeepValue := alert.TriggerPrice < (vwap * 0.95) // 5% below VWAP
 
 		signal.Decision = "BUY"
-		signal.Confidence = calculateConfidence(-zscores.PriceZScore, 4.0, 7.0)
+		signal.Confidence = calculateConfidence(-zscores.PriceZScore, 3.0, 7.0)
 		if isDeepValue {
 			signal.Confidence *= 1.2
 			signal.Reason = r.generateAIReasoning(signal, "Price deeply oversold (Below VWAP)", regime, vwap)

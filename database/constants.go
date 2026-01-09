@@ -70,7 +70,7 @@ const (
 	ConfidenceVeryLow  = 0.1
 	ConfidenceLow      = 0.3
 	ConfidenceMedium   = 0.4
-	ConfidenceHigh     = 0.5
+	ConfidenceHigh     = 0.45
 	ConfidenceVeryHigh = 0.6
 	ConfidenceMax      = 0.8
 )
@@ -98,11 +98,11 @@ const (
 const (
 	// Volume Breakout Strategy
 	VolumeBreakoutMinPriceChange  = 2.0
-	VolumeBreakoutMinVolumeZScore = 3.0
+	VolumeBreakoutMinVolumeZScore = 2.5
 	VolumeBreakoutMaxVolumeZScore = 6.0
 
 	// Mean Reversion Strategy
-	MeanReversionMinPriceZScore = 4.0
+	MeanReversionMinPriceZScore = 3.0
 	MeanReversionMaxPriceZScore = 7.0
 
 	// Fakeout Filter Strategy
