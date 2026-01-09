@@ -39,7 +39,6 @@ type App struct {
 	whaleFollowup   *WhaleFollowupTracker // Phase 1: Whale alert followup
 	baselineCalc    *BaselineCalculator   // Phase 2: Statistical baselines
 	regimeDetector  *RegimeDetector       // Phase 2: Market regime detection
-	patternDetector *PatternDetector      // Phase 2: Chart pattern detection
 	correlationAnal *CorrelationAnalyzer  // Phase 3: Stock correlations
 	perfRefresher   *PerformanceRefresher // Phase 3: Performance view refresher
 }
@@ -188,9 +187,7 @@ func (a *App) Start() error {
 	a.regimeDetector = NewRegimeDetector(a.tradeRepo)
 	go a.regimeDetector.Start()
 
-	// Chart Pattern Detector
-	a.patternDetector = NewPatternDetector(a.tradeRepo)
-	go a.patternDetector.Start()
+	// Pattern Detector removed - 100% loss rate on Range Breakout patterns
 
 	// 11. Start Phase 3 Enhancement Trackers
 	log.Println("🚀 Starting Phase 3 advanced analytics...")
@@ -273,10 +270,7 @@ func (a *App) gracefulShutdown(cancel context.CancelFunc) error {
 			fmt.Println("📈 Stopping market regime detector...")
 			a.regimeDetector.Stop()
 		}
-		if a.patternDetector != nil {
-			fmt.Println("🎨 Stopping chart pattern detector...")
-			a.patternDetector.Stop()
-		}
+		// Pattern detector removed
 		if a.correlationAnal != nil {
 			fmt.Println("🔗 Stopping correlation analyzer...")
 			a.correlationAnal.Stop()
