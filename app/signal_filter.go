@@ -33,13 +33,10 @@ func NewSignalFilterService(repo *database.TradeRepository, redis *cache.RedisCl
 		cfg:   cfg,
 	}
 
-	// Register filters in order
+	// Register filters in order (reduced from 7 to 4 core filters)
 	service.filters = []SignalFilter{
 		&StrategyPerformanceFilter{repo: repo, redis: redis, cfg: cfg},
-		&BaselineQualityFilter{repo: repo, redis: redis, cfg: cfg},
 		&DynamicConfidenceFilter{repo: repo, redis: redis, cfg: cfg},
-		&RegimeEffectivenessFilter{repo: repo, redis: redis, cfg: cfg},
-		&ExpectedValueFilter{repo: repo, redis: redis, cfg: cfg},
 		&OrderFlowFilter{repo: repo, redis: redis, cfg: cfg},
 		&TimeOfDayFilter{},
 	}
@@ -106,14 +103,14 @@ func (s *SignalFilterService) GetRegimeAdaptiveLimit(symbol string) int {
 // INDIVIDUAL FILTERS
 // ============================================================================
 
-// 1. Strategy Performance Filter
+// 1. Strategy Performance & Baseline Quality Filter (combined)
 type StrategyPerformanceFilter struct {
 	repo  *database.TradeRepository
 	redis *cache.RedisClient
 	cfg   *config.Config
 }
 
-func (f *StrategyPerformanceFilter) Name() string { return "Strategy Performance" }
+func (f *StrategyPerformanceFilter) Name() string { return "Strategy & Baseline Performance" }
 
 func (f *StrategyPerformanceFilter) Evaluate(ctx context.Context, signal *database.TradingSignalDB) (bool, string, float64) {
 	strategy := signal.Strategy
@@ -153,9 +150,29 @@ func (f *StrategyPerformanceFilter) Evaluate(ctx context.Context, signal *databa
 }
 
 func (f *StrategyPerformanceFilter) calculate(strategy string, symbol string) (float64, bool, string) {
+	// Get baseline data first
+	baseline, err := f.repo.GetLatestBaseline(symbol)
+	baselineMultiplier := 1.0
+	var baselineReason string
+
+	if err != nil || baseline == nil {
+		// No baseline data is a critical issue
+		return 0.0, true, "No statistical baseline available"
+	}
+
+	if baseline.SampleSize < f.cfg.Trading.MinBaselineSampleSize {
+		return 0.0, true, fmt.Sprintf("Insufficient baseline data (%d < %d trades)", baseline.SampleSize, f.cfg.Trading.MinBaselineSampleSize)
+	}
+
+	if baseline.SampleSize < f.cfg.Trading.MinBaselineSampleSizeStrict {
+		baselineMultiplier = 0.6
+		baselineReason = fmt.Sprintf("Limited baseline data (%d trades)", baseline.SampleSize)
+	}
+
+	// Get strategy performance data
 	outcomes, err := f.repo.GetSignalOutcomes(symbol, "", time.Now().Add(-24*time.Hour), time.Time{}, 0, 0)
 	if err != nil {
-		return 1.0, false, ""
+		return baselineMultiplier, false, baselineReason
 	}
 
 	var totalSignals, wins int
@@ -172,66 +189,39 @@ func (f *StrategyPerformanceFilter) calculate(strategy string, symbol string) (f
 	}
 
 	if totalSignals < f.cfg.Trading.MinStrategySignals {
-		return 1.0, false, ""
+		return baselineMultiplier, false, baselineReason
 	}
 
 	winRate := float64(wins) / float64(totalSignals) * 100
+	var strategyReason string
+	strategyMultiplier := 1.0
 
 	if winRate < f.cfg.Trading.LowWinRateThreshold {
 		return 0.0, true, fmt.Sprintf("Strategy %s underperforming (WR: %.1f%% < %.0f%%)", strategy, winRate, f.cfg.Trading.LowWinRateThreshold)
 	}
 	if winRate > f.cfg.Trading.HighWinRateThreshold {
-		return 1.2, false, fmt.Sprintf("Strategy %s performing well (WR: %.1f%%)", strategy, winRate)
-	}
-	if winRate < 45 {
-		return 0.9, false, fmt.Sprintf("Strategy %s moderate performance (WR: %.1f%%)", strategy, winRate)
+		strategyMultiplier = 1.2
+		strategyReason = fmt.Sprintf("Strategy %s performing well (WR: %.1f%%)", strategy, winRate)
+	} else if winRate < 45 {
+		strategyMultiplier = 0.9
+		strategyReason = fmt.Sprintf("Strategy %s moderate performance (WR: %.1f%%)", strategy, winRate)
 	}
 
-	return 1.0, false, ""
+	// Combine multipliers and reasons
+	finalMultiplier := baselineMultiplier * strategyMultiplier
+	var finalReason string
+	if baselineReason != "" && strategyReason != "" {
+		finalReason = baselineReason + "; " + strategyReason
+	} else if baselineReason != "" {
+		finalReason = baselineReason
+	} else {
+		finalReason = strategyReason
+	}
+
+	return finalMultiplier, false, finalReason
 }
 
-// 2. Baseline Quality Filter
-type BaselineQualityFilter struct {
-	repo  *database.TradeRepository
-	redis *cache.RedisClient
-	cfg   *config.Config
-}
-
-func (f *BaselineQualityFilter) Name() string { return "Baseline Quality" }
-
-func (f *BaselineQualityFilter) Evaluate(ctx context.Context, signal *database.TradingSignalDB) (bool, string, float64) {
-	if f.redis != nil {
-		cacheKey := fmt.Sprintf("baseline:%s", signal.StockSymbol)
-		var baseline database.StatisticalBaseline
-		if err := f.redis.Get(ctx, cacheKey, &baseline); err == nil {
-			return f.evaluate(&baseline)
-		}
-	}
-
-	baseline, err := f.repo.GetLatestBaseline(signal.StockSymbol)
-	if err != nil || baseline == nil {
-		return false, "No statistical baseline available", 0.0
-	}
-
-	if f.redis != nil {
-		cacheKey := fmt.Sprintf("baseline:%s", signal.StockSymbol)
-		_ = f.redis.Set(ctx, cacheKey, baseline, 5*time.Minute)
-	}
-
-	return f.evaluate(baseline)
-}
-
-func (f *BaselineQualityFilter) evaluate(baseline *database.StatisticalBaseline) (bool, string, float64) {
-	if baseline.SampleSize < f.cfg.Trading.MinBaselineSampleSize {
-		return false, fmt.Sprintf("Insufficient baseline data (%d < %d trades)", baseline.SampleSize, f.cfg.Trading.MinBaselineSampleSize), 0.0
-	}
-	if baseline.SampleSize < f.cfg.Trading.MinBaselineSampleSizeStrict {
-		return true, fmt.Sprintf("Limited baseline data (%d trades)", baseline.SampleSize), 0.6
-	}
-	return true, "", 1.0
-}
-
-// 3. Dynamic Confidence Filter
+// 2. Dynamic Confidence Filter
 type DynamicConfidenceFilter struct {
 	repo  *database.TradeRepository
 	redis *cache.RedisClient
@@ -314,108 +304,7 @@ func (f *DynamicConfidenceFilter) getOptimalThreshold(ctx context.Context, strat
 	return optThreshold, reason
 }
 
-// 4. Regime Effectiveness Filter
-type RegimeEffectivenessFilter struct {
-	repo  *database.TradeRepository
-	redis *cache.RedisClient
-	cfg   *config.Config
-}
-
-func (f *RegimeEffectivenessFilter) Name() string { return "Regime Effectiveness" }
-
-func (f *RegimeEffectivenessFilter) Evaluate(ctx context.Context, signal *database.TradingSignalDB) (bool, string, float64) {
-	regime, err := f.repo.GetLatestRegime(signal.StockSymbol)
-	if err != nil || regime == nil {
-		return true, "", 1.0
-	}
-
-	cacheKey := fmt.Sprintf("opt:regime_eff:%s:%s", signal.Strategy, regime.Regime)
-	if f.redis != nil {
-		var cachedWinRate float64
-		if err := f.redis.Get(ctx, cacheKey, &cachedWinRate); err == nil {
-			if cachedWinRate < 40.0 {
-				return false, fmt.Sprintf("%s underperforms in %s regime (%.1f%% win rate)", signal.Strategy, regime.Regime, cachedWinRate), 0.0
-			}
-			return true, "", 1.0
-		}
-	}
-
-	effectiveness, err := f.repo.GetStrategyEffectivenessByRegime(30)
-	if err != nil || len(effectiveness) == 0 {
-		return true, "", 1.0
-	}
-
-	var winRate float64 = 50.0
-	for _, eff := range effectiveness {
-		if eff.Strategy == signal.Strategy && eff.MarketRegime == regime.Regime {
-			winRate = eff.WinRate
-			break
-		}
-	}
-
-	if f.redis != nil {
-		_ = f.redis.Set(ctx, cacheKey, winRate, 10*time.Minute)
-	}
-
-	if winRate < 40.0 {
-		return false, fmt.Sprintf("%s underperforms in %s regime (%.1f%% win rate)", signal.Strategy, regime.Regime, winRate), 0.0
-	}
-
-	return true, "", 1.0
-}
-
-// 5. Expected Value Filter
-type ExpectedValueFilter struct {
-	repo  *database.TradeRepository
-	redis *cache.RedisClient
-	cfg   *config.Config
-}
-
-func (f *ExpectedValueFilter) Name() string { return "Expected Value" }
-
-func (f *ExpectedValueFilter) Evaluate(ctx context.Context, signal *database.TradingSignalDB) (bool, string, float64) {
-	cacheKey := fmt.Sprintf("opt:ev:%s", signal.Strategy)
-	if f.redis != nil {
-		var cachedEV float64
-		if err := f.redis.Get(ctx, cacheKey, &cachedEV); err == nil {
-			if cachedEV < 0 {
-				return false, fmt.Sprintf("Negative EV: %.4f", cachedEV), 0.0
-			}
-			return true, fmt.Sprintf("EV: %.4f", cachedEV), 1.0
-		}
-	}
-
-	evData, err := f.repo.GetSignalExpectedValues(30)
-	if err != nil || len(evData) == 0 {
-		return true, "", 1.0
-	}
-
-	var ev float64 = 0.0
-	var found bool
-	for _, e := range evData {
-		if e.Strategy == signal.Strategy {
-			ev = e.ExpectedValue
-			found = true
-			break
-		}
-	}
-
-	if f.redis != nil && found {
-		_ = f.redis.Set(ctx, cacheKey, ev, 10*time.Minute)
-	}
-
-	if found && ev < 0 {
-		return false, fmt.Sprintf("Negative EV: %.4f", ev), 0.0
-	}
-
-	if found && ev > 0 {
-		return true, fmt.Sprintf("Positive EV: %.4f", ev), 1.0
-	}
-
-	return true, "", 1.0
-}
-
-// 6. Order Flow Filter
+// 3. Order Flow Filter
 type OrderFlowFilter struct {
 	repo  *database.TradeRepository
 	redis *cache.RedisClient

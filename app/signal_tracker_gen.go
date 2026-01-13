@@ -9,79 +9,112 @@ import (
 	"stockbit-haka-haki/database"
 )
 
-// generateSignals fetches recent whale alerts and triggers signal generation
+// generateSignals generates new trading signals from multiple sources including LLM analysis
 func (st *SignalTracker) generateSignals() {
-	// Look back 60 minutes for signals, with minimum confidence 0.3
-	calculatedSignals, err := st.repo.GetStrategySignals(60, 0.3, "ALL")
+	// Get active symbols from recent trades (last 30 minutes)
+	activeSymbols, err := st.repo.GetActiveSymbols(time.Now().Add(-30 * time.Minute))
 	if err != nil {
-		log.Printf("❌ Error calculating signals: %v", err)
+		log.Printf("❌ Error fetching active symbols: %v", err)
 		return
 	}
 
-	if len(calculatedSignals) == 0 {
+	if len(activeSymbols) == 0 {
 		return
 	}
 
-	// OPTIMIZATION: Batch duplicate check using Redis (Quick Win #2)
-	signalsToSave := st.filterDuplicateSignals(calculatedSignals)
+	log.Printf("📊 Processing %d active symbols for signal generation...", len(activeSymbols))
 
-	savedCount := 0
-	for _, signal := range signalsToSave {
-		// Save to database for history
-		dbSignal := &database.TradingSignalDB{
-			GeneratedAt:       signal.Timestamp,
-			StockSymbol:       signal.StockSymbol,
-			Strategy:          signal.Strategy,
-			Decision:          signal.Decision,
-			Confidence:        signal.Confidence,
-			TriggerPrice:      signal.Price,
-			TriggerVolumeLots: signal.Volume,
-			PriceZScore:       signal.PriceZScore,
-			VolumeZScore:      signal.VolumeZScore,
-			PriceChangePct:    signal.Change,
-			Reason:            signal.Reason,
-			AnalysisData:      "{}",
+	generated := 0
+
+	// Process each active symbol for LLM-based signals
+	for _, symbol := range activeSymbols {
+		// Generate LLM-based tape reading signal
+		llmSignal, err := st.tradeAgg.GenerateTradingSignal(context.Background(), symbol, 5*time.Minute)
+		if err != nil {
+			log.Printf("⚠️ Failed to generate LLM signal for %s: %v", symbol, err)
+			continue
 		}
 
-		if err := st.repo.SaveTradingSignal(dbSignal); err != nil {
-			log.Printf("❌ Error saving generated signal: %v", err)
-		} else {
-			savedCount++
+		if llmSignal != nil && llmSignal.Decision != "WAIT" && llmSignal.Confidence >= 0.3 {
+			// Check if similar signal already exists in last 5 minutes
+			recentSignals, err := st.repo.GetTradingSignals(symbol, "LLM_TAPE_READING", "",
+				time.Now().Add(-5*time.Minute), time.Now(), 10, 0)
+			if err == nil && len(recentSignals) > 0 {
+				continue
+			}
 
-			// Redis Broadcasting & Optimization
-			if st.redis != nil {
-				ctx := context.Background()
+			// Save LLM signal
+			if err := st.repo.SaveTradingSignal(llmSignal); err != nil {
+				log.Printf("❌ Error saving LLM signal for %s: %v", symbol, err)
+			} else {
+				generated++
+				log.Printf("✅ Generated LLM_TAPE_READING signal for %s (Conf: %.2f, Decision: %s)",
+					symbol, llmSignal.Confidence, llmSignal.Decision)
 
-				// 1. Publish signal event
-				if err := st.redis.Publish(ctx, "signals:new", dbSignal); err != nil {
-					log.Printf("⚠️ Failed to publish signal to Redis: %v", err)
-				} else {
-					log.Printf("📡 Published new signal to Redis: %s %s", signal.StockSymbol, signal.Strategy)
-				}
-
-				// 2. Set Cooldown (15 min)
-				cooldownKey := fmt.Sprintf("signal:cooldown:%s:%s", signal.StockSymbol, signal.Strategy)
-				if err := st.redis.Set(ctx, cooldownKey, dbSignal.ID, 15*time.Minute); err != nil {
-					log.Printf("⚠️ Failed to set cooldown in Redis: %v", err)
-				}
-
-				// 3. Set Recent (5 min) - General symbol activity
-				recentKey := fmt.Sprintf("signal:recent:%s", signal.StockSymbol)
-				if err := st.redis.Set(ctx, recentKey, dbSignal.ID, 5*time.Minute); err != nil {
-					log.Printf("⚠️ Failed to set recent activity in Redis: %v", err)
-				}
-
-				// 4. Mark signal as saved (for duplicate prevention)
-				savedKey := fmt.Sprintf("signal:saved:%s:%s:%d", signal.StockSymbol, signal.Strategy, signal.Timestamp.Unix())
-				if err := st.redis.Set(ctx, savedKey, dbSignal.ID, 24*time.Hour); err != nil {
-					log.Printf("⚠️ Failed to mark signal as saved: %v", err)
+				// Redis Broadcasting & Optimization
+				if st.redis != nil {
+					ctx := context.Background()
+					// 1. Publish signal event
+					if err := st.redis.Publish(ctx, "signals:new", llmSignal); err != nil {
+						log.Printf("⚠️ Failed to publish signal to Redis: %v", err)
+					}
+					// 2. Set Cooldown (15 min)
+					cooldownKey := fmt.Sprintf("signal:cooldown:%s:%s", symbol, "LLM_TAPE_READING")
+					st.redis.Set(ctx, cooldownKey, llmSignal.ID, 15*time.Minute)
+					// 3. Set Recent (5 min)
+					recentKey := fmt.Sprintf("signal:recent:%s", symbol)
+					st.redis.Set(ctx, recentKey, llmSignal.ID, 5*time.Minute)
 				}
 			}
 		}
 	}
 
-	if savedCount > 0 {
-		log.Printf("📊 Generated and saved %d new trading signals", savedCount)
+	// Also generate traditional signals from whale alerts
+	calculatedSignals, err := st.repo.GetStrategySignals(60, 0.3, "ALL")
+	if err != nil {
+		log.Printf("❌ Error calculating traditional signals: %v", err)
+		return
+	}
+
+	if len(calculatedSignals) > 0 {
+		// Filter duplicates and save traditional signals
+		signalsToSave := st.filterDuplicateSignals(calculatedSignals)
+		for _, signal := range signalsToSave {
+			dbSignal := &database.TradingSignalDB{
+				GeneratedAt:       signal.Timestamp,
+				StockSymbol:       signal.StockSymbol,
+				Strategy:          signal.Strategy,
+				Decision:          signal.Decision,
+				Confidence:        signal.Confidence,
+				TriggerPrice:      signal.Price,
+				TriggerVolumeLots: signal.Volume,
+				PriceZScore:       signal.PriceZScore,
+				VolumeZScore:      signal.VolumeZScore,
+				PriceChangePct:    signal.Change,
+				Reason:            signal.Reason,
+				AnalysisData:      "{}",
+			}
+
+			if err := st.repo.SaveTradingSignal(dbSignal); err != nil {
+				log.Printf("❌ Error saving traditional signal: %v", err)
+			} else {
+				generated++
+
+				// Redis Broadcasting for traditional signals
+				if st.redis != nil {
+					ctx := context.Background()
+					st.redis.Publish(ctx, "signals:new", dbSignal)
+					cooldownKey := fmt.Sprintf("signal:cooldown:%s:%s", signal.StockSymbol, signal.Strategy)
+					st.redis.Set(ctx, cooldownKey, dbSignal.ID, 15*time.Minute)
+					recentKey := fmt.Sprintf("signal:recent:%s", signal.StockSymbol)
+					st.redis.Set(ctx, recentKey, dbSignal.ID, 5*time.Minute)
+				}
+			}
+		}
+	}
+
+	if generated > 0 {
+		log.Printf("📊 Signal generation completed: %d total signals generated", generated)
 	}
 }
 

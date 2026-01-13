@@ -9,6 +9,7 @@ import (
 	"stockbit-haka-haki/cache"
 	"stockbit-haka-haki/config"
 	"stockbit-haka-haki/database"
+	"stockbit-haka-haki/llm"
 )
 
 // TradingHours defines Indonesian stock market trading hours (WIB/UTC+7)
@@ -102,15 +103,18 @@ type SignalTracker struct {
 
 	exitCalc      *ExitStrategyCalculator // ATR-based exit strategy calculator
 	filterService *SignalFilterService    // Dedicated service for signal filtering logic
+	tradeAgg      *TradeAggregator        // LLM-based trade aggregator for tape reading
 }
 
 // NewSignalTracker creates a new signal outcome tracker
-func NewSignalTracker(repo *database.TradeRepository, redis *cache.RedisClient, cfg *config.Config) *SignalTracker {
+func NewSignalTracker(repo *database.TradeRepository, redis *cache.RedisClient, cfg *config.Config, llmClient *llm.Client) *SignalTracker {
 
 	// Initialize Exit Strategy Calculator
 	exitCalc := NewExitStrategyCalculator(repo, cfg)
 	// Initialize Signal Filter Service
 	filterService := NewSignalFilterService(repo, redis, cfg)
+	// Initialize Trade Aggregator for LLM-based analysis
+	tradeAgg := NewTradeAggregator(repo, llmClient)
 
 	return &SignalTracker{
 		repo:  repo,
@@ -120,6 +124,7 @@ func NewSignalTracker(repo *database.TradeRepository, redis *cache.RedisClient, 
 
 		exitCalc:      exitCalc,
 		filterService: filterService,
+		tradeAgg:      tradeAgg,
 	}
 }
 
