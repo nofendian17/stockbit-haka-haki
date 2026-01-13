@@ -153,7 +153,7 @@ func (a *App) Start() error {
 	log.Println("🚀 Starting Phase 1 enhancement trackers...")
 
 	// Signal Outcome Tracker
-	a.signalTracker = NewSignalTracker(a.tradeRepo, a.redis, a.config)
+	a.signalTracker = NewSignalTracker(a.tradeRepo, a.redis, a.config, llmClient)
 	go a.signalTracker.Start()
 
 	// 9. Start API Server (AFTER signal tracker is initialized)
