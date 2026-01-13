@@ -2,6 +2,7 @@ package trades
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	models "stockbit-haka-haki/database/models_pkg"
@@ -21,23 +22,54 @@ func NewRepository(db *gorm.DB) *Repository {
 }
 
 // SaveTrade saves a trade record
+// Handles duplicate trade numbers by catching and ignoring duplicate key errors
 func (r *Repository) SaveTrade(trade *models.Trade) error {
 	if err := r.db.Create(trade).Error; err != nil {
+		// Check if it's a duplicate key error
+		if strings.Contains(err.Error(), "duplicate key value violates unique constraint") ||
+			strings.Contains(err.Error(), "idx_running_trades_unique_trade") {
+			// Ignore duplicate trade numbers
+			return nil
+		}
 		return fmt.Errorf("SaveTrade: %w", err)
 	}
 	return nil
 }
 
 // BatchSaveTrades saves multiple trade records in a single transaction
+// Handles duplicate trade numbers by catching and ignoring duplicate key errors
 func (r *Repository) BatchSaveTrades(trades []*models.Trade) error {
 	if len(trades) == 0 {
 		return nil
 	}
-	// Use CreateInBatches to handle large batches efficiently
-	// Batch size of 1000 is generally a good balance
-	if err := r.db.CreateInBatches(trades, 1000).Error; err != nil {
-		return fmt.Errorf("BatchSaveTrades: %w", err)
+
+	// Use CreateInBatches and handle duplicate key errors
+	// Process trades in smaller batches to avoid memory issues
+	batchSize := 100
+	for i := 0; i < len(trades); i += batchSize {
+		end := i + batchSize
+		if end > len(trades) {
+			end = len(trades)
+		}
+		batch := trades[i:end]
+
+		// Convert to interface slice for gorm
+		interfaceBatch := make([]interface{}, len(batch))
+		for j, trade := range batch {
+			interfaceBatch[j] = trade
+		}
+
+		if err := r.db.CreateInBatches(interfaceBatch, len(batch)).Error; err != nil {
+			// Check if it's a duplicate key error
+			if strings.Contains(err.Error(), "duplicate key value violates unique constraint") ||
+				strings.Contains(err.Error(), "idx_running_trades_unique_trade") {
+				// Ignore duplicate trade numbers - continue with next batch
+				continue
+			}
+			return fmt.Errorf("BatchSaveTrades batch %d: %w", i/batchSize, err)
+		}
 	}
+
 	return nil
 }
 
