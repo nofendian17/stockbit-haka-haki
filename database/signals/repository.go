@@ -173,8 +173,7 @@ func (r *Repository) GetOpenSignals(limit int) ([]models.TradingSignalDB, error)
 
 	// Get signals NOT IN the subquery
 	query := r.db.Where("id NOT IN (?)", subQuery).
-		Where("decision IN ('BUY', 'SELL')"). // Only actionable signals
-		Order("generated_at DESC")
+		Order("generated_at DESC") // Removed restrictive decision filter to ensure WAIT signals are also processed (marked as SKIPPED)
 
 	if limit > 0 {
 		query = query.Limit(limit)

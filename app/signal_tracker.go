@@ -132,22 +132,37 @@ func NewSignalTracker(repo *database.TradeRepository, redis *cache.RedisClient, 
 func (st *SignalTracker) Start() {
 	log.Println("📊 Signal Outcome Tracker started")
 
-	ticker := time.NewTicker(2 * time.Minute) // Run every 2 minutes for faster updates
-	defer ticker.Stop()
-
-	// Ticker for signal generation (runs more frequently)
+	// Ticker for signal generation (High Latency due to LLM)
 	signalTicker := time.NewTicker(30 * time.Second)
-	defer signalTicker.Stop() // FIX: Was ticker.Stop() - goroutine leak
 
-	// Run immediately on start
+	// Ticker for outcome tracking (Low Latency, frequent updates)
+	// Reduced from 2 minutes to 10 seconds to fix "PENDING" status lag
+	outcomeTicker := time.NewTicker(10 * time.Second)
+
+	defer signalTicker.Stop()
+	defer outcomeTicker.Stop()
+
+	// Run tasks immediately on start (concurrently)
 	go st.generateSignals()
-	st.trackSignalOutcomes()
+	go st.trackSignalOutcomes()
 
+	// Goroutine for Signal Generation Loop
+	go func() {
+		for {
+			select {
+			case <-signalTicker.C:
+				st.generateSignals()
+			case <-st.done:
+				return
+			}
+		}
+	}()
+
+	// Main blocking loop for Outcome Tracking
+	// Using the main goroutine for one of the loops to keep Start() blocking
 	for {
 		select {
-		case <-signalTicker.C:
-			st.generateSignals()
-		case <-ticker.C:
+		case <-outcomeTicker.C:
 			st.trackSignalOutcomes()
 		case <-st.done:
 			log.Println("📊 Signal Outcome Tracker stopped")
