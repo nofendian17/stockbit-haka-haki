@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -206,6 +207,11 @@ func (ta *TradeAggregator) GenerateTradingSignal(ctx context.Context, stockSymbo
 	priceZScore := (aggregatedData.CurrentPrice - aggregatedData.AvgPrice) / (aggregatedData.AvgPrice * 0.01) // Rough estimate
 	volumeZScore := (aggregatedData.TotalVolumeLots - 1000) / 500                                             // Simplified baseline
 
+	// Wrap analysis in JSON to satisfy database requirement
+	analysisJSON, _ := json.Marshal(map[string]string{
+		"analysis": analysis,
+	})
+
 	signal := &database.TradingSignalDB{
 		GeneratedAt:       time.Now(),
 		StockSymbol:       stockSymbol,
@@ -218,7 +224,7 @@ func (ta *TradeAggregator) GenerateTradingSignal(ctx context.Context, stockSymbo
 		VolumeZScore:      volumeZScore,
 		PriceChangePct:    ((aggregatedData.CurrentPrice - aggregatedData.AvgPrice) / aggregatedData.AvgPrice) * 100,
 		Reason:            reason,
-		AnalysisData:      analysis,
+		AnalysisData:      string(analysisJSON),
 	}
 
 	return signal, nil
