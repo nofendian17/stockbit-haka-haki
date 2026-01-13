@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"stockbit-haka-haki/database"
@@ -78,9 +79,10 @@ func (ta *TradeAggregator) AggregateRunningTrades(ctx context.Context, stockSymb
 			maxPrice = trade.Price
 		}
 
-		if trade.Action == "BUY" {
+		switch trade.Action {
+		case "BUY":
 			buyVolumeLots += trade.VolumeLot
-		} else if trade.Action == "SELL" {
+		case "SELL":
 			sellVolumeLots += trade.VolumeLot
 		}
 
@@ -185,7 +187,7 @@ func (ta *TradeAggregator) GenerateTradingSignal(ctx context.Context, stockSymbo
 	var reason string
 
 	// Simple keyword-based decision logic (can be enhanced with more sophisticated parsing)
-	lowerAnalysis := analysis
+	lowerAnalysis := strings.ToLower(analysis)
 	if contains(lowerAnalysis, []string{"bearish", "sell", "distribusi", "distribution", "fakeout", "reversal"}) {
 		decision = "SELL"
 		confidence = 0.7
