@@ -11,8 +11,8 @@ import (
 
 // generateSignals generates new trading signals from multiple sources including LLM analysis
 func (st *SignalTracker) generateSignals() {
-	// Get active symbols from recent trades (last 30 minutes)
-	activeSymbols, err := st.repo.GetActiveSymbols(time.Now().Add(-30 * time.Minute))
+	// Get active symbols from recent trades (last 60 minutes)
+	activeSymbols, err := st.repo.GetActiveSymbols(time.Now().Add(-60 * time.Minute))
 	if err != nil {
 		log.Printf("❌ Error fetching active symbols: %v", err)
 		return
@@ -29,16 +29,17 @@ func (st *SignalTracker) generateSignals() {
 	// Process each active symbol for LLM-based signals
 	for _, symbol := range activeSymbols {
 		// Generate LLM-based tape reading signal
-		llmSignal, err := st.tradeAgg.GenerateTradingSignal(context.Background(), symbol, 5*time.Minute)
+		// Using 1-hour window for robust trend analysis (Investment Manager Persona)
+		llmSignal, err := st.tradeAgg.GenerateTradingSignal(context.Background(), symbol, 60*time.Minute)
 		if err != nil {
 			log.Printf("⚠️ Failed to generate LLM signal for %s: %v", symbol, err)
 			continue
 		}
 
 		if llmSignal != nil && llmSignal.Decision != "WAIT" && llmSignal.Confidence >= 0.3 {
-			// Check if similar signal already exists in last 5 minutes
+			// Check if similar signal already exists in last 60 minutes
 			recentSignals, err := st.repo.GetTradingSignals(symbol, "LLM_TAPE_READING", "",
-				time.Now().Add(-5*time.Minute), time.Now(), 10, 0)
+				time.Now().Add(-60*time.Minute), time.Now(), 10, 0)
 			if err == nil && len(recentSignals) > 0 {
 				continue
 			}

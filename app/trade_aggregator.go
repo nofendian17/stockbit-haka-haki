@@ -136,26 +136,33 @@ func (ta *TradeAggregator) AggregateRunningTrades(ctx context.Context, stockSymb
 func (ta *TradeAggregator) GenerateLLMAnalysis(ctx context.Context, data *AggregatedTradeData) (string, error) {
 	// Create prompt for tape reading and market psychology analysis
 	prompt := fmt.Sprintf(`
-Analyze the following aggregated trade data for stock %s:
+You are a Senior Investment Manager at a top-tier quantitative hedge fund.
+Your task is to analyze the following aggregated trade data for stock %s and make a high-conviction trading decision.
 
-TIME WINDOW: Last %.0f minutes
-CURRENT PRICE: %.2f
-AVERAGE PRICE: %.2f
-NET BUY/SELL: %.2f lots (positive = net buy, negative = net sell)
-TRADE FREQUENCY: %.2f trades per second
-BIG ORDER COUNT: %d orders > 100M IDR
-PRICE VELOCITY: %.2f%% price change per minute
-TOTAL VOLUME: %.2f lots
-BUY VOLUME: %.2f lots
-SELL VOLUME: %.2f lots
+MARKET METRICS:
+- Time Window: %.0f minutes
+- Current Price: %.2f
+- VWAP: %.2f
+- Net Order Flow: %.2f lots (Positive=Accumulation, Negative=Distribution)
+- Trade Frequency: %.2f trades/sec
+- Whale Activity: %d large block orders (>100M IDR)
+- Price Velocity: %.2f%% per minute
+- Total Volume: %.2f lots
+- Buying Pressure: %.2f lots
+- Selling Pressure: %.2f lots
 
-Based on this data, provide analysis on:
-1. Tape reading and market psychology (whale analysis)
-2. Potential hidden distribution or accumulation
-3. Anomaly detection and urgency assessment
-4. Trading signal recommendation with confidence level
+ANALYSIS REQUIRED:
+1. MARKET STRUCTURE: Is the stock in accumulation, distribution, or equilibrium?
+2. WHALE FOOTPRINT: Are institutional players active?
+3. RISKS: Volatility and sustained potential.
+4. ACTIONABLE VERDICT: What is the immediate move?
 
-Respond with concise, professional analysis suitable for institutional traders.
+You must conclude with this EXACT format:
+ANALYSIS SUMMARY: [One sentence summary]
+FINAL_DECISION: [BUY | SELL | WAIT]
+CONFIDENCE_SCORE: [0.0 - 1.0]
+
+Respond with professional, data-driven insights.
 `, data.StockSymbol, data.TimeWindow.Minutes(), data.CurrentPrice, data.AvgPrice,
 		data.NetBuySell, data.TradeFrequency, data.BigOrderCount, data.PriceVelocity,
 		data.TotalVolumeLots, data.BuyVolumeLots, data.SellVolumeLots)
@@ -182,35 +189,85 @@ func (ta *TradeAggregator) GenerateTradingSignal(ctx context.Context, stockSymbo
 		return nil, fmt.Errorf("failed to generate LLM analysis: %w", err)
 	}
 
-	// Determine decision based on analysis keywords
+	// Determine decision based on strict parsing of LLM output
 	decision := "WAIT"
 	confidence := 0.5
-	var reason string
+	reason := "LLM analysis inconclusive"
 
-	// Simple keyword-based decision logic (can be enhanced with more sophisticated parsing)
-	lowerAnalysis := strings.ToLower(analysis)
-	if contains(lowerAnalysis, []string{"bearish", "sell", "distribusi", "distribution", "fakeout", "reversal"}) {
-		decision = "SELL"
-		confidence = 0.7
-		reason = "LLM detected bearish signals or distribution"
-	} else if contains(lowerAnalysis, []string{"bullish", "buy", "akumulasi", "accumulation", "breakout", "momentum"}) {
-		decision = "BUY"
-		confidence = 0.7
-		reason = "LLM detected bullish signals or accumulation"
-	} else {
-		decision = "WAIT"
-		confidence = 0.3
-		reason = "LLM analysis inconclusive"
+	lines := strings.Split(analysis, "\n")
+	foundDecision := false
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "FINAL_DECISION:") {
+			d := strings.ToUpper(strings.TrimSpace(strings.TrimPrefix(line, "FINAL_DECISION:")))
+			if d == "BUY" {
+				decision = "BUY"
+				foundDecision = true
+			} else if d == "SELL" {
+				decision = "SELL"
+				foundDecision = true
+			} else if d == "WAIT" {
+				decision = "WAIT"
+				foundDecision = true
+			}
+		}
+		if strings.HasPrefix(line, "CONFIDENCE_SCORE:") {
+			fmt.Sscanf(strings.TrimPrefix(line, "CONFIDENCE_SCORE:"), "%f", &confidence)
+		}
+		if strings.HasPrefix(line, "ANALYSIS SUMMARY:") {
+			summary := strings.TrimPrefix(line, "ANALYSIS SUMMARY:")
+			reason = strings.TrimSpace(summary)
+		}
+	}
+
+	// Fallback logic if parsing failed (Robustness check)
+	if !foundDecision {
+		lowerAnalysis := strings.ToLower(analysis)
+		// Count directional keywords instead of just simple existence
+		buyScore := 0
+		sellScore := 0
+		buyScore += strings.Count(lowerAnalysis, "accumulation") * 2
+		buyScore += strings.Count(lowerAnalysis, "bullish")
+		buyScore += strings.Count(lowerAnalysis, "buy")
+
+		sellScore += strings.Count(lowerAnalysis, "distribution") * 2
+		sellScore += strings.Count(lowerAnalysis, "bearish")
+		sellScore += strings.Count(lowerAnalysis, "sell")
+
+		if buyScore > sellScore && buyScore >= 2 {
+			decision = "BUY"
+			reason = "LLM analysis indicates buying pressure (keyword fallback)"
+		} else if sellScore > buyScore && sellScore >= 2 {
+			decision = "SELL"
+			reason = "LLM analysis indicates selling pressure (keyword fallback)"
+		}
+	}
+
+	// Normalize checks
+	if reason == "" {
+		reason = "Automated signal based on flow analysis"
+	}
+	if len(reason) > 255 {
+		reason = reason[:252] + "..."
 	}
 
 	// Calculate Z-scores for price and volume (simplified)
-	priceZScore := (aggregatedData.CurrentPrice - aggregatedData.AvgPrice) / (aggregatedData.AvgPrice * 0.01) // Rough estimate
-	volumeZScore := (aggregatedData.TotalVolumeLots - 1000) / 500                                             // Simplified baseline
+	priceZScore := 0.0
+	if aggregatedData.AvgPrice != 0 {
+		priceZScore = (aggregatedData.CurrentPrice - aggregatedData.AvgPrice) / (aggregatedData.AvgPrice * 0.01)
+	}
+	volumeZScore := (aggregatedData.TotalVolumeLots - 1000) / 500
 
 	// Wrap analysis in JSON to satisfy database requirement
 	analysisJSON, _ := json.Marshal(map[string]string{
 		"analysis": analysis,
 	})
+
+	priceChangePct := 0.0
+	if aggregatedData.AvgPrice != 0 {
+		priceChangePct = ((aggregatedData.CurrentPrice - aggregatedData.AvgPrice) / aggregatedData.AvgPrice) * 100
+	}
 
 	signal := &database.TradingSignalDB{
 		GeneratedAt:       time.Now(),
@@ -222,7 +279,7 @@ func (ta *TradeAggregator) GenerateTradingSignal(ctx context.Context, stockSymbo
 		TriggerVolumeLots: aggregatedData.TotalVolumeLots,
 		PriceZScore:       priceZScore,
 		VolumeZScore:      volumeZScore,
-		PriceChangePct:    ((aggregatedData.CurrentPrice - aggregatedData.AvgPrice) / aggregatedData.AvgPrice) * 100,
+		PriceChangePct:    priceChangePct,
 		Reason:            reason,
 		AnalysisData:      string(analysisJSON),
 	}
