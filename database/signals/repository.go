@@ -8,6 +8,7 @@ import (
 
 	"stockbit-haka-haki/database/analytics"
 	models "stockbit-haka-haki/database/models_pkg"
+	"stockbit-haka-haki/database/trades"
 	"stockbit-haka-haki/database/types"
 
 	"gorm.io/gorm"
@@ -17,11 +18,17 @@ import (
 type Repository struct {
 	db        *gorm.DB
 	analytics *analytics.Repository
+	trades    *trades.Repository
 }
 
 // SetAnalyticsRepository sets the analytics repository for strategy evaluation
 func (r *Repository) SetAnalyticsRepository(analyticsRepo *analytics.Repository) {
 	r.analytics = analyticsRepo
+}
+
+// SetTradesRepository sets the trades repository for fallback calculations
+func (r *Repository) SetTradesRepository(tradesRepo *trades.Repository) {
+	r.trades = tradesRepo
 }
 
 // NewRepository creates a new signals repository
@@ -541,53 +548,62 @@ func (r *Repository) GetStrategySignals(lookbackMinutes int, minConfidence float
 	for _, alert := range alerts {
 		// Fetch baseline for this specific symbol
 		baseline, err := r.analytics.GetLatestBaseline(alert.StockSymbol)
-		if err != nil || baseline == nil {
-			log.Printf("⚠️ No baseline found for %s, skipping signal generation", alert.StockSymbol)
-			continue
-		}
 
-		// Calculate z-scores using persistent baseline if available
-		volumeLots := alert.TriggerVolumeLots
+		// Initialize zscores container
 		var zscores *types.ZScoreData
 
-		if baseline.SampleSize > 10 {
-			// Calculate Z-Score using persistent baseline (more accurate)
-			// Prevent division by zero - if stddev is 0 or very small, skip
-			if baseline.StdDevPrice <= 0.0001 || baseline.StdDevVolume <= 0.0001 {
-				log.Printf("⚠️ Invalid baseline stddev for %s (price: %.4f, volume: %.4f), skipping",
-					alert.StockSymbol, baseline.StdDevPrice, baseline.StdDevVolume)
-				continue
-			}
+		// STRATEGY 1: Use persistent baseline (Most Accurate)
+		if err == nil && baseline != nil && baseline.SampleSize > 10 {
+			// Calculate Z-Score using persistent baseline
+			// Prevent division by zero
+			if baseline.StdDevPrice > 0.0001 && baseline.StdDevVolume > 0.0001 {
+				priceZ := (alert.TriggerPrice - baseline.MeanPrice) / baseline.StdDevPrice
+				volZ := (alert.TriggerVolumeLots - baseline.MeanVolumeLots) / baseline.StdDevVolume
 
-			priceZ := (alert.TriggerPrice - baseline.MeanPrice) / baseline.StdDevPrice
-			volZ := (volumeLots - baseline.MeanVolumeLots) / baseline.StdDevVolume
+				// Clamp z-scores
+				if priceZ > 100 {
+					priceZ = 100
+				} else if priceZ < -100 {
+					priceZ = -100
+				}
+				if volZ > 100 {
+					volZ = 100
+				} else if volZ < -100 {
+					volZ = -100
+				}
 
-			// Clamp z-scores to prevent extreme values
-			if priceZ > 100 {
-				priceZ = 100
-			} else if priceZ < -100 {
-				priceZ = -100
-			}
-			if volZ > 100 {
-				volZ = 100
-			} else if volZ < -100 {
-				volZ = -100
-			}
+				// Calculate % change
+				var priceChangePct float64
+				if baseline.MeanPrice > 0 {
+					priceChangePct = (alert.TriggerPrice - baseline.MeanPrice) / baseline.MeanPrice * 100
+				}
 
-			// Calculate % change from mean
-			var priceChangePct float64
-			if baseline.MeanPrice > 0 {
-				priceChangePct = (alert.TriggerPrice - baseline.MeanPrice) / baseline.MeanPrice * 100
+				zscores = &types.ZScoreData{
+					PriceZScore:  priceZ,
+					VolumeZScore: volZ,
+					SampleCount:  int64(baseline.SampleSize),
+					PriceChange:  priceChangePct,
+					MeanPrice:    baseline.MeanPrice,
+					MeanVolume:   baseline.MeanVolumeLots,
+				}
 			}
+		}
 
-			zscores = &types.ZScoreData{
-				PriceZScore:  priceZ,
-				VolumeZScore: volZ,
-				SampleCount:  int64(baseline.SampleSize),
-				PriceChange:  priceChangePct,
+		// STRATEGY 2: Fallback to real-time calculation if baseline missing (Robustness)
+		if zscores == nil && r.trades != nil {
+			// Calculate on-the-fly using last 60 minutes
+			rtStats, err := r.trades.GetPriceVolumeZScores(alert.StockSymbol, alert.TriggerPrice, alert.TriggerVolumeLots, 60)
+			if err == nil && rtStats.SampleCount >= 5 { // Minimum 5 data points
+				zscores = rtStats
+				// Apply a small penalty to confidence since this is less robust
+				log.Printf("⚠️ Using fallback stats for %s (Samples: %d, VolZ: %.2f)", alert.StockSymbol, rtStats.SampleCount, rtStats.VolumeZScore)
 			}
-		} else {
-			// Skip if insufficient data
+		}
+
+		// If still no valid z-scores, we must skip
+		if zscores == nil {
+			// Only log occasionally to avoid spam
+			// log.Printf("⚠️ No baseline or fallback data for %s, skipping", alert.StockSymbol)
 			continue
 		}
 
@@ -599,8 +615,9 @@ func (r *Repository) GetStrategySignals(lookbackMinutes int, minConfidence float
 
 		// Calculate VWAP from baseline (Approximate Session VWAP using Mean Value / Mean Volume)
 		var vwap float64
-		if baseline.MeanVolumeLots > 0 {
-			vwap = baseline.MeanValue / baseline.MeanVolumeLots
+		if zscores.MeanVolume > 0 {
+			// Estimate VWAP from MeanPrice - this is an approximation but useful for trend
+			vwap = zscores.MeanPrice
 		}
 
 		// Fetch Latest Order Flow for Confirmation

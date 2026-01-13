@@ -26,14 +26,20 @@ type TradeRepository struct {
 
 // NewTradeRepository creates a new trade repository facade
 func NewTradeRepository(db *Database) *TradeRepository {
-	analyticsRepo := analytics.NewRepository(db.db)
+	// Initialize domain repositories
+	tradesRepo := trades.NewRepository(db.db)
+	whalesRepo := whales.NewRepository(db.db)
 	signalsRepo := signals.NewRepository(db.db)
+	analyticsRepo := analytics.NewRepository(db.db)
+
+	// Set repo dependencies
 	signalsRepo.SetAnalyticsRepository(analyticsRepo)
+	signalsRepo.SetTradesRepository(tradesRepo) // Inject trades repo for fallback
 
 	return &TradeRepository{
 		db:        db,
-		trades:    trades.NewRepository(db.db),
-		whales:    whales.NewRepository(db.db),
+		trades:    tradesRepo,
+		whales:    whalesRepo,
 		signals:   signalsRepo,
 		analytics: analyticsRepo,
 	}
