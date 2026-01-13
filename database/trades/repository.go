@@ -43,7 +43,7 @@ func (r *Repository) BatchSaveTrades(trades []*models.Trade) error {
 		return nil
 	}
 
-	// Use CreateInBatches and handle duplicate key errors
+	// Use CreateInBatches directly with the model slice
 	// Process trades in smaller batches to avoid memory issues
 	batchSize := 100
 	for i := 0; i < len(trades); i += batchSize {
@@ -53,13 +53,7 @@ func (r *Repository) BatchSaveTrades(trades []*models.Trade) error {
 		}
 		batch := trades[i:end]
 
-		// Convert to interface slice for gorm
-		interfaceBatch := make([]interface{}, len(batch))
-		for j, trade := range batch {
-			interfaceBatch[j] = trade
-		}
-
-		if err := r.db.CreateInBatches(interfaceBatch, len(batch)).Error; err != nil {
+		if err := r.db.Table("running_trades").CreateInBatches(batch, len(batch)).Error; err != nil {
 			// Check if it's a duplicate key error
 			if strings.Contains(err.Error(), "duplicate key value violates unique constraint") ||
 				strings.Contains(err.Error(), "idx_running_trades_unique_trade") {
