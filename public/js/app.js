@@ -170,6 +170,9 @@ async function fetchAlerts(reset = false) {
 
         console.log(`✅ Received ${alerts.length} alerts. Total: ${state.alerts.length + alerts.length}, HasMore: ${state.hasMore}`);
 
+        const tbody = safeGetElement('alerts-table-body');
+        const loadingDiv = safeGetElement('loading');
+
         if (reset) {
             state.alerts = alerts;
             state.currentOffset = alerts.length;
