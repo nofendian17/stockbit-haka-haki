@@ -30,11 +30,11 @@ export function formatNumber(val) {
     if (!val || isNaN(val)) return '0';
 
     if (val >= 1_000_000_000) {
-        return `${(val / 1_000_000_000).toFixed(1)}B`;
+        return `${(val / 1_000_000_000).toFixed(1)}M`;
     } else if (val >= 1_000_000) {
-        return `${(val / 1_000_000).toFixed(1)}M`;
+        return `${(val / 1_000_000).toFixed(1)}Jt`;
     } else if (val >= 1_000) {
-        return `${(val / 1_000).toFixed(1)}K`;
+        return `${(val / 1_000).toFixed(1)}Rb`;
     }
     return new Intl.NumberFormat('id-ID').format(val);
 }
@@ -79,23 +79,23 @@ export function formatPercent(val) {
  */
 export function getTimeAgo(date) {
     if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
-        return 'Unknown';
+        return 'Tidak diketahui';
     }
 
     const seconds = Math.floor((new Date() - date) / 1000);
 
-    if (seconds < 10) return 'Just now';
-    if (seconds < 60) return `${seconds}s ago`;
+    if (seconds < 10) return 'Baru saja';
+    if (seconds < 60) return `${seconds} detik lalu`;
 
     const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
+    if (minutes < 60) return `${minutes} menit lalu`;
 
     const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
+    if (hours < 24) return `${hours} jam lalu`;
 
     const days = Math.floor(hours / 24);
-    if (days === 1) return 'Yesterday';
-    if (days < 7) return `${days}d ago`;
+    if (days === 1) return 'Kemarin';
+    if (days < 7) return `${days} hari lalu`;
 
     return date.toLocaleDateString('id-ID', { month: 'short', day: 'numeric' });
 }
