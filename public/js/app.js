@@ -6,7 +6,7 @@
 import { CONFIG } from './config.js';
 import { debounce, safeGetElement, setupTableInfiniteScroll, formatNumber, renderWhaleAlignmentBadge, renderRegimeBadge } from './utils.js';
 import * as API from './api.js';
-import { renderRunningPositions, renderSummaryTable, updateStatsTicker, renderStockCorrelations, renderProfitLossHistory, renderMarketIntelligence, renderOrderFlow, renderPatternFeed, renderDailyPerformance } from './render.js?v=5';
+import { renderWhaleAlertsTable, renderRunningPositions, renderSummaryTable, updateStatsTicker, renderStockCorrelations, renderProfitLossHistory, renderMarketIntelligence, renderOrderFlow, renderPatternFeed, renderDailyPerformance } from './render.js?v=6';
 import { createWhaleAlertSSE, createPatternAnalysisSSE, createCustomPromptSSE } from './sse-handler.js';
 import { initStrategySystem } from './strategy-manager.js';
 import { initWebhookManagement } from './webhook-config.js';
@@ -965,100 +965,6 @@ function displayFollowupData(data) {
 
 /**
  * Render whale alerts table (Compact Mode)
- * @param {Array} alerts - Array of alert objects
- * @param {HTMLElement} tbody - Table body element
- * @param {HTMLElement} loadingDiv - Loading indicator element
- * @param {boolean} append - Whether to append to existing rows (default: false)
- */
-function renderWhaleAlertsTable(alerts, tbody, loadingDiv, append = false) {
-    if (!tbody) return;
-
-    // Hide loading
-    if (loadingDiv) loadingDiv.style.display = 'none';
-
-    if (!append) {
-        if (alerts.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center p-8 text-textSecondary">Belum ada aktivitas whale terdeteksi</td></tr>';
-            return;
-        }
-        tbody.innerHTML = '';
-    }
-
-    alerts.forEach(alert => {
-        const row = document.createElement('tr');
-        row.className = 'hover:bg-bgHover transition-colors border-b border-borderColor last:border-0 text-xs';
-
-        // Prepare proxy object for badge renderers (Map backend fields to expected frontend fields)
-        const proxyAlert = {
-            ...alert,
-            whale_aligned: true, // It is a whale alert, so aligned is implicit
-            whale_buy_count: alert.metadata?.pattern_trades || 0,
-            whale_total_value: alert.metadata?.pattern_value || 0
-        };
-
-        // Render badges (Compact version)
-        const whaleBadge = renderWhaleAlignmentBadge(proxyAlert);
-        let infoBadges = renderRegimeBadge(alert.market_regime || alert.metadata?.regime);
-
-        // Add Z-Score Badge
-        const zScore = alert.metadata?.z_score || 0;
-        if (zScore >= 3) {
-            infoBadges += `<span class="text-[9px] px-1.5 py-0.5 rounded bg-pink-900/30 text-pink-400 border border-pink-500/30 ml-1">EKSTREM (Z:${zScore.toFixed(1)})</span>`;
-        } else if (zScore >= 2) {
-            infoBadges += `<span class="text-[9px] px-1.5 py-0.5 rounded bg-orange-900/30 text-orange-400 border border-orange-500/30 ml-1">TINGGI (Z:${zScore.toFixed(1)})</span>`;
-        }
-
-        // Add Volume Spike Badge
-        const volPct = alert.metadata?.volume_vs_avg || 0;
-        if (volPct >= 200) {
-            infoBadges += `<span class="text-[9px] px-1.5 py-0.5 rounded bg-cyan-900/30 text-cyan-400 border border-cyan-500/30 ml-1">VOL SPIKE (${volPct.toFixed(0)}%)</span>`;
-        }
-
-        // Format Time (Just HH:mm)
-        // Format Time (Just HH:mm)
-        const date = new Date(alert.detected_at || alert.timestamp || alert.time);
-        const timeStr = !isNaN(date)
-            ? date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
-            : '-';
-
-        // Determine Action & Color
-        let actionClass = 'text-textPrimary';
-        let actionText = (alert.action || alert.signal_type || 'UNKNOWN').toUpperCase();
-        let actionCode = '-';
-
-        if (actionText === 'BUY' || actionText === 'ACCUMULATION') {
-            actionClass = 'text-accentSuccess font-bold';
-            actionCode = 'B';
-        } else if (actionText === 'SELL' || actionText === 'DISTRIBUTION') {
-            actionClass = 'text-accentDanger font-bold';
-            actionCode = 'S';
-        } else {
-            // Fallback for unknown
-            actionClass = 'text-textMuted';
-            actionCode = actionText.substring(0, 1);
-        }
-
-        // Format Value (Compact: M/B)
-        const valueStr = formatNumber(alert.trigger_value || alert.total_value);
-
-        // RAW PRICE FORMAT
-        const priceStr = alert.trigger_price || alert.price || 0;
-
-        row.innerHTML = `
-            <td class="px-2 py-1.5 whitespace-nowrap text-textMuted font-mono w-[15%] text-left">${timeStr}</td>
-            <td class="px-2 py-1.5 whitespace-nowrap w-[15%] text-left">
-                <span class="font-bold text-textPrimary">${alert.stock_symbol}</span>
-            </td>
-            <td class="px-2 py-1.5 text-center font-bold w-[10%] ${actionClass}">${actionCode}</td>
-            <td class="px-2 py-1.5 text-right font-mono font-bold text-textPrimary w-[15%]">${priceStr}</td>
-            <td class="px-2 py-1.5 text-right text-textSecondary w-[15%]">${valueStr}</td>
-            <td class="px-2 py-1.5 w-[20%] text-left">
-                <div class="flex gap-1 items-center justify-start flex-wrap">
-                    ${whaleBadge ? whaleBadge.replace('text-[10px]', 'text-[9px] py-0 px-1') : ''}
-                    ${infoBadges ? infoBadges.replace(/text-\[10px\]/g, 'text-[9px] py-0 px-1') : ''}
-                </div>
-            </td>
-            <td class="px-2 py-1.5 text-right whitespace-nowrap w-[10%]">
                 <button onclick="openFollowupModal('${alert.id}', '${alert.stock_symbol}', ${alert.trigger_price})" class="p-1 hover:bg-bgSecondary rounded text-accentInfo transition-colors" title="Lihat Followup">
                     🔍
                 </button>

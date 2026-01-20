@@ -11,7 +11,7 @@ import { formatCurrency, formatNumber, formatTime, getTimeAgo, formatStrategyNam
  * @param {HTMLElement} tbody - Table body element
  * @param {HTMLElement} loadingDiv - Loading indicator element
  */
-export function renderWhaleAlerts(alerts, tbody, loadingDiv) {
+export function renderWhaleAlertsTable(alerts, tbody, loadingDiv) {
     if (!tbody) return;
 
     // Reset
