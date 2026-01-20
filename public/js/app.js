@@ -179,7 +179,7 @@ async function fetchAlerts(reset = false) {
         }
 
         const tbody = safeGetElement('alerts-table-body');
-        renderWhaleAlerts(state.alerts, tbody, loadingDiv);
+        renderWhaleAlertsTable(state.alerts, tbody, loadingDiv);
 
         // Show "no more data" if we've reached the end
         if (!state.hasMore && state.alerts.length > 0 && noMoreData) {
@@ -439,7 +439,7 @@ function connectWhaleAlertSSE() {
 
             const tbody = safeGetElement('alerts-table-body');
             const loadingDiv = safeGetElement('loading');
-            renderWhaleAlerts(state.alerts, tbody, loadingDiv);
+            renderWhaleAlertsTable(state.alerts, tbody, loadingDiv);
 
             // Refresh stats
             fetchStats();
@@ -948,7 +948,7 @@ function displayFollowupData(data) {
  * @param {HTMLElement} tbody - Table body element
  * @param {HTMLElement} loadingDiv - Loading indicator element
  */
-function renderWhaleAlerts(alerts, tbody, loadingDiv) {
+function renderWhaleAlertsTable(alerts, tbody, loadingDiv) {
     if (!tbody) return;
 
     // Hide loading
