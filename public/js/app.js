@@ -173,13 +173,12 @@ async function fetchAlerts(reset = false) {
         if (reset) {
             state.alerts = alerts;
             state.currentOffset = alerts.length;
+            renderWhaleAlertsTable(state.alerts, tbody, loadingDiv, false);
         } else {
             state.alerts = state.alerts.concat(alerts);
             state.currentOffset += alerts.length;
+            renderWhaleAlertsTable(alerts, tbody, loadingDiv, true);
         }
-
-        const tbody = safeGetElement('alerts-table-body');
-        renderWhaleAlertsTable(state.alerts, tbody, loadingDiv);
 
         // Show "no more data" if we've reached the end
         if (!state.hasMore && state.alerts.length > 0 && noMoreData) {
@@ -947,19 +946,21 @@ function displayFollowupData(data) {
  * @param {Array} alerts - Array of alert objects
  * @param {HTMLElement} tbody - Table body element
  * @param {HTMLElement} loadingDiv - Loading indicator element
+ * @param {boolean} append - Whether to append to existing rows (default: false)
  */
-function renderWhaleAlertsTable(alerts, tbody, loadingDiv) {
+function renderWhaleAlertsTable(alerts, tbody, loadingDiv, append = false) {
     if (!tbody) return;
 
     // Hide loading
     if (loadingDiv) loadingDiv.style.display = 'none';
 
-    if (alerts.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center p-8 text-textSecondary">Belum ada aktivitas whale terdeteksi</td></tr>';
-        return;
+    if (!append) {
+        if (alerts.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center p-8 text-textSecondary">Belum ada aktivitas whale terdeteksi</td></tr>';
+            return;
+        }
+        tbody.innerHTML = '';
     }
-
-    tbody.innerHTML = '';
 
     alerts.forEach(alert => {
         const row = document.createElement('tr');
