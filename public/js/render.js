@@ -123,8 +123,11 @@ function createWhaleAlertRow(alert) {
             <div class="flex flex-col gap-1">
                 <span class="text-xs text-textSecondary">${alert.market_board || 'RG'}</span>
                 ${anomalyHtml}
-                ${zScore > 0 ? `<span class="text-[10px] text-textMuted" title="Statistical Anomaly Score">Z: ${zScore.toFixed(2)}</span>` : ''}
-                ${alert.adaptive_threshold ? `<span class="text-[10px] text-textMuted" title="Threshold: ${alert.adaptive_threshold.toFixed(2)} | Vol: ${alert.volatility_pct?.toFixed(2) || 0}%">T: ${alert.adaptive_threshold.toFixed(1)}${alert.volatility_pct > 1.5 ? '⚠️' : ''}</span>` : ''}
+                <div class="flex flex-col text-[10px] text-textMuted leading-tight">
+                    <span title="Statistical Anomaly Score">Z: ${zScore.toFixed(2)}</span>
+                    <span title="Volume vs Average">Vol: ${volumeVsAvg.toFixed(0)}%</span>
+                    ${alert.adaptive_threshold ? `<span title="Threshold: ${alert.adaptive_threshold.toFixed(2)}">T: ${alert.adaptive_threshold.toFixed(1)}</span>` : ''}
+                </div>
             </div>
         </td>
     `;
