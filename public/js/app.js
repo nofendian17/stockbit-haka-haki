@@ -965,18 +965,29 @@ function renderWhaleAlertsTable(alerts, tbody, loadingDiv) {
         const row = document.createElement('tr');
         row.className = 'hover:bg-bgHover transition-colors border-b border-borderColor last:border-0 text-xs';
 
+        // Prepare proxy object for badge renderers (Map backend fields to expected frontend fields)
+        const proxyAlert = {
+            ...alert,
+            whale_aligned: true, // It is a whale alert, so aligned is implicit
+            whale_buy_count: alert.metadata?.pattern_trades || 0,
+            whale_total_value: alert.metadata?.pattern_value || 0
+        };
+
         // Render badges (Compact version)
-        const whaleBadge = renderWhaleAlignmentBadge(alert);
-        const regimeBadge = renderRegimeBadge(alert.market_regime);
+        const whaleBadge = renderWhaleAlignmentBadge(proxyAlert);
+        const regimeBadge = renderRegimeBadge(alert.market_regime || alert.metadata?.regime);
 
         // Format Time (Just HH:mm)
-        const date = new Date(alert.timestamp || alert.time);
-        const timeStr = date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+        // Format Time (Just HH:mm)
+        const date = new Date(alert.detected_at || alert.timestamp || alert.time);
+        const timeStr = !isNaN(date)
+            ? date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+            : '-';
 
         // Determine Action & Color
         let actionClass = 'text-textPrimary';
-        let actionText = alert.signal_type || 'UNKNOWN';
-        let actionCode = actionText.substring(0, 1); // B / S / A / D
+        let actionText = (alert.action || alert.signal_type || 'UNKNOWN').toUpperCase();
+        let actionCode = '-';
 
         if (actionText === 'BUY' || actionText === 'ACCUMULATION') {
             actionClass = 'text-accentSuccess font-bold';
@@ -984,10 +995,14 @@ function renderWhaleAlertsTable(alerts, tbody, loadingDiv) {
         } else if (actionText === 'SELL' || actionText === 'DISTRIBUTION') {
             actionClass = 'text-accentDanger font-bold';
             actionCode = 'S';
+        } else {
+            // Fallback for unknown
+            actionClass = 'text-textMuted';
+            actionCode = actionText.substring(0, 1);
         }
 
         // Format Value (Compact: M/B)
-        const valueStr = formatNumber(alert.total_value);
+        const valueStr = formatNumber(alert.trigger_value || alert.total_value);
 
         // RAW PRICE FORMAT
         const priceStr = alert.trigger_price || alert.price || 0;
