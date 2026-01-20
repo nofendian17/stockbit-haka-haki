@@ -89,62 +89,7 @@
       }
     }
 
-    /* Mobile Responsive Table Cards */
-    @media (max-width: 768px) {
-        table, thead, tbody, th, td, tr {
-            display: block;
-        }
-
-        thead tr {
-            position: absolute;
-            top: -9999px;
-            left: -9999px;
-        }
-
-        tr {
-            display: flex;
-            flex-direction: column;
-            @apply border border-borderColor rounded-xl bg-bgCard shadow-lg mb-4 relative overflow-hidden transition-colors;
-        }
-
-        /* Standard Row Styling */
-        td {
-            @apply flex justify-between items-center px-4 py-3 border-b border-borderColor/30 text-sm min-h-[44px];
-        }
-
-        td:last-child {
-            border-bottom: none;
-            @apply bg-bgSecondary/20;
-        }
-
-        /* Label Styling (Pseudo-element) */
-        td:before {
-            content: attr(data-label);
-            @apply text-xs font-semibold text-textSecondary uppercase tracking-wider pr-4;
-            flex-shrink: 0;
-            max-width: 140px;
-        }
-
-        /* Symbol/Header Cell - Card Header Look */
-        td[data-label="Saham"] {
-            @apply bg-bgSecondary/60 border-b border-borderColor py-3 font-bold text-base;
-            justify-content: space-between; /* Symbol Left, Confidence Right */
-            gap: 8px;
-            order: -1; /* Move to top of card */
-        }
-        
-        td[data-label="Saham"]:before {
-            display: none; /* Hide label for the header */
-        }
-        
-        /* Ensure content inside cells aligns right */
-        td > *:not(:first-child) {
-            /* This targets the value content if it's the second child (after :before pseudo) 
-               But :before is pseudo, so 'td > *' targets the actual DOM children.
-               We want the content on the right. 
-            */
-        }
-    }
+    /* Mobile Responsive Table Cards Removed - tables will scroll horizontally */
     
     /* Custom Scrollbar */
     ::-webkit-scrollbar {
@@ -292,7 +237,7 @@
                 <div id="running-trades-container"
                     class="mt-3 border border-borderColor rounded-lg overflow-hidden flex flex-col h-[300px] transition-all duration-300">
                     <div class="overflow-auto flex-1 table-wrapper custom-scrollbar">
-                        <table class="w-full text-left min-w-full" id="running-trades-table">
+                        <table class="w-full text-left min-w-[700px]" id="running-trades-table">
                             <thead class="bg-bgSecondary sticky top-0 z-10 w-full">
                                 <tr>
                                     <th class="px-4 py-2 text-[10px] font-bold uppercase text-textMuted">Time</th>
@@ -326,7 +271,7 @@
 
                 <div class="border border-borderColor rounded-lg overflow-hidden flex flex-col h-[500px]">
                     <div class="overflow-auto flex-1 table-wrapper">
-                        <table class="w-full text-left border-collapse min-w-full">
+                        <table class="w-full text-left border-collapse min-w-[800px]" id="alerts-table">
                             <thead class="bg-bgSecondary sticky top-0 left-0 right-0 z-10 w-full table-header-group">
                                 <tr>
                                     <th
@@ -413,7 +358,7 @@
 
                 <div class="border border-borderColor rounded-lg overflow-hidden flex flex-col h-[400px]">
                     <div class="overflow-auto flex-1 table-wrapper">
-                        <table class="w-full text-left min-w-full" id="signals-table">
+                        <table class="w-full text-left min-w-[700px]" id="signals-table">
                             <thead class="bg-bgSecondary sticky top-0 z-10 w-full table-header-group">
                                 <tr>
                                     <th class="table-header">Waktu</th>
@@ -466,7 +411,7 @@
                 </div>
                 <div class="border border-borderColor rounded-lg overflow-hidden flex flex-col h-[400px]">
                     <div class="overflow-auto flex-1 table-wrapper">
-                        <table class="w-full text-left min-w-full" id="positions-table">
+                        <table class="w-full text-left min-w-[700px]" id="positions-table">
                             <thead class="bg-bgSecondary sticky top-0 z-10 w-full table-header-group">
                                 <tr>
                                     <th class="table-header">Saham</th>
@@ -538,7 +483,7 @@
                 </div>
                 <div class="border border-borderColor rounded-lg overflow-hidden flex flex-col h-[400px]">
                     <div class="overflow-auto flex-1 table-wrapper">
-                        <table class="w-full text-left min-w-full" id="history-table">
+                        <table class="w-full text-left min-w-[900px]" id="history-table">
                             <thead class="bg-bgSecondary sticky top-0 z-10 w-full table-header-group">
                                 <tr>
                                     <th class="table-header">Saham</th>
@@ -604,7 +549,7 @@
                         <div
                             class="border border-borderColor rounded-lg overflow-hidden h-[400px] overflow-auto flex flex-col">
                             <div class="overflow-auto flex-1 table-wrapper">
-                                <table class="w-full text-left min-w-full" id="accumulation-table">
+                                <table class="w-full text-left min-w-[600px]" id="accumulation-table">
                                     <thead class="bg-bgSecondary sticky top-0 z-10 w-full table-header-group">
                                         <tr>
                                             <th class="table-header">Saham</th>
@@ -636,7 +581,7 @@
                         <div
                             class="border border-borderColor rounded-lg overflow-hidden h-[400px] overflow-auto flex flex-col">
                             <div class="overflow-auto flex-1 table-wrapper">
-                                <table class="w-full text-left min-w-full" id="distribution-table">
+                                <table class="w-full text-left min-w-[600px]" id="distribution-table">
                                     <thead class="bg-bgSecondary sticky top-0 z-10 w-full table-header-group">
                                         <tr>
                                             <th class="table-header">Saham</th>
@@ -1005,7 +950,7 @@
                             </div>
 
                             <div class="border border-borderColor rounded-lg overflow-hidden">
-                                <table class="w-full text-left">
+                                <table class="w-full text-left min-w-[600px]">
                                     <thead class="bg-bgSecondary">
                                         <tr>
                                             <th class="px-4 py-2 text-xs font-semibold text-textMuted uppercase">Name
@@ -1123,7 +1068,7 @@
 
                         <!-- Candle Table -->
                         <div class="overflow-x-auto table-wrapper max-h-[500px] border border-borderColor rounded-lg">
-                            <table class="min-w-full divide-y divide-borderColor">
+                            <table class="min-w-[700px] divide-y divide-borderColor">
                                 <thead class="bg-bgSecondary sticky top-0 z-10">
                                     <tr>
                                         <th scope="col"
