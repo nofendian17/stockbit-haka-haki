@@ -49,10 +49,24 @@ function createWhaleAlertRow(alert) {
     };
 
     // Badge styling
-    let badgeClass = 'bg-gray-700 text-gray-300';
-    if (alert.action === 'BUY') badgeClass = 'bg-accentSuccess/20 text-accentSuccess border border-accentSuccess/20';
-    if (alert.action === 'SELL') badgeClass = 'bg-accentDanger/20 text-accentDanger border border-accentDanger/20';
-    const actionText = alert.action === 'BUY' ? 'BELI' : alert.action === 'SELL' ? 'JUAL' : alert.action;
+    // Badge styling and text standardization
+    let badgeClass = 'bg-bgSecondary text-textMuted border border-borderColor';
+    let actionCode = 'UNKNOWN';
+
+    const rawAction = (alert.action || 'UNKNOWN').toUpperCase();
+
+    if (rawAction === 'BUY' || rawAction === 'ACCUMULATION') {
+        badgeClass = 'bg-accentSuccess/20 text-accentSuccess border border-accentSuccess/20';
+        actionCode = 'BUY';
+    } else if (rawAction === 'SELL' || rawAction === 'DISTRIBUTION') {
+        badgeClass = 'bg-accentDanger/20 text-accentDanger border border-accentDanger/20';
+        actionCode = 'SELL';
+    } else {
+        actionCode = 'UNKNOWN';
+    }
+
+    // Legacy variable for compatibility if used elsewhere (though row.innerHTML uses actionCode now)
+    const actionText = actionCode;
 
     // Data extraction
     const price = alert.trigger_price || 0;
@@ -120,7 +134,7 @@ function createWhaleAlertRow(alert) {
     row.innerHTML = `
         <td data-label="Waktu" class="table-cell text-textMuted whitespace-nowrap text-[11px]" title="${detectedTime}">${detectedTime}</td>
         ${symbolCellHtml}
-        <td data-label="Aksi" class="table-cell text-center"><span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${badgeClass}">${actionText.substring(0, 3)}</span></td>
+        <td data-label="Aksi" class="table-cell text-center"><span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${badgeClass}">${actionText}</span></td>
         <td data-label="Harga" class="table-cell whitespace-nowrap font-medium text-right text-[11px]">${formatNumber(price)}</td>
         <td data-label="Nilai" class="table-cell text-right font-bold text-textPrimary whitespace-nowrap text-[11px]" title="Total Nilai: Rp ${formatNumber(val)}">${formatCurrency(val)}</td>
         <td data-label="Details" class="table-cell">
@@ -151,7 +165,7 @@ function createWhaleAlertRow(alert) {
         <td data-label="Waktu" class="table-cell text-textMuted whitespace-nowrap text-[11px]" title="${detectedTime}">${detectedTime}</td>
         ${symbolCellHtml}
         <td data-label="Aksi" class="table-cell text-center"><span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${badgeClass}">${actionText.substring(0, 3)}</span></td>
-        <td data-label="Harga" class="table-cell whitespace-nowrap font-medium text-right text-[11px]">${formatNumber(price)}</td>
+        <td data-label="Harga" class="table-cell whitespace-nowrap font-medium text-right text-[11px]">${price.toLocaleString('id-ID')}</td>
         <td data-label="Nilai" class="table-cell text-right font-bold text-textPrimary whitespace-nowrap text-[11px]" title="Total Nilai: Rp ${formatNumber(val)}">${formatCurrency(val)}</td>
         <td data-label="Volume" class="table-cell text-right text-textSecondary whitespace-nowrap text-[11px]">${formatNumber(volume)}</td>
         <td data-label="Details" class="table-cell">
