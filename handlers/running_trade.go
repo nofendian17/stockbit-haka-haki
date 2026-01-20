@@ -322,6 +322,25 @@ func (h *RunningTradeHandler) ProcessTrade(t *pb.RunningTrade) {
 			value:      totalAmount,
 		}
 	}
+
+	// 4. Broadcast to Frontend (Realtime SSE)
+	if h.broker != nil {
+		// Calculate duration if stats available (or just send basic info)
+		// We'll send a lightweight payload for frontend
+		payload := map[string]interface{}{
+			"symbol":     t.Stock,
+			"action":     actionDb,
+			"price":      t.Price,
+			"volume_lot": volumeLot,
+			"value":      totalAmount,
+			"board":      boardType,
+			"time":       trade.Timestamp,
+			"change_pct": changePercentage, // can be nil
+			"trade_num":  tradeNumber,      // can be nil
+		}
+
+		h.broker.Broadcast("trade", payload)
+	}
 }
 
 // detectWhale performs the whale detection logic directly (now async)

@@ -356,11 +356,11 @@ function setupInfiniteScroll() {
 }
 
 /**
- * Connect to whale alert SSE
+ * Connect to market SSE (Whales + Running Trades)
  */
 function connectWhaleAlertSSE() {
-    state.whaleSSE = createWhaleAlertSSE(
-        (newAlert) => {
+    state.whaleSSE = createWhaleAlertSSE({
+        onAlert: (newAlert) => {
             // BLOCK SSE updates if filters are active
             const hasActiveFilters = (
                 state.currentFilters.search !== '' ||
@@ -370,8 +370,8 @@ function connectWhaleAlertSSE() {
             );
 
             if (hasActiveFilters) {
-                console.log('⏸️ SSE update blocked - filters active');
-                return; // Don't add alert to state or render
+                // console.log('⏸️ SSE update blocked - filters active');
+                return;
             }
 
             // Prepend new alert
@@ -388,10 +388,70 @@ function connectWhaleAlertSSE() {
             // Refresh stats
             fetchStats();
         },
-        (error) => {
+        onTrade: (trade) => {
+            // Update connection status
+            const statusEl = document.getElementById('trade-stream-status');
+            if (statusEl) {
+                statusEl.textContent = '⚫ Live';
+                statusEl.className = 'text-[10px] font-mono text-accentSuccess animate-pulse';
+            }
+
+            // Render trade row
+            renderRunningTrade(trade);
+        },
+        onError: (error) => {
             console.error('SSE Error:', error);
+            const statusEl = document.getElementById('trade-stream-status');
+            if (statusEl) {
+                statusEl.textContent = '🔴 Disconnected';
+                statusEl.className = 'text-[10px] font-mono text-accentDanger';
+            }
         }
-    );
+    });
+}
+
+/**
+ * Render a single running trade row
+ * @param {Object} trade 
+ */
+function renderRunningTrade(trade) {
+    const tbody = document.getElementById('running-trades-body');
+    if (!tbody) return;
+
+    const row = document.createElement('tr');
+    row.className = 'hover:bg-bgHover transition-colors border-b border-borderColor last:border-0';
+
+    // Format Time
+    const timeDate = new Date(trade.time);
+    const timeStr = timeDate.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    // Determine Color
+    const actionClass = trade.action === 'BUY' ? 'text-accentSuccess' : (trade.action === 'SELL' ? 'text-accentDanger' : 'text-textSecondary');
+    const priceClass = trade.change_pct > 0 ? 'text-accentSuccess' : (trade.change_pct < 0 ? 'text-accentDanger' : 'text-textPrimary');
+
+    // Format Value abbreviator
+    const formatValue = (val) => {
+        if (val >= 1_000_000_000) return (val / 1_000_000_000).toFixed(1) + 'M';
+        if (val >= 1_000_000) return (val / 1_000_000).toFixed(1) + 'Jt';
+        return (val / 1_000).toFixed(0) + 'k';
+    };
+
+    row.innerHTML = `
+        <td class="px-4 py-1.5 text-textMuted">${timeStr}</td>
+        <td class="px-4 py-1.5 font-bold text-textPrimary">${trade.symbol}</td>
+        <td class="px-4 py-1.5 text-right font-bold ${priceClass}">${trade.price.toLocaleString('id-ID')}</td>
+        <td class="px-4 py-1.5 text-right text-textSecondary">${trade.volume_lot.toLocaleString('id-ID')}</td>
+        <td class="px-4 py-1.5 text-right text-textPrimary">${formatValue(trade.value)}</td>
+        <td class="px-4 py-1.5 text-center font-bold ${actionClass}">${trade.action === 'BUY' ? 'B' : 'S'}</td>
+    `;
+
+    // Prepend and limit rows
+    tbody.insertBefore(row, tbody.firstChild);
+
+    // Keep max 20 rows to prevent DOM bloat
+    if (tbody.children.length > 20) {
+        tbody.removeChild(tbody.lastChild);
+    }
 }
 
 /**

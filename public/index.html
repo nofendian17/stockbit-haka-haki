@@ -263,6 +263,40 @@
         <!-- Grid Layout for Desktop -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
+            <!-- Running Trades (New) -->
+            <section class="card-base lg:col-span-2">
+                <div class="flex justify-between items-center mb-3">
+                    <div>
+                        <h2 class="text-sm font-bold mb-0.5">⚡ Running Trade</h2>
+                        <p class="text-[10px] text-textSecondary">Real-time market feed</p>
+                    </div>
+                    <div class="text-[10px] font-mono text-textMuted" id="trade-stream-status">Wait...</div>
+                </div>
+                <div class="border border-borderColor rounded-lg overflow-hidden flex flex-col h-[300px]">
+                    <div class="overflow-auto flex-1 table-wrapper custom-scrollbar">
+                        <table class="w-full text-left min-w-full" id="running-trades-table">
+                            <thead class="bg-bgSecondary sticky top-0 z-10 w-full">
+                                <tr>
+                                    <th class="px-4 py-2 text-[10px] font-bold uppercase text-textMuted">Time</th>
+                                    <th class="px-4 py-2 text-[10px] font-bold uppercase text-textMuted">Stock</th>
+                                    <th class="px-4 py-2 text-[10px] font-bold uppercase text-textMuted text-right">
+                                        Price</th>
+                                    <th class="px-4 py-2 text-[10px] font-bold uppercase text-textMuted text-right">
+                                        Vol(Lot)</th>
+                                    <th class="px-4 py-2 text-[10px] font-bold uppercase text-textMuted text-right">
+                                        Value</th>
+                                    <th class="px-4 py-2 text-[10px] font-bold uppercase text-textMuted text-center">Act
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody id="running-trades-body" class="divide-y divide-borderColor font-mono text-xs">
+                                <!-- Trades injected here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
             <!-- Whale Alerts Table -->
             <section class="card-base lg:col-span-2">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 gap-2">

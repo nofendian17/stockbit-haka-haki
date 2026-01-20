@@ -6,19 +6,34 @@
 import { CONFIG } from './config.js';
 
 /**
- * Create and manage SSE connection for whale alerts
- * @param {Function} onAlert - Callback when new alert received
- * @param {Function} onError - Callback on error
+ * Create and manage SSE connection for market events (Whales + Running Trades)
+ * @param {Object} handlers - {onAlert, onTrade, onError}
  * @returns {EventSource} EventSource instance
  */
-export function createWhaleAlertSSE(onAlert, onError) {
+export function createWhaleAlertSSE(handlers) {
+    // Support legacy signature (onAlert, onError)
+    let onAlert, onTrade, onError;
+    if (typeof handlers === 'function') {
+        onAlert = arguments[0];
+        onError = arguments[1];
+    } else {
+        ({ onAlert, onTrade, onError } = handlers);
+    }
+
     const evtSource = new EventSource('/api/events');
 
     evtSource.onmessage = function (event) {
         try {
             const msg = JSON.parse(event.data);
+
+            // Handle Whale Alerts
             if (msg.event === 'whale_alert' && msg.payload) {
-                onAlert(msg.payload);
+                if (onAlert) onAlert(msg.payload);
+            }
+
+            // Handle Running Trades
+            if (msg.event === 'trade' && msg.payload) {
+                if (onTrade) onTrade(msg.payload);
             }
         } catch (e) {
             console.error("SSE Parse Error:", e);
@@ -138,56 +153,56 @@ export function createCustomPromptSSE(prompt, symbols = [], hoursBack = 24, incl
         body: JSON.stringify(requestBody),
         signal: controller.signal
     })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
 
-        function processStream() {
-            reader.read().then(({ done, value }) => {
-                if (done) {
-                    if (onDone) onDone();
-                    return;
-                }
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
 
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\n');
-                buffer = lines.pop(); // Keep incomplete line in buffer
-
-                for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        const chunk = line.substring(6);
-                        if (onChunk) onChunk(chunk);
-                    } else if (line.startsWith('event: done')) {
+            function processStream() {
+                reader.read().then(({ done, value }) => {
+                    if (done) {
                         if (onDone) onDone();
                         return;
-                    } else if (line.startsWith('event: error')) {
-                        if (onError) onError(new Error('Stream error'));
-                        return;
                     }
-                }
 
-                processStream();
-            }).catch(err => {
-                if (err.name !== 'AbortError') {
-                    console.error('Custom Prompt SSE Error:', err);
-                    if (onError) onError(err);
-                }
-            });
-        }
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop(); // Keep incomplete line in buffer
 
-        processStream();
-    })
-    .catch(err => {
-        if (err.name !== 'AbortError') {
-            console.error('Custom Prompt Fetch Error:', err);
-            if (onError) onError(err);
-        }
-    });
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const chunk = line.substring(6);
+                            if (onChunk) onChunk(chunk);
+                        } else if (line.startsWith('event: done')) {
+                            if (onDone) onDone();
+                            return;
+                        } else if (line.startsWith('event: error')) {
+                            if (onError) onError(new Error('Stream error'));
+                            return;
+                        }
+                    }
+
+                    processStream();
+                }).catch(err => {
+                    if (err.name !== 'AbortError') {
+                        console.error('Custom Prompt SSE Error:', err);
+                        if (onError) onError(err);
+                    }
+                });
+            }
+
+            processStream();
+        })
+        .catch(err => {
+            if (err.name !== 'AbortError') {
+                console.error('Custom Prompt Fetch Error:', err);
+                if (onError) onError(err);
+            }
+        });
 
     // Return object with close method for consistency
     return {
