@@ -78,9 +78,9 @@ function createWhaleAlertRow(alert) {
     const confidence = alert.confidence_score || 100;
     const { confidenceClass, confidenceIcon, confidenceLabel } = getConfidenceDisplay(confidence);
 
-    // Message
-    const messageHtml = alert.message ?
-        `<div class="text-[10px] text-textMuted max-w-[200px] truncate" title="${alert.message}">${alert.message}</div>` : '';
+    // Message or Generated Description
+    const description = alert.message || generateAlertDescription(alert);
+    const messageHtml = `<div class="text-[10px] text-textMuted max-w-[200px] truncate" title="${description}">${description}</div>`;
 
     // Alert type badge
     const alertType = alert.alert_type || 'SINGLE_TRADE';
@@ -133,6 +133,39 @@ function createWhaleAlertRow(alert) {
     `;
 
     return row;
+}
+
+/**
+ * Generate descriptive text for an alert based on its metrics
+ * @param {Object} alert - Alert data
+ * @returns {string} Descriptive text
+ */
+function generateAlertDescription(alert) {
+    const parts = [];
+
+    // 1. Analyze Volume Spike
+    const volPct = alert.volume_vs_avg_pct || 0;
+    if (volPct > 5000) parts.push("Lonjakan Volume Ekstrem");
+    else if (volPct > 1000) parts.push("Lonjakan Volume Masif");
+    else if (volPct > 500) parts.push("Volume Tinggi");
+
+    // 2. Analyze Value
+    const val = alert.trigger_value || 0;
+    if (val > 10_000_000_000) parts.push("Transaksi Jumbo"); // > 10M
+    else if (val > 1_000_000_000) parts.push("Transaksi Besar"); // > 1M
+
+    // 3. Analyze Z-Score
+    const z = alert.z_score || 0;
+    if (z > 5) parts.push("Anomali Statistik Signifikan");
+
+    // 4. Analyze Price Action (if available)
+    if (alert.action === 'BUY') parts.push("Akumulasi");
+    else if (alert.action === 'SELL') parts.push("Distribusi");
+
+    // 5. Fallback or Combination
+    if (parts.length === 0) return "Aktivitas Whale Terdeteksi";
+
+    return parts.join(" • ");
 }
 
 /**
