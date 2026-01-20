@@ -494,7 +494,7 @@ function renderRunningTrade(trade) {
     const formatValue = (val) => {
         if (val >= 1_000_000_000) return (val / 1_000_000_000).toFixed(1) + 'M';
         if (val >= 1_000_000) return (val / 1_000_000).toFixed(1) + 'Jt';
-        return (val / 1_000).toFixed(0) + 'k';
+        return (val / 1_000).toFixed(0) + 'Rb';
     };
 
     row.innerHTML = `
@@ -503,7 +503,7 @@ function renderRunningTrade(trade) {
         <td class="px-4 py-1.5 text-right font-bold ${priceClass}">${trade.price}</td>
         <td class="px-4 py-1.5 text-right text-textSecondary">${trade.volume_lot.toLocaleString('id-ID')}</td>
         <td class="px-4 py-1.5 text-right text-textPrimary">${formatValue(trade.value)}</td>
-        <td class="px-4 py-1.5 text-center font-bold ${actionClass}">${trade.action === 'BUY' ? 'B' : 'S'}</td>
+        <td class="px-4 py-1.5 text-center font-bold ${actionClass}">${trade.action === 'BUY' ? 'B' : (trade.action === 'SELL' ? 'S' : 'U')}</td>
     `;
 
     // Prepend and limit rows
