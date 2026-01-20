@@ -125,6 +125,9 @@ async function init() {
     // Setup mobile filter toggle
     setupMobileFilterToggle();
 
+    // Setup running trades toggle
+    setupRunningTradesToggle();
+
     // Connect SSE for real-time updates
     connectWhaleAlertSSE();
 
