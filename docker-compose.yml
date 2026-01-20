@@ -62,6 +62,7 @@ services:
       
     volumes:
       - token_cache:/app/cache
+      - ./public:/app/public
     # Expose port to host for web access
     ports:
       - "8080:8080"

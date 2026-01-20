@@ -83,25 +83,27 @@ function createWhaleAlertRow(alert) {
     if (!description || typeof description !== 'string' || description.trim() === '') {
         description = generateAlertDescription(alert);
     }
-    const messageHtml = `<div class="text-[10px] text-textMuted max-w-[200px] truncate" title="${description}">${description}</div>`;
+    const messageHtml = `<div class="text-[10px] text-textMuted max-w-[140px] truncate" title="${description}">${description}</div>`;
 
-    // Alert type badge
+    // Alert type badge (Simplified)
     const alertType = alert.alert_type || 'SINGLE_TRADE';
     const alertTypeBadge = alertType !== 'SINGLE_TRADE' ?
-        `<span class="text-[9px] px-1 py-0 bg-bgHover text-textPrimary rounded ml-1 border border-borderColor">${alertType}</span>` : '';
+        `<span class="text-[8px] px-1 py-0 bg-bgHover text-textPrimary rounded border border-borderColor">${alertType.substring(0, 1)}</span>` : '';
 
-    // Symbol cell
+    // Symbol cell (Compacted)
     const symbolCellHtml = `
         <td data-label="Saham" class="table-cell">
-            <div class="flex items-center gap-1">
-                <strong class="cursor-pointer hover:text-accentInfo transition-colors text-xs" onclick="event.stopPropagation(); if(window.openCandleModal) window.openCandleModal('${alert.stock_symbol}')">${alert.stock_symbol}</strong>
-                ${alertTypeBadge}
+            <div class="flex flex-col gap-0.5">
+                <div class="flex items-center gap-1.5">
+                    <strong class="cursor-pointer hover:text-accentInfo transition-colors text-xs" onclick="event.stopPropagation(); if(window.openCandleModal) window.openCandleModal('${alert.stock_symbol}')">${alert.stock_symbol}</strong>
+                    ${alertTypeBadge}
+                    <div class="${confidenceClass} text-[9px] flex items-center gap-0.5 opacity-80" title="Skor Keyakinan">
+                        <span>${confidenceIcon}</span>
+                        <span>${confidenceLabel}</span>
+                    </div>
+                </div>
+                ${messageHtml}
             </div>
-            <div class="${confidenceClass} text-[10px] flex items-center gap-1" title="Skor Keyakinan">
-                <span>${confidenceIcon}</span>
-                <span>${confidenceLabel}</span>
-            </div>
-            ${messageHtml}
         </td>
     `;
 
@@ -109,31 +111,60 @@ function createWhaleAlertRow(alert) {
     const detectedTime = alert.detected_at ? (() => {
         try {
             const date = new Date(alert.detected_at);
-            return !isNaN(date.getTime()) ? date.toLocaleString('id-ID') : 'Waktu tidak valid';
+            return !isNaN(date.getTime()) ? date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-';
         } catch {
-            return 'Waktu tidak valid';
+            return '-';
         }
-    })() : 'Waktu tidak valid';
+    })() : '-';
 
     row.innerHTML = `
-        <td data-label="Waktu" class="table-cell text-textMuted whitespace-nowrap" title="${detectedTime}">${formatTime(alert.detected_at)}</td>
+        <td data-label="Waktu" class="table-cell text-textMuted whitespace-nowrap text-[11px]" title="${detectedTime}">${detectedTime}</td>
         ${symbolCellHtml}
-        <td data-label="Aksi" class="table-cell"><span class="px-2 py-0.5 rounded text-xs font-bold ${badgeClass}">${actionText}</span></td>
-        <td data-label="Harga" class="table-cell whitespace-nowrap font-medium">${formatNumber(price)} ${priceDiff}</td>
-        <td data-label="Nilai" class="table-cell text-right font-bold text-textPrimary whitespace-nowrap" title="Total Nilai: Rp ${formatNumber(val)}">${formatCurrency(val)}</td>
-        <td data-label="Volume" class="table-cell text-right text-textSecondary whitespace-nowrap" title="${formatNumber(volume)} lot">${formatNumber(volume)}</td>
+        <td data-label="Aksi" class="table-cell text-center"><span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${badgeClass}">${actionText.substring(0, 3)}</span></td>
+        <td data-label="Harga" class="table-cell whitespace-nowrap font-medium text-right text-[11px]">${formatNumber(price)}</td>
+        <td data-label="Nilai" class="table-cell text-right font-bold text-textPrimary whitespace-nowrap text-[11px]" title="Total Nilai: Rp ${formatNumber(val)}">${formatCurrency(val)}</td>
         <td data-label="Details" class="table-cell">
-            <div class="flex flex-col gap-1">
-                <div class="flex items-center gap-2 mb-1">
-                    <span class="text-[10px] font-bold px-1.5 py-0.5 rounded border ${alert.market_board === 'NG' ? 'bg-purple-900/30 text-purple-400 border-purple-500/30' : 'bg-bgSecondary text-textSecondary border-borderColor'}">
+            <div class="flex flex-col gap-0.5 justify-center">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                    <span class="text-[9px] font-bold px-1 py-0 rounded border ${alert.market_board === 'NG' ? 'bg-purple-900/30 text-purple-400 border-purple-500/30' : 'bg-bgSecondary text-textSecondary border-borderColor'}">
                         ${alert.market_board || 'RG'}
                     </span>
                     ${anomalyHtml}
+                    <span class="text-[10px] text-textMuted" title="Z-Score">Z:${zScore.toFixed(1)}</span>
                 </div>
-                <div class="flex flex-col text-[10px] text-textMuted leading-tight mt-1">
-                    <span title="Statistical Anomaly Score">Z: ${zScore.toFixed(2)}</span>
-                    <span title="Volume vs Average">Vol: ${volumeVsAvg.toFixed(0)}%</span>
-                    ${alert.adaptive_threshold ? `<span title="Threshold: ${alert.adaptive_threshold.toFixed(2)}">T: ${alert.adaptive_threshold.toFixed(1)}</span>` : ''}
+                <div class="flex items-center gap-2 text-[10px] text-textMuted leading-none">
+                    <span title="Volume vs Average">V:${volumeVsAvg.toFixed(0)}%</span>
+                    ${alert.adaptive_threshold ? `<span title="Threshold" class="opacity-70">T:${alert.adaptive_threshold.toFixed(1)}</span>` : ''}
+                </div>
+            </div>
+        </td>
+    `;
+
+    // Remove Volume column to save space (merged context into Details)
+    // Or keep it but make it smaller. Let's keep existing structure but update index.html to match columns if needed.
+    // Wait, the previous layout HAD a Volume column. I should double check index.html.
+    // Looking at previous render.js, line 124 was Volume column. I missed including it in the replacement above.
+    // I NEED to include the Volume column or the headers will be misaligned because index.html likely has a header for it.
+    // Re-adding Volume column.
+
+    row.innerHTML = `
+        <td data-label="Waktu" class="table-cell text-textMuted whitespace-nowrap text-[11px]" title="${detectedTime}">${detectedTime}</td>
+        ${symbolCellHtml}
+        <td data-label="Aksi" class="table-cell text-center"><span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${badgeClass}">${actionText.substring(0, 3)}</span></td>
+        <td data-label="Harga" class="table-cell whitespace-nowrap font-medium text-right text-[11px]">${formatNumber(price)}</td>
+        <td data-label="Nilai" class="table-cell text-right font-bold text-textPrimary whitespace-nowrap text-[11px]" title="Total Nilai: Rp ${formatNumber(val)}">${formatCurrency(val)}</td>
+        <td data-label="Volume" class="table-cell text-right text-textSecondary whitespace-nowrap text-[11px]">${formatNumber(volume)}</td>
+        <td data-label="Details" class="table-cell">
+            <div class="flex flex-col gap-0.5 justify-center">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                    <span class="text-[9px] font-bold px-1 py-0 rounded border ${alert.market_board === 'NG' ? 'bg-purple-900/30 text-purple-400 border-purple-500/30' : 'bg-bgSecondary text-textSecondary border-borderColor'}">
+                        ${alert.market_board || 'RG'}
+                    </span>
+                    <span class="text-[10px] text-textMuted" title="Z-Score">Z:${zScore.toFixed(1)}</span>
+                    ${anomalyHtml}
+                </div>
+                <div class="flex items-center gap-2 text-[10px] text-textMuted leading-none">
+                    <span title="Volume vs Average">Vol:${volumeVsAvg.toFixed(0)}%</span>
                 </div>
             </div>
         </td>
