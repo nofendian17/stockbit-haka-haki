@@ -940,20 +940,20 @@ function renderWhaleAlerts(alerts, tbody, loadingDiv) {
         const priceStr = alert.trigger_price || alert.price || 0;
 
         row.innerHTML = `
-            <td class="px-2 py-1.5 whitespace-nowrap text-textMuted font-mono">${timeStr}</td>
-            <td class="px-2 py-1.5 whitespace-nowrap">
+            <td class="px-2 py-1.5 whitespace-nowrap text-textMuted font-mono w-[15%] text-left">${timeStr}</td>
+            <td class="px-2 py-1.5 whitespace-nowrap w-[15%] text-left">
                 <span class="font-bold text-textPrimary">${alert.stock_symbol}</span>
             </td>
-            <td class="px-2 py-1.5 text-center font-bold ${actionClass}">${actionCode}</td>
-            <td class="px-2 py-1.5 text-right font-mono font-bold text-textPrimary">${priceStr}</td>
-            <td class="px-2 py-1.5 text-right text-textSecondary">${valueStr}</td>
-            <td class="px-2 py-1.5">
+            <td class="px-2 py-1.5 text-center font-bold w-[10%] ${actionClass}">${actionCode}</td>
+            <td class="px-2 py-1.5 text-right font-mono font-bold text-textPrimary w-[15%]">${priceStr}</td>
+            <td class="px-2 py-1.5 text-right text-textSecondary w-[15%]">${valueStr}</td>
+            <td class="px-2 py-1.5 w-[20%] text-left">
                 <div class="flex gap-1 items-center justify-start flex-wrap">
                     ${whaleBadge ? whaleBadge.replace('text-[10px]', 'text-[9px] py-0 px-1') : ''}
                     ${regimeBadge ? regimeBadge.replace('text-[10px]', 'text-[9px] py-0 px-1') : ''}
                 </div>
             </td>
-            <td class="px-2 py-1.5 text-right whitespace-nowrap">
+            <td class="px-2 py-1.5 text-right whitespace-nowrap w-[10%]">
                 <button onclick="openFollowupModal('${alert.id}', '${alert.stock_symbol}', ${alert.trigger_price})" class="p-1 hover:bg-bgSecondary rounded text-accentInfo transition-colors" title="Lihat Followup">
                     🔍
                 </button>
