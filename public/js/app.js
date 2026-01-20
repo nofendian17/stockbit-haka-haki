@@ -479,6 +479,25 @@ function renderRunningTrade(trade) {
     const tbody = document.getElementById('running-trades-body');
     if (!tbody) return;
 
+    // Check if user is scrolling (pause updates if scrolled down)
+    const container = tbody.closest('.table-wrapper');
+    if (container && container.scrollTop > 5) {
+        // Update status to indicate paused due to scrolling
+        const statusEl = document.getElementById('trade-stream-status');
+        if (statusEl && !statusEl.textContent.includes('Scrolling')) {
+            statusEl.textContent = '⏸️ Paused (Scrolling)';
+            statusEl.className = 'text-[10px] font-mono text-accentWarning';
+        }
+        return;
+    } else {
+        // Reset status if it was paused
+        const statusEl = document.getElementById('trade-stream-status');
+        if (statusEl && statusEl.textContent.includes('Scrolling')) {
+            statusEl.textContent = '⚫ Live';
+            statusEl.className = 'text-[10px] font-mono text-accentSuccess animate-pulse';
+        }
+    }
+
     const row = document.createElement('tr');
     row.className = 'hover:bg-bgHover transition-colors border-b border-borderColor last:border-0';
 
