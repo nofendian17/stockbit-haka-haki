@@ -303,6 +303,59 @@ function setupMobileFilterToggle() {
 }
 
 /**
+ * Setup running trades toggle functionality
+ */
+function setupRunningTradesToggle() {
+    const toggleBtn = document.getElementById('toggle-running-trades');
+    const container = document.getElementById('running-trades-container');
+    const arrow = document.getElementById('running-trades-arrow');
+    const statusEl = document.getElementById('trade-stream-status');
+
+    if (toggleBtn && container && arrow) {
+        // Load saved preference
+        const savedState = localStorage.getItem('runningTradesVisible');
+        if (savedState === 'false') {
+            state.runningTradesVisible = false;
+            container.style.height = '0px';
+            container.style.opacity = '0';
+            container.style.marginTop = '0';
+            arrow.style.transform = 'rotate(-90deg)';
+            if (statusEl) {
+                statusEl.textContent = '⏸️ Paused (Hidden)';
+                statusEl.className = 'text-[10px] font-mono text-textMuted'; // Remove pulse
+            }
+        }
+
+        toggleBtn.addEventListener('click', () => {
+            state.runningTradesVisible = !state.runningTradesVisible;
+            localStorage.setItem('runningTradesVisible', state.runningTradesVisible);
+
+            if (state.runningTradesVisible) {
+                // Show
+                container.style.height = '300px';
+                container.style.opacity = '1';
+                container.style.marginTop = '0.75rem'; // mt-3 is 0.75rem
+                arrow.style.transform = 'rotate(0deg)';
+                if (statusEl) {
+                    statusEl.textContent = '⚫ Live';
+                    statusEl.className = 'text-[10px] font-mono text-accentSuccess animate-pulse';
+                }
+            } else {
+                // Hide
+                container.style.height = '0px';
+                container.style.opacity = '0';
+                container.style.marginTop = '0';
+                arrow.style.transform = 'rotate(-90deg)';
+                if (statusEl) {
+                    statusEl.textContent = '⏸️ Paused (Hidden)';
+                    statusEl.className = 'text-[10px] font-mono text-textMuted';
+                }
+            }
+        });
+    }
+}
+
+/**
  * Update filter state from DOM
  */
 function updateFilters() {
