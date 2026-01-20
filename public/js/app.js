@@ -975,7 +975,21 @@ function renderWhaleAlertsTable(alerts, tbody, loadingDiv) {
 
         // Render badges (Compact version)
         const whaleBadge = renderWhaleAlignmentBadge(proxyAlert);
-        const regimeBadge = renderRegimeBadge(alert.market_regime || alert.metadata?.regime);
+        let infoBadges = renderRegimeBadge(alert.market_regime || alert.metadata?.regime);
+
+        // Add Z-Score Badge
+        const zScore = alert.metadata?.z_score || 0;
+        if (zScore >= 3) {
+            infoBadges += `<span class="text-[9px] px-1.5 py-0.5 rounded bg-pink-900/30 text-pink-400 border border-pink-500/30 ml-1">EKSTREM (Z:${zScore.toFixed(1)})</span>`;
+        } else if (zScore >= 2) {
+            infoBadges += `<span class="text-[9px] px-1.5 py-0.5 rounded bg-orange-900/30 text-orange-400 border border-orange-500/30 ml-1">TINGGI (Z:${zScore.toFixed(1)})</span>`;
+        }
+
+        // Add Volume Spike Badge
+        const volPct = alert.metadata?.volume_vs_avg || 0;
+        if (volPct >= 200) {
+            infoBadges += `<span class="text-[9px] px-1.5 py-0.5 rounded bg-cyan-900/30 text-cyan-400 border border-cyan-500/30 ml-1">VOL SPIKE (${volPct.toFixed(0)}%)</span>`;
+        }
 
         // Format Time (Just HH:mm)
         // Format Time (Just HH:mm)
