@@ -225,38 +225,45 @@
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
         <!-- Filters -->
-        <section class="mb-8">
-            <div class="flex flex-wrap gap-3 items-center bg-bgCard p-4 rounded-xl border border-borderColor shadow-sm">
-                <input type="text" id="search" class="input-base flex-1 min-w-[200px]"
-                    placeholder="🔍 Cari Kode Saham..." />
+        <section class="mb-4 sm:mb-8">
+            <!-- Mobile Toggle -->
+            <button id="mobile-filter-toggle"
+                class="w-full flex sm:hidden justify-between items-center p-4 bg-bgCard border border-borderColor rounded-xl mb-3">
+                <span class="font-bold text-sm">🎛️ Filter & Pencarian</span>
+                <span id="filter-toggle-icon" class="text-xs text-textMuted">▼</span>
+            </button>
 
-                <select id="filter-action" class="input-base cursor-pointer">
-                    <option value="ALL">Semua Aksi</option>
-                    <option value="BUY">🟢 Beli</option>
-                    <option value="SELL">🔴 Jual</option>
-                </select>
+            <!-- Filter Content -->
+            <div id="filter-content" class="hidden sm:block">
+                <div
+                    class="flex flex-wrap gap-3 items-center bg-bgCard p-4 rounded-xl border border-borderColor shadow-sm">
+                    <input type="text" id="search" class="input-base flex-1 min-w-[200px]"
+                        placeholder="🔍 Cari Kode Saham..." />
 
-                <select id="filter-amount" class="input-base cursor-pointer">
-                    <option value="0">Semua Nilai</option>
-                    <option value="100000000">> 100 Jt</option>
-                    <option value="500000000">> 500 Jt</option>
-                    <option value="1000000000">> 1 M</option>
-                    <option value="5000000000">> 5 M</option>
-                </select>
+                    <select id="filter-action" class="input-base cursor-pointer">
+                        <option value="ALL">Semua Aksi</option>
+                        <option value="BUY">🟢 Beli</option>
+                        <option value="SELL">🔴 Jual</option>
+                    </select>
 
-                <select id="filter-board" class="input-base cursor-pointer">
-                    <option value="ALL">Semua Board</option>
-                    <option value="RG">Regular</option>
-                    <option value="TN">Tunai</option>
-                    <option value="NG">Negosiasi</option>
-                </select>
+                    <select id="filter-amount" class="input-base cursor-pointer">
+                        <option value="0">Semua Nilai</option>
+                        <option value="100000000">Min 100 Jt</option>
+                        <option value="500000000">Min 500 Jt</option>
+                        <option value="1000000000">Min 1 M</option>
+                    </select>
 
-                <button id="clear-filters-btn"
-                    class="px-4 py-2 bg-accentDanger/10 text-accentDanger border border-accentDanger/30 rounded-lg hover:bg-accentDanger/20 transition-colors font-semibold text-sm hidden">✖
-                    Clear</button>
-                <button id="refresh-btn" class="btn-secondary">
-                    <span>🔄</span> Refresh
-                </button>
+                    <select id="filter-board" class="input-base cursor-pointer">
+                        <option value="ALL">Semua Board</option>
+                        <option value="RG">Reguler</option>
+                        <option value="TN">Tunai</option>
+                        <option value="NG">Negosiasi</option>
+                    </select>
+
+                    <button id="clear-filters-btn" class="text-accentDanger text-sm hover:underline ml-2 hidden">
+                        Reset
+                    </button>
+                </div>
             </div>
         </section>
 
