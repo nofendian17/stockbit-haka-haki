@@ -113,8 +113,10 @@ func NewSignalTracker(repo *database.TradeRepository, redis *cache.RedisClient, 
 	exitCalc := NewExitStrategyCalculator(repo, cfg)
 	// Initialize Signal Filter Service
 	filterService := NewSignalFilterService(repo, redis, cfg)
+	// Initialize LLM Cache for caching analysis results
+	llmCache := cache.NewLLMCache(redis)
 	// Initialize Trade Aggregator for LLM-based analysis
-	tradeAgg := NewTradeAggregator(repo, llmClient)
+	tradeAgg := NewTradeAggregator(repo, llmClient, llmCache)
 
 	return &SignalTracker{
 		repo:  repo,
@@ -132,8 +134,9 @@ func NewSignalTracker(repo *database.TradeRepository, redis *cache.RedisClient, 
 func (st *SignalTracker) Start() {
 	log.Println("📊 Signal Outcome Tracker started")
 
-	// Ticker for signal generation (High Latency due to LLM)
-	signalTicker := time.NewTicker(30 * time.Second)
+	// Ticker for signal generation (Reduced frequency to minimize LLM calls)
+	// Changed from 30s to 3 minutes to reduce API costs while maintaining responsiveness
+	signalTicker := time.NewTicker(3 * time.Minute)
 
 	// Ticker for outcome tracking (Low Latency, frequent updates)
 	// Reduced from 2 minutes to 10 seconds to fix "PENDING" status lag

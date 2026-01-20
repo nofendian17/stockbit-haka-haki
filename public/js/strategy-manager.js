@@ -4,7 +4,7 @@
  */
 
 import { CONFIG } from './config.js';
-import { safeGetElement, formatStrategyName, getTimeAgo, parseTimestamp, setupTableInfiniteScroll } from './utils.js?v=2';
+import { safeGetElement, formatStrategyName, getTimeAgo, parseTimestamp, setupTableInfiniteScroll, renderWhaleAlignmentBadge, renderRegimeBadge } from './utils.js?v=2';
 import { fetchStrategySignals, fetchSignalHistory } from './api.js';
 import { createStrategySignalSSE, closeSSE } from './sse-handler.js';
 
@@ -289,6 +289,10 @@ function renderSignalRow(signal, isInitialLoad = false) {
     const enhancedReason = signal.reason || '-';
     // const zScoreInfo = `Price Z: ${priceZScore.toFixed(2)} | Vol Z: ${volumeZScore.toFixed(2)}`;
 
+    // NEW: Whale alignment and regime badges
+    const whaleBadge = renderWhaleAlignmentBadge(signal);
+    const regimeBadge = renderRegimeBadge(signal.market_regime, signal.regime_confidence);
+
     // Create row
     const row = document.createElement('tr');
     row.className = 'border-b border-borderColor last:border-0 hover:bg-bgHover transition-colors';
@@ -297,6 +301,10 @@ function renderSignalRow(signal, isInitialLoad = false) {
         <td data-label="Waktu" class="table-cell whitespace-nowrap text-textMuted text-xs" title="${fullTime}">${timeAgo}</td>
         <td data-label="Saham" class="table-cell font-bold">
             <strong class="cursor-pointer hover:text-accentInfo transition-colors" onclick="if(window.openCandleModal) window.openCandleModal('${signal.stock_symbol}')">${signal.stock_symbol}</strong>
+            <div class="flex gap-1 mt-1">
+                ${regimeBadge}
+                ${whaleBadge}
+            </div>
         </td>
         <td data-label="Strategi" class="table-cell text-xs" title="${signal.strategy.replace(/_/g, ' ')}">${formatStrategyName(signal.strategy)}</td>
         <td data-label="Aksi" class="table-cell"><span class="px-2 py-0.5 rounded text-xs font-bold ${badgeClass}">${decisionIcon} ${signal.decision}</span></td>

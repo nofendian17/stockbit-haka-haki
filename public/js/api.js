@@ -309,6 +309,9 @@ export async function fetchProfitLossHistory(filters = {}) {
     if (filters.symbol) {
         params.append('symbol', filters.symbol.toUpperCase());
     }
+    if (filters.regime && filters.regime !== 'ALL') {
+        params.append('regime', filters.regime);
+    }
 
     const url = `${API_ENDPOINTS.POSITIONS_HISTORY}?${params.toString()}`;
     return apiFetch(url);

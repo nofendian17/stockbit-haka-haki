@@ -262,3 +262,47 @@ export function setupTableInfiniteScroll(config) {
 
     container.addEventListener('scroll', scrollHandler);
 }
+
+/**
+ * Render whale alignment badge HTML
+ * @param {Object} signal - Signal object with whale data
+ * @returns {string} HTML string for whale badge
+ */
+export function renderWhaleAlignmentBadge(signal) {
+    if (!signal || !signal.whale_aligned) return '';
+
+    const whaleCount = signal.whale_buy_count || 0;
+    const whaleValue = signal.whale_total_value || 0;
+
+    if (whaleCount >= 3 || whaleValue > 500000000) {
+        // Strong whale alignment
+        return `<span class="text-[10px] px-1.5 py-0.5 bg-purple-900/30 text-purple-400 rounded border border-purple-500/30 font-bold">
+            🐋 ${whaleCount} WHALES (${formatCurrency(whaleValue)})
+        </span>`;
+    } else if (whaleCount > 0) {
+        // Moderate whale alignment
+        return `<span class="text-[10px] px-1.5 py-0.5 bg-blue-900/30 text-blue-400 rounded border border-blue-500/30">
+            🐋 ${whaleCount} WHALES
+        </span>`;
+    }
+
+    return '';
+}
+
+/**
+ * Render regime badge HTML
+ * @param {string} regime - Regime type
+ * @param {number} confidence - Confidence score (0-1)
+ * @returns {string} HTML string for regime badge
+ */
+export function renderRegimeBadge(regime, confidence = 0) {
+    if (!regime || regime === 'UNKNOWN') return '';
+
+    const regimeClass = getRegimeClass(regime);
+    const regimeLabel = getRegimeLabel(regime);
+    const confPct = (confidence * 100).toFixed(0);
+
+    return `<span class="text-[9px] px-1.5 py-0.5 rounded ${regimeClass} bg-opacity-20 border border-current" title="Confidence: ${confPct}%">
+        ${regimeLabel}
+    </span>`;
+}

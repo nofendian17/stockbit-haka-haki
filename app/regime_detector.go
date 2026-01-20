@@ -63,8 +63,8 @@ func (rd *RegimeDetector) detectRegimes() {
 
 	detected := 0
 	for _, symbol := range symbols {
-		// 2. Fetch last 50 candles (1min)
-		candles, err := rd.repo.GetCandles(symbol, time.Now().Add(-2*time.Hour), time.Now(), 50)
+		// 2. Fetch last 50 candles (5min timeframe for consistency)
+		candles, err := rd.repo.GetCandlesByTimeframe("5min", symbol, 50)
 		if err != nil {
 			log.Printf("⚠️  Failed to get candles for %s: %v", symbol, err)
 			continue
@@ -89,57 +89,89 @@ func (rd *RegimeDetector) detectRegimes() {
 }
 
 // classifyRegime determines the market condition based on technical indicators
-func (rd *RegimeDetector) classifyRegime(symbol string, candles []database.Candle) *database.MarketRegime {
-	// For Phase 2, we'll use a simplified version:
-	// - Trend: Based on 20-period EMA slope
-	// - Volatility: Based on Bollinger Band width
-	// - Strength: Based on relative price move
-
+// FIXED: Separated trend and volatility classification, adjusted thresholds for Indonesian market
+func (rd *RegimeDetector) classifyRegime(symbol string, candles []map[string]interface{}) *database.MarketRegime {
 	n := len(candles)
 	prices := make([]float64, n)
 	for i, c := range candles {
-		prices[i] = c.Close
+		prices[i] = getFloat(c, "close")
 	}
 
-	// Calculate 20-period SMA as a simple baseline
+	// 1. Calculate all indicators
 	sma20 := calculateSMA(prices, 20)
-
-	// Calculate Volatility (Std Dev over 20 periods)
-	stdDev20 := calculateStdDev(prices, 20)
-	bollingerWidth := (stdDev20 * 4) / sma20 // Typical BB width: (Upper - Lower) / Middle
-
-	// Calculate EMA 20 for trend direction
 	ema20 := calculateEMA(prices, 20)
 	prevEma20 := calculateEMA(prices[:n-1], 20)
+	stdDev20 := calculateStdDev(prices, 20)
+	atr := calculateATR(candles, 14)
+
+	// 2. Normalize metrics
 	emaSlope := (ema20 - prevEma20) / prevEma20
-
-	regime := "RANGING"
-	confidence := 0.5
-
-	// Classification Logic
-	if bollingerWidth > 0.05 { // Arbitrary threshold for high volatility
-		regime = "VOLATILE"
-		confidence = 0.7
-	} else if emaSlope > 0.001 { // Upward trend
-		regime = "TRENDING_UP"
-		confidence = 0.6 + (emaSlope * 100)
-	} else if emaSlope < -0.001 { // Downward trend
-		regime = "TRENDING_DOWN"
-		confidence = 0.6 + (math.Abs(emaSlope) * 100)
+	bollingerWidth := (stdDev20 * 4) / sma20
+	atrPercent := 0.0
+	if prices[n-1] > 0 {
+		atrPercent = (atr / prices[n-1]) * 100
 	}
 
-	if confidence > 1.0 {
-		confidence = 1.0
+	// 3. Classify TREND (primary classification)
+	var trendRegime string
+	var trendConfidence float64
+
+	// Adjusted thresholds for 5-minute candles on Indonesian market
+	// 0.005 = 0.5% per 5-min candle (realistic for trending stocks)
+	if emaSlope > 0.005 {
+		trendRegime = "TRENDING_UP"
+		// Normalize confidence: 0.6 base + slope strength (capped at 1.0)
+		trendConfidence = math.Min(0.6+(emaSlope*50), 1.0)
+	} else if emaSlope < -0.005 {
+		trendRegime = "TRENDING_DOWN"
+		trendConfidence = math.Min(0.6+(math.Abs(emaSlope)*50), 1.0)
+	} else {
+		trendRegime = "RANGING"
+		trendConfidence = 0.5
 	}
+
+	// 4. Classify VOLATILITY (secondary - affects confidence)
+	var volatilityLevel string
+
+	// Adjusted threshold for Indonesian stocks (typical ATR: 0.5-2%)
+	if atrPercent > 2.0 {
+		volatilityLevel = "HIGH"
+		// Reduce confidence for volatile trends (less reliable)
+		if trendRegime != "RANGING" {
+			trendConfidence *= 0.8
+		}
+	} else if atrPercent > 1.0 {
+		volatilityLevel = "MEDIUM"
+	} else {
+		volatilityLevel = "LOW"
+		// Increase confidence for low volatility trends (more reliable)
+		if trendRegime != "RANGING" {
+			trendConfidence *= 1.1
+			trendConfidence = math.Min(trendConfidence, 1.0)
+		}
+	}
+
+	// 5. Combine into final regime
+	// Only mark as VOLATILE if ranging with high volatility
+	finalRegime := trendRegime
+	if volatilityLevel == "HIGH" && trendRegime == "RANGING" {
+		finalRegime = "VOLATILE"
+		trendConfidence = 0.7
+	}
+
+	// Log regime detection for debugging
+	log.Printf("📊 Regime for %s: %s (conf: %.2f, EMA slope: %.4f, ATR: %.2f%%)",
+		symbol, finalRegime, trendConfidence, emaSlope, atrPercent)
 
 	return &database.MarketRegime{
 		StockSymbol:     symbol,
 		DetectedAt:      time.Now(),
-		Regime:          regime,
-		Confidence:      confidence,
+		Regime:          finalRegime,
+		Confidence:      trendConfidence,
 		LookbackPeriods: 20,
 		BollingerWidth:  &bollingerWidth,
 		Volatility:      &stdDev20,
+		ATR:             &atr,
 	}
 }
 
@@ -179,4 +211,46 @@ func calculateStdDev(data []float64, period int) float64 {
 		variance += math.Pow(data[i]-mean, 2)
 	}
 	return math.Sqrt(variance / float64(period))
+}
+
+// calculateATR calculates Average True Range using Wilder's smoothing method
+func calculateATR(candles []map[string]interface{}, period int) float64 {
+	if len(candles) < period+1 {
+		return 0
+	}
+
+	// Calculate True Range for each candle
+	var trueRanges []float64
+	for i := 1; i < len(candles); i++ {
+		high := getFloat(candles[i], "high")
+		low := getFloat(candles[i], "low")
+		prevClose := getFloat(candles[i-1], "close")
+
+		// True Range = max(H-L, |H-PrevC|, |L-PrevC|)
+		tr1 := high - low
+		tr2 := math.Abs(high - prevClose)
+		tr3 := math.Abs(low - prevClose)
+
+		tr := math.Max(tr1, math.Max(tr2, tr3))
+		trueRanges = append(trueRanges, tr)
+	}
+
+	if len(trueRanges) < period {
+		return 0
+	}
+
+	// Calculate initial ATR = SMA of first period true ranges
+	atr := 0.0
+	for i := 0; i < period; i++ {
+		atr += trueRanges[i]
+	}
+	atr /= float64(period)
+
+	// Apply Wilder's smoothing for remaining data points
+	// ATR = (PrevATR × (n-1) + CurrentTR) / n
+	for i := period; i < len(trueRanges); i++ {
+		atr = (atr*float64(period-1) + trueRanges[i]) / float64(period)
+	}
+
+	return atr
 }

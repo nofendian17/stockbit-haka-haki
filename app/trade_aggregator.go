@@ -7,21 +7,24 @@ import (
 	"strings"
 	"time"
 
+	"stockbit-haka-haki/cache"
 	"stockbit-haka-haki/database"
 	"stockbit-haka-haki/llm"
 )
 
 // TradeAggregator handles the aggregation of running trade data into statistical snapshots
 type TradeAggregator struct {
-	repo *database.TradeRepository
-	llm  *llm.Client
+	repo     *database.TradeRepository
+	llm      *llm.Client
+	llmCache *cache.LLMCache
 }
 
 // NewTradeAggregator creates a new trade aggregator
-func NewTradeAggregator(repo *database.TradeRepository, llmClient *llm.Client) *TradeAggregator {
+func NewTradeAggregator(repo *database.TradeRepository, llmClient *llm.Client, llmCache *cache.LLMCache) *TradeAggregator {
 	return &TradeAggregator{
-		repo: repo,
-		llm:  llmClient,
+		repo:     repo,
+		llm:      llmClient,
+		llmCache: llmCache,
 	}
 }
 
@@ -183,7 +186,19 @@ func (ta *TradeAggregator) GenerateTradingSignal(ctx context.Context, stockSymbo
 		return nil, fmt.Errorf("failed to aggregate trades: %w", err)
 	}
 
-	// Generate LLM analysis
+	// Generate data hash for cache key
+	dataHash := cache.GenerateDataHash(aggregatedData)
+
+	// Check cache first (if available)
+	if ta.llmCache != nil {
+		if cachedSignal, found := ta.llmCache.GetAnalysis(ctx, stockSymbol, dataHash); found {
+			// Update timestamp to current time for cached signal
+			cachedSignal.GeneratedAt = time.Now()
+			return cachedSignal, nil
+		}
+	}
+
+	// Generate LLM analysis (cache miss or no cache available)
 	analysis, err := ta.GenerateLLMAnalysis(ctx, aggregatedData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate LLM analysis: %w", err)
@@ -282,6 +297,16 @@ func (ta *TradeAggregator) GenerateTradingSignal(ctx context.Context, stockSymbo
 		PriceChangePct:    priceChangePct,
 		Reason:            reason,
 		AnalysisData:      string(analysisJSON),
+	}
+
+	// Cache the signal for future use (if cache is available)
+	if ta.llmCache != nil {
+		// Use 5 minute TTL (will be configurable via config in signal_tracker)
+		cacheTTL := 5 * time.Minute
+		if err := ta.llmCache.SetAnalysis(ctx, stockSymbol, dataHash, signal, cacheTTL); err != nil {
+			// Log but don't fail - caching is optional optimization
+			// log.Printf("⚠️ Failed to cache LLM analysis for %s: %v", stockSymbol, err)
+		}
 	}
 
 	return signal, nil

@@ -33,8 +33,9 @@ func NewSignalFilterService(repo *database.TradeRepository, redis *cache.RedisCl
 		cfg:   cfg,
 	}
 
-	// Register filters in order (reduced from 7 to 4 core filters)
+	// Register filters in order (5 filters with regime-based filtering)
 	service.filters = []SignalFilter{
+		&RegimeFilter{repo: repo, cfg: cfg}, // NEW: Check regime first
 		&StrategyPerformanceFilter{repo: repo, redis: redis, cfg: cfg},
 		&DynamicConfidenceFilter{repo: repo, redis: redis, cfg: cfg},
 		&OrderFlowFilter{repo: repo, redis: redis, cfg: cfg},
@@ -367,6 +368,45 @@ func (f *OrderFlowFilter) Evaluate(ctx context.Context, signal *database.Trading
 		requiredThreshold *= 0.9
 	}
 
+	// Whale Alignment Check (validate against institutional activity)
+	recentWhales, err := f.repo.GetHistoricalWhales(
+		signal.StockSymbol,
+		time.Now().Add(-15*time.Minute),
+		time.Now(),
+		"", "", "", 0, 10, 0,
+	)
+
+	if err == nil && len(recentWhales) > 0 {
+		whaleBuyCount := 0
+		whaleSellCount := 0
+		var totalWhaleValue float64
+
+		for _, whale := range recentWhales {
+			switch whale.Action {
+			case "BUY":
+				whaleBuyCount++
+				totalWhaleValue += whale.TriggerValue
+			case "SELL":
+				whaleSellCount++
+			}
+		}
+
+		// BOOST: Whale alignment (whales buying, we're buying)
+		if signal.Decision == "BUY" && whaleBuyCount > whaleSellCount {
+			// Strong whale buying activity
+			if whaleBuyCount >= 3 || totalWhaleValue > 500_000_000 { // 500M IDR
+				return true, fmt.Sprintf("Strong whale alignment: %d BUY whales (%.0fM IDR)", whaleBuyCount, totalWhaleValue/1_000_000), 1.5
+			}
+			// Moderate whale buying
+			return true, fmt.Sprintf("Whale alignment: %d BUY whales", whaleBuyCount), 1.3
+		}
+
+		// REJECT: Whale divergence (whales selling, we're buying)
+		if signal.Decision == "BUY" && whaleSellCount > whaleBuyCount && whaleSellCount >= 2 {
+			return false, fmt.Sprintf("Whale divergence: %d SELL whales detected", whaleSellCount), 0.0
+		}
+	}
+
 	if buyPressure < requiredThreshold {
 		if orderFlow.AggressiveBuyPct != nil && *orderFlow.AggressiveBuyPct > f.cfg.Trading.AggressiveBuyThreshold {
 			if buyPressure > 0.45 { // Was 0.4 - tightened to avoid falling knives
@@ -428,5 +468,53 @@ func (f *TimeOfDayFilter) Evaluate(ctx context.Context, signal *database.Trading
 		return true, "Afternoon caution period", 0.8
 	}
 
+	return true, "", 1.0
+}
+
+// ============================================================================
+// REGIME FILTER
+// ============================================================================
+
+// RegimeFilter evaluates signals based on market regime
+type RegimeFilter struct {
+	repo *database.TradeRepository
+	cfg  *config.Config
+}
+
+func (f *RegimeFilter) Name() string { return "Market Regime" }
+
+func (f *RegimeFilter) Evaluate(ctx context.Context, signal *database.TradingSignalDB) (bool, string, float64) {
+	regime, err := f.repo.GetLatestRegime(signal.StockSymbol)
+	if err != nil || regime == nil {
+		// No regime data - pass with neutral multiplier
+		return true, "No regime data available", 1.0
+	}
+
+	// REJECT: High confidence volatile stocks
+	if regime.Regime == "VOLATILE" && regime.Confidence > 0.7 {
+		return false, fmt.Sprintf("High volatility regime (%.1f%% confidence)", regime.Confidence*100), 0.0
+	}
+
+	// BOOST: Strong uptrend
+	if regime.Regime == "TRENDING_UP" && regime.Confidence > 0.7 {
+		return true, fmt.Sprintf("Strong uptrend (%.1f%% confidence)", regime.Confidence*100), 1.3
+	}
+
+	// BOOST: Moderate uptrend
+	if regime.Regime == "TRENDING_UP" && regime.Confidence > 0.5 {
+		return true, fmt.Sprintf("Moderate uptrend (%.1f%% confidence)", regime.Confidence*100), 1.1
+	}
+
+	// REDUCE: Ranging market (less reliable)
+	if regime.Regime == "RANGING" {
+		return true, "Ranging market", 0.8
+	}
+
+	// REDUCE: Downtrend (we only trade BUY signals)
+	if regime.Regime == "TRENDING_DOWN" {
+		return true, "Downtrend detected", 0.7
+	}
+
+	// Default: pass with neutral multiplier
 	return true, "", 1.0
 }

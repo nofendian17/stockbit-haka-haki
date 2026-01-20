@@ -65,6 +65,28 @@
       .show {
         display: block !important;
       }
+      
+      /* Mobile Filter Toggle */
+      @media (max-width: 1023px) {
+        #filter-content {
+          display: none;
+        }
+        #filter-content.show {
+          display: block;
+          animation: slideDown 0.2s ease-out;
+        }
+      }
+    }
+    
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        max-height: 0;
+      }
+      to {
+        opacity: 1;
+        max-height: 500px;
+      }
     }
 
     /* Mobile Responsive Table Cards */
@@ -429,6 +451,14 @@
                             <option value="">Semua Status</option>
                             <option value="WIN">Win</option>
                             <option value="LOSS">Loss</option>
+                        </select>
+                        <select id="history-regime"
+                            class="bg-bgSecondary border border-borderColor text-textPrimary text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:border-accentInfo">
+                            <option value="ALL">Semua Regime</option>
+                            <option value="TRENDING_UP">📈 Trending Up</option>
+                            <option value="TRENDING_DOWN">📉 Trending Down</option>
+                            <option value="RANGING">↔️ Ranging</option>
+                            <option value="VOLATILE">⚡ Volatile</option>
                         </select>
                         <button id="history-refresh-btn"
                             class="p-1.5 rounded-lg border border-borderColor hover:bg-bgHover transition-transform">

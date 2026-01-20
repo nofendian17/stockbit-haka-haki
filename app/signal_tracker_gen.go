@@ -9,6 +9,75 @@ import (
 	"stockbit-haka-haki/database"
 )
 
+// shouldCallLLM determines if we should call LLM for a symbol based on pre-filtering criteria
+// Returns (shouldCall bool, reason string)
+func (st *SignalTracker) shouldCallLLM(ctx context.Context, symbol string) (bool, string) {
+	// 1. Check LLM cooldown (prevent excessive calls for same symbol)
+	if st.redis != nil {
+		cooldownKey := fmt.Sprintf("llm:cooldown:%s", symbol)
+		var timestamp int64
+		if err := st.redis.Get(ctx, cooldownKey, &timestamp); err == nil && timestamp > 0 {
+			return false, fmt.Sprintf("in cooldown (expires in %d min)", st.cfg.Trading.LLMCooldownMinutes)
+		}
+	}
+
+	// 2. Get recent trade statistics for the symbol (last 60 minutes)
+	recentTrades, err := st.repo.GetRecentTrades(symbol, 1000, "")
+	if err != nil || len(recentTrades) == 0 {
+		return false, "no recent trade data"
+	}
+
+	// Calculate volume and value from recent trades
+	var totalVolumeLots float64
+	var totalValue float64
+	var firstPrice, lastPrice float64
+
+	for i, trade := range recentTrades {
+		if i == 0 {
+			firstPrice = trade.Price
+		}
+		if i == len(recentTrades)-1 {
+			lastPrice = trade.Price
+		}
+		totalVolumeLots += trade.VolumeLot
+		totalValue += trade.Price * trade.VolumeLot * 100 // Convert lots to shares
+	}
+
+	// 3. Check minimum volume threshold
+	if totalVolumeLots < float64(st.cfg.Trading.MinVolumeForLLM) {
+		return false, fmt.Sprintf("volume %.0f lots < %d lots threshold", totalVolumeLots, st.cfg.Trading.MinVolumeForLLM)
+	}
+
+	// 4. Check minimum value threshold
+	if totalValue < st.cfg.Trading.MinValueForLLM {
+		return false, fmt.Sprintf("value %.0fM < %.0fM threshold", totalValue/1000000, st.cfg.Trading.MinValueForLLM/1000000)
+	}
+
+	// 5. Check minimum price change threshold
+	if firstPrice > 0 {
+		priceChangePct := ((lastPrice - firstPrice) / firstPrice) * 100
+		if priceChangePct < st.cfg.Trading.MinPriceChangeForLLM && priceChangePct > -st.cfg.Trading.MinPriceChangeForLLM {
+			return false, fmt.Sprintf("price change %.2f%% < %.1f%% threshold", priceChangePct, st.cfg.Trading.MinPriceChangeForLLM)
+		}
+	}
+
+	// 6. Check market regime - AVOID VOLATILE, PRIORITIZE TRENDING
+	regime, err := st.repo.GetLatestRegime(symbol)
+	if err == nil && regime != nil {
+		// Skip volatile stocks (high risk, unreliable signals)
+		if regime.Regime == "VOLATILE" && regime.Confidence > 0.7 {
+			return false, fmt.Sprintf("high volatility regime (%.1f%% confidence)", regime.Confidence*100)
+		}
+
+		// Log trending stocks (for monitoring)
+		if regime.Regime == "TRENDING_UP" && regime.Confidence > 0.7 {
+			log.Printf("📈 Prioritizing trending stock %s (conf: %.2f)", symbol, regime.Confidence)
+		}
+	}
+
+	return true, ""
+}
+
 // generateSignals generates new trading signals from multiple sources including LLM analysis
 func (st *SignalTracker) generateSignals() {
 	// Get active symbols from recent trades (last 60 minutes)
@@ -26,17 +95,44 @@ func (st *SignalTracker) generateSignals() {
 
 	generated := 0
 
-	// Process each active symbol for LLM-based signals
+	// Process each active symbol for LLM-based signals with optimization
+	llmCallCount := 0
+	llmCacheHits := 0
+	llmFiltered := 0
+
 	for _, symbol := range activeSymbols {
+		ctx := context.Background()
+
+		// PRE-FILTERING: Check if symbol meets minimum thresholds before calling LLM
+		shouldCallLLM, reason := st.shouldCallLLM(ctx, symbol)
+		if !shouldCallLLM {
+			llmFiltered++
+			if llmFiltered <= 3 { // Log first 3 filtered symbols to avoid spam
+				log.Printf("⏭️ Skipping LLM for %s: %s", symbol, reason)
+			}
+			continue
+		}
+
 		// Generate LLM-based tape reading signal
 		// Using 1-hour window for robust trend analysis (Investment Manager Persona)
-		llmSignal, err := st.tradeAgg.GenerateTradingSignal(context.Background(), symbol, 60*time.Minute)
+		beforeCall := time.Now()
+		llmSignal, err := st.tradeAgg.GenerateTradingSignal(ctx, symbol, 60*time.Minute)
 		if err != nil {
 			log.Printf("⚠️ Failed to generate LLM signal for %s: %v", symbol, err)
 			continue
 		}
 
-		if llmSignal != nil && llmSignal.Decision != "WAIT" && llmSignal.Confidence >= 0.3 {
+		// Track if this was a cache hit (signal generated very quickly)
+		callDuration := time.Since(beforeCall)
+		if callDuration < 100*time.Millisecond {
+			llmCacheHits++
+		} else {
+			llmCallCount++
+		}
+
+		// Apply regime-adaptive confidence threshold
+		minConfidence := st.getAdaptiveConfidenceThreshold(symbol)
+		if llmSignal != nil && llmSignal.Decision != "WAIT" && llmSignal.Confidence >= minConfidence {
 			// Check if similar signal already exists in last 60 minutes
 			recentSignals, err := st.repo.GetTradingSignals(symbol, "LLM_TAPE_READING", "",
 				time.Now().Add(-60*time.Minute), time.Now(), 10, 0)
@@ -54,20 +150,29 @@ func (st *SignalTracker) generateSignals() {
 
 				// Redis Broadcasting & Optimization
 				if st.redis != nil {
-					ctx := context.Background()
-					// 1. Publish signal event
+					// 1. Set LLM Cooldown (prevent calling LLM again for this symbol too soon)
+					llmCooldownKey := fmt.Sprintf("llm:cooldown:%s", symbol)
+					st.redis.Set(ctx, llmCooldownKey, time.Now().Unix(), time.Duration(st.cfg.Trading.LLMCooldownMinutes)*time.Minute)
+
+					// 2. Publish signal event
 					if err := st.redis.Publish(ctx, "signals:new", llmSignal); err != nil {
 						log.Printf("⚠️ Failed to publish signal to Redis: %v", err)
 					}
-					// 2. Set Cooldown (15 min)
+					// 3. Set Cooldown (15 min)
 					cooldownKey := fmt.Sprintf("signal:cooldown:%s:%s", symbol, "LLM_TAPE_READING")
 					st.redis.Set(ctx, cooldownKey, llmSignal.ID, 15*time.Minute)
-					// 3. Set Recent (5 min)
+					// 4. Set Recent (5 min)
 					recentKey := fmt.Sprintf("signal:recent:%s", symbol)
 					st.redis.Set(ctx, recentKey, llmSignal.ID, 5*time.Minute)
 				}
 			}
 		}
+	}
+
+	// Log optimization metrics
+	if llmFiltered > 0 || llmCacheHits > 0 {
+		log.Printf("📊 LLM Optimization: %d filtered, %d cache hits, %d actual calls (from %d symbols)",
+			llmFiltered, llmCacheHits, llmCallCount, len(activeSymbols))
 	}
 
 	// Also generate traditional signals from whale alerts
@@ -184,4 +289,25 @@ func (st *SignalTracker) filterDuplicateSignalsDB(signals []database.TradingSign
 	}
 
 	return newSignals
+}
+
+// getAdaptiveConfidenceThreshold returns confidence threshold based on market regime
+func (st *SignalTracker) getAdaptiveConfidenceThreshold(symbol string) float64 {
+	regime, err := st.repo.GetLatestRegime(symbol)
+	if err != nil || regime == nil {
+		return st.cfg.Trading.MinLLMConfidence // 0.6 default
+	}
+	
+	switch regime.Regime {
+	case "TRENDING_UP":
+		if regime.Confidence > 0.7 {
+			return 0.5 // Relax for strong uptrends
+		}
+	case "VOLATILE":
+		return 0.75 // Strict for volatile stocks
+	case "TRENDING_DOWN":
+		return 0.7 // Stricter for downtrends (we only trade BUY)
+	}
+	
+	return st.cfg.Trading.MinLLMConfidence // 0.6 default
 }

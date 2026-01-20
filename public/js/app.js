@@ -122,6 +122,9 @@ async function init() {
     // Initialize webhook management
     initWebhookManagement();
 
+    // Setup mobile filter toggle
+    setupMobileFilterToggle();
+
     // Connect SSE for real-time updates
     connectWhaleAlertSSE();
 
@@ -281,6 +284,22 @@ function setupFilterControls() {
 }
 
 /**
+ * Setup mobile filter toggle
+ */
+function setupMobileFilterToggle() {
+    const toggleBtn = safeGetElement('mobile-filter-toggle');
+    const filterContent = safeGetElement('filter-content');
+    const toggleIcon = safeGetElement('filter-toggle-icon');
+
+    if (toggleBtn && filterContent && toggleIcon) {
+        toggleBtn.addEventListener('click', () => {
+            filterContent.classList.toggle('show');
+            toggleIcon.textContent = filterContent.classList.contains('show') ? '▲' : '▼';
+        });
+    }
+}
+
+/**
  * Update filter state from DOM
  */
 function updateFilters() {
@@ -342,6 +361,19 @@ function setupInfiniteScroll() {
 function connectWhaleAlertSSE() {
     state.whaleSSE = createWhaleAlertSSE(
         (newAlert) => {
+            // BLOCK SSE updates if filters are active
+            const hasActiveFilters = (
+                state.currentFilters.search !== '' ||
+                state.currentFilters.action !== 'ALL' ||
+                state.currentFilters.amount > 0 ||
+                state.currentFilters.board !== 'ALL'
+            );
+
+            if (hasActiveFilters) {
+                console.log('⏸️ SSE update blocked - filters active');
+                return; // Don't add alert to state or render
+            }
+
             // Prepend new alert
             state.alerts.unshift(newAlert);
             if (state.alerts.length > CONFIG.MAX_ALERTS_CACHE) {
@@ -1267,6 +1299,12 @@ function setupProfitLossHistory() {
         limitSelect.addEventListener('change', () => loadProfitLossHistory(true));
     }
 
+    // NEW: Regime filter
+    const regimeSelect = safeGetElement('history-regime');
+    if (regimeSelect) {
+        regimeSelect.addEventListener('change', () => loadProfitLossHistory(true));
+    }
+
     // Setup infinite scroll for history table
     setupTableInfiniteScroll({
         tableBodyId: 'history-table-body',
@@ -1314,6 +1352,7 @@ async function loadProfitLossHistory(reset = false) {
         const filters = {
             strategy: document.getElementById('history-strategy')?.value || 'ALL',
             status: document.getElementById('history-status')?.value || '',
+            regime: document.getElementById('history-regime')?.value || 'ALL',
             limit: 50, // Fixed page size for lazy loading
             offset: reset ? 0 : state.tables.history.offset,
             symbol: state.currentFilters.search || ''

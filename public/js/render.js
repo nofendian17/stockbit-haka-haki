@@ -251,7 +251,7 @@ function createPositionRow(pos) {
         </td>
         <td data-label="Status" class="table-cell text-right"><span class="px-2 py-0.5 bg-bgSecondary rounded text-xs text-center inline-block min-w-[60px]">${pos.outcome_status}</span></td>
     `;
-    
+
     return row;
 }
 
@@ -283,7 +283,7 @@ export function renderSummaryTable(type, data, tbody, placeholder) {
 
         row.innerHTML = `
             <td data-label="Saham" class="table-cell font-bold">${item.stock_symbol}</td>
-            ${type === 'accumulation' ? 
+            ${type === 'accumulation' ?
                 `<td data-label="Beli %" class="table-cell text-right font-semibold text-accentSuccess">${item.buy_percentage.toFixed(1)}%</td>` :
                 `<td data-label="Jual %" class="table-cell text-right font-semibold text-accentDanger">${item.sell_percentage.toFixed(1)}%</td>`
             }
@@ -539,13 +539,25 @@ export function renderMarketIntelligence(data) {
 
         if (regimeDescEl) {
             const confPct = (confidence * 100).toFixed(0);
-            regimeDescEl.innerHTML = `Confidence: <strong class="text-textPrimary">${confPct}%</strong> | Volatility: <span class="text-textPrimary">${(regimeData.volatility || 0).toFixed(2)}</span>`;
+            const atr = regimeData.atr || 0;
+            const volatility = regimeData.volatility || 0;
+
+            // Calculate ATR percentage if we have current price or use volatility as proxy
+            let atrDisplay = '';
+            if (atr > 0) {
+                // Try to get ATR percentage from data, or calculate from ATR value
+                const atrPct = regimeData.atr_percent || ((atr / (regimeData.current_price || 1000)) * 100);
+                const atrClass = atrPct > 2 ? 'text-accentDanger' : 'text-accentSuccess';
+                atrDisplay = `ATR: <span class="text-textPrimary">${atr.toFixed(0)}</span> (<span class="${atrClass}">${atrPct.toFixed(2)}%</span>) | `;
+            }
+
+            regimeDescEl.innerHTML = `Confidence: <strong class="text-textPrimary">${confPct}%</strong> | ${atrDisplay}Volatility: <span class="text-textPrimary">${volatility.toFixed(2)}</span>`;
         }
 
         if (headerRegimeBadge) {
             headerRegimeBadge.textContent = getRegimeLabel(regime);
             headerRegimeBadge.style.display = 'inline-block';
-            
+
             if (regime === 'BULLISH' || regime === 'TRENDING_UP') {
                 headerRegimeBadge.className = 'hidden md:inline-block px-3 py-1 bg-accentSuccess/20 text-accentSuccess border border-accentSuccess/30 rounded text-xs font-bold tracking-wide';
             } else if (regime === 'BEARISH' || regime === 'TRENDING_DOWN') {
