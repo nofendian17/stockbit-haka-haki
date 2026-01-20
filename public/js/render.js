@@ -79,7 +79,10 @@ function createWhaleAlertRow(alert) {
     const { confidenceClass, confidenceIcon, confidenceLabel } = getConfidenceDisplay(confidence);
 
     // Message or Generated Description
-    const description = alert.message || generateAlertDescription(alert);
+    let description = alert.message;
+    if (!description || typeof description !== 'string' || description.trim() === '') {
+        description = generateAlertDescription(alert);
+    }
     const messageHtml = `<div class="text-[10px] text-textMuted max-w-[200px] truncate" title="${description}">${description}</div>`;
 
     // Alert type badge
@@ -121,9 +124,13 @@ function createWhaleAlertRow(alert) {
         <td data-label="Volume" class="table-cell text-right text-textSecondary whitespace-nowrap" title="${formatNumber(volume)} lot">${formatNumber(volume)}</td>
         <td data-label="Details" class="table-cell">
             <div class="flex flex-col gap-1">
-                <span class="text-xs text-textSecondary">${alert.market_board || 'RG'}</span>
-                ${anomalyHtml}
-                <div class="flex flex-col text-[10px] text-textMuted leading-tight">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="text-[10px] font-bold px-1.5 py-0.5 rounded border ${alert.market_board === 'NG' ? 'bg-purple-900/30 text-purple-400 border-purple-500/30' : 'bg-bgSecondary text-textSecondary border-borderColor'}">
+                        ${alert.market_board || 'RG'}
+                    </span>
+                    ${anomalyHtml}
+                </div>
+                <div class="flex flex-col text-[10px] text-textMuted leading-tight mt-1">
                     <span title="Statistical Anomaly Score">Z: ${zScore.toFixed(2)}</span>
                     <span title="Volume vs Average">Vol: ${volumeVsAvg.toFixed(0)}%</span>
                     ${alert.adaptive_threshold ? `<span title="Threshold: ${alert.adaptive_threshold.toFixed(2)}">T: ${alert.adaptive_threshold.toFixed(1)}</span>` : ''}
@@ -153,16 +160,30 @@ function generateAlertDescription(alert) {
     const val = alert.trigger_value || 0;
     if (val > 10_000_000_000) parts.push("Transaksi Jumbo"); // > 10M
     else if (val > 1_000_000_000) parts.push("Transaksi Besar"); // > 1M
+    else if (val > 100_000_000) parts.push("Transaksi Signifikan"); // > 100jt (New)
 
     // 3. Analyze Z-Score
     const z = alert.z_score || 0;
     if (z > 5) parts.push("Anomali Statistik Signifikan");
+    else if (z > 3) parts.push("Anomali Statistik"); // > 3 (New)
 
-    // 4. Analyze Price Action (if available)
-    if (alert.action === 'BUY') parts.push("Akumulasi");
-    else if (alert.action === 'SELL') parts.push("Distribusi");
+    // 4. Analyze Price Action (Inference)
+    if (alert.action === 'BUY') {
+        parts.push("Akumulasi");
+    } else if (alert.action === 'SELL') {
+        parts.push("Distribusi");
+    } else if (alert.action === 'UNKNOWN' && alert.avg_price && alert.trigger_price) {
+        // Infer based on price vs avg
+        if (alert.trigger_price > alert.avg_price) parts.push("Kemungkinan Akumulasi");
+        else if (alert.trigger_price < alert.avg_price) parts.push("Kemungkinan Distribusi");
+    }
 
-    // 5. Fallback or Combination
+    // 5. Volatility Context
+    const vol = alert.volatility_pct || 0;
+    if (vol > 5) parts.push("Volatilitas Ekstrem");
+    else if (vol > 3) parts.push("Volatilitas Tinggi");
+
+    // 6. Fallback or Combination
     if (parts.length === 0) return "Aktivitas Whale Terdeteksi";
 
     return parts.join(" • ");
