@@ -1032,7 +1032,7 @@ function renderWhaleAlertsTable(alerts, tbody, loadingDiv) {
             <td class="px-2 py-1.5 w-[20%] text-left">
                 <div class="flex gap-1 items-center justify-start flex-wrap">
                     ${whaleBadge ? whaleBadge.replace('text-[10px]', 'text-[9px] py-0 px-1') : ''}
-                    ${regimeBadge ? regimeBadge.replace('text-[10px]', 'text-[9px] py-0 px-1') : ''}
+                    ${infoBadges ? infoBadges.replace(/text-\[10px\]/g, 'text-[9px] py-0 px-1') : ''}
                 </div>
             </td>
             <td class="px-2 py-1.5 text-right whitespace-nowrap w-[10%]">
