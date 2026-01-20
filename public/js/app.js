@@ -415,6 +415,9 @@ function connectWhaleAlertSSE() {
  * @param {Object} trade 
  */
 function renderRunningTrade(trade) {
+    // OPTIMIZATION: Skip rendering if section is hidden
+    if (state.runningTradesVisible === false) return;
+
     const tbody = document.getElementById('running-trades-body');
     if (!tbody) return;
 
@@ -439,7 +442,7 @@ function renderRunningTrade(trade) {
     row.innerHTML = `
         <td class="px-4 py-1.5 text-textMuted">${timeStr}</td>
         <td class="px-4 py-1.5 font-bold text-textPrimary">${trade.symbol}</td>
-        <td class="px-4 py-1.5 text-right font-bold ${priceClass}">${trade.price.toLocaleString('id-ID')}</td>
+        <td class="px-4 py-1.5 text-right font-bold ${priceClass}">${trade.price}</td>
         <td class="px-4 py-1.5 text-right text-textSecondary">${trade.volume_lot.toLocaleString('id-ID')}</td>
         <td class="px-4 py-1.5 text-right text-textPrimary">${formatValue(trade.value)}</td>
         <td class="px-4 py-1.5 text-center font-bold ${actionClass}">${trade.action === 'BUY' ? 'B' : 'S'}</td>
@@ -881,6 +884,82 @@ function displayFollowupData(data) {
     `;
 
     followupDataEl.innerHTML = html;
+}
+
+/**
+ * Render whale alerts table
+ * @param {Array} alerts - Array of alert objects
+ * @param {HTMLElement} tbody - Table body element
+ * @param {HTMLElement} loadingDiv - Loading indicator element
+ */
+function renderWhaleAlerts(alerts, tbody, loadingDiv) {
+    if (!tbody) return;
+
+    // Hide loading
+    if (loadingDiv) loadingDiv.style.display = 'none';
+
+    if (alerts.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center p-8 text-textSecondary">Belum ada aktivitas whale terdeteksi</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = '';
+
+    alerts.forEach(alert => {
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-bgHover transition-colors border-b border-borderColor last:border-0';
+
+        // Render badges
+        const whaleBadge = renderWhaleAlignmentBadge(alert);
+        const regimeBadge = renderRegimeBadge(alert.market_regime);
+
+        // Format Time
+        const timeStr = formatTime(alert.timestamp || alert.time);
+
+        // Determine Action & Color
+        let actionClass = 'text-textPrimary';
+        let actionText = alert.signal_type || 'UNKNOWN';
+
+        if (actionText === 'BUY' || actionText === 'ACCUMULATION') {
+            actionClass = 'text-accentSuccess font-bold';
+        } else if (actionText === 'SELL' || actionText === 'DISTRIBUTION') {
+            actionClass = 'text-accentDanger font-bold';
+        }
+
+        // Format Value
+        const valueStr = formatCurrency(alert.total_value);
+
+        // RAW PRICE FORMAT (Requested Update)
+        const priceStr = alert.trigger_price || alert.price || 0;
+
+        row.innerHTML = `
+            <td class="px-4 py-3">
+                <div class="font-bold text-textPrimary">${alert.stock_symbol}</div>
+                <div class="text-xs text-textMuted">${timeStr}</div>
+            </td>
+            <td class="px-4 py-3 font-mono font-bold ${actionClass}">${actionText}</td>
+            <td class="px-4 py-3 text-right font-mono font-bold text-textPrimary">${priceStr}</td>
+            <td class="px-4 py-3 text-right text-textSecondary">${valueStr}</td>
+            <td class="px-4 py-3 text-center">
+                <div class="flex flex-col gap-1 items-center justify-center">
+                    ${whaleBadge}
+                    ${regimeBadge}
+                </div>
+            </td>
+            <td class="px-4 py-3 text-center">
+                <button onclick="openFollowupModal('${alert.id}', '${alert.stock_symbol}', ${alert.trigger_price})" class="p-1.5 hover:bg-bgSecondary rounded text-accentInfo transition-colors" title="Lihat Followup">
+                    🔍
+                </button>
+            </td>
+            <td class="px-4 py-3 text-center">
+                <button onclick="openCandleModal('${alert.stock_symbol}')" class="p-1.5 hover:bg-bgSecondary rounded text-accentWarning transition-colors" title="Lihat Chart">
+                    📈
+                </button>
+            </td>
+        `;
+
+        tbody.appendChild(row);
+    });
 }
 
 /**

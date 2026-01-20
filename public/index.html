@@ -265,14 +265,22 @@
 
             <!-- Running Trades (New) -->
             <section class="card-base lg:col-span-2">
-                <div class="flex justify-between items-center mb-3">
-                    <div>
-                        <h2 class="text-sm font-bold mb-0.5">⚡ Running Trade</h2>
-                        <p class="text-[10px] text-textSecondary">Real-time market feed</p>
+                <div class="flex justify-between items-center mb-0">
+                    <button id="toggle-running-trades" class="flex items-center gap-2 group w-full text-left">
+                        <div>
+                            <h2 class="text-sm font-bold mb-0.5 flex items-center gap-2">
+                                <span id="running-trades-arrow" class="transition-transform duration-200">▼</span>
+                                ⚡ Running Trade
+                            </h2>
+                            <p class="text-[10px] text-textSecondary ml-5">Real-time market feed</p>
+                        </div>
+                    </button>
+                    <div class="text-[10px] font-mono text-textMuted flex-shrink-0" id="trade-stream-status">Wait...
                     </div>
-                    <div class="text-[10px] font-mono text-textMuted" id="trade-stream-status">Wait...</div>
                 </div>
-                <div class="border border-borderColor rounded-lg overflow-hidden flex flex-col h-[300px]">
+
+                <div id="running-trades-container"
+                    class="mt-3 border border-borderColor rounded-lg overflow-hidden flex flex-col h-[300px] transition-all duration-300">
                     <div class="overflow-auto flex-1 table-wrapper custom-scrollbar">
                         <table class="w-full text-left min-w-full" id="running-trades-table">
                             <thead class="bg-bgSecondary sticky top-0 z-10 w-full">
