@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -140,7 +141,7 @@ func (ta *TradeAggregator) GenerateLLMAnalysis(ctx context.Context, data *Aggreg
 	// Create prompt for tape reading and market psychology analysis
 	prompt := fmt.Sprintf(`
 You are a Senior Investment Manager at a top-tier quantitative hedge fund.
-Your task is to analyze the following aggregated trade data for stock %s and make a high-conviction trading decision.
+Your task is to analyze the following aggregated trade data for stock %s and make a HIGH-CONVICTION trading decision.
 
 MARKET METRICS:
 - Time Window: %.0f minutes
@@ -153,6 +154,12 @@ MARKET METRICS:
 - Total Volume: %.2f lots
 - Buying Pressure: %.2f lots
 - Selling Pressure: %.2f lots
+
+ANALYSIS GUIDELINES:
+1. BE EXTREMELY CONSERVATIVE. Prioritize capital preservation over potential gains.
+2. ONLY signal BUY if there is CLEAR evidence of strong accumulation and whale participation.
+3. If the data is mixed, neutral, or shows weakness, signal WAIT.
+4. Ignore minor fluctuations. Focus on the dominant trend and order flow.
 
 ANALYSIS REQUIRED:
 1. MARKET STRUCTURE: Is the stock in accumulation, distribution, or equilibrium?
@@ -205,58 +212,11 @@ func (ta *TradeAggregator) GenerateTradingSignal(ctx context.Context, stockSymbo
 	}
 
 	// Determine decision based on strict parsing of LLM output
-	decision := "WAIT"
-	confidence := 0.5
-	reason := "LLM analysis inconclusive"
-
-	lines := strings.Split(analysis, "\n")
-	foundDecision := false
-
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "FINAL_DECISION:") {
-			d := strings.ToUpper(strings.TrimSpace(strings.TrimPrefix(line, "FINAL_DECISION:")))
-			if d == "BUY" {
-				decision = "BUY"
-				foundDecision = true
-			} else if d == "SELL" {
-				decision = "SELL"
-				foundDecision = true
-			} else if d == "WAIT" {
-				decision = "WAIT"
-				foundDecision = true
-			}
-		}
-		if strings.HasPrefix(line, "CONFIDENCE_SCORE:") {
-			fmt.Sscanf(strings.TrimPrefix(line, "CONFIDENCE_SCORE:"), "%f", &confidence)
-		}
-		if strings.HasPrefix(line, "ANALYSIS SUMMARY:") {
-			summary := strings.TrimPrefix(line, "ANALYSIS SUMMARY:")
-			reason = strings.TrimSpace(summary)
-		}
-	}
-
-	// Fallback logic if parsing failed (Robustness check)
-	if !foundDecision {
-		lowerAnalysis := strings.ToLower(analysis)
-		// Count directional keywords instead of just simple existence
-		buyScore := 0
-		sellScore := 0
-		buyScore += strings.Count(lowerAnalysis, "accumulation") * 2
-		buyScore += strings.Count(lowerAnalysis, "bullish")
-		buyScore += strings.Count(lowerAnalysis, "buy")
-
-		sellScore += strings.Count(lowerAnalysis, "distribution") * 2
-		sellScore += strings.Count(lowerAnalysis, "bearish")
-		sellScore += strings.Count(lowerAnalysis, "sell")
-
-		if buyScore > sellScore && buyScore >= 2 {
-			decision = "BUY"
-			reason = "LLM analysis indicates buying pressure (keyword fallback)"
-		} else if sellScore > buyScore && sellScore >= 2 {
-			decision = "SELL"
-			reason = "LLM analysis indicates selling pressure (keyword fallback)"
-		}
+	decision, confidence, reason, err := ta.ParseLLMAnalyzeResponse(analysis)
+	if err != nil {
+		log.Printf("⚠️ Failed to parse LLM response: %v", err)
+		decision = "WAIT"
+		reason = "LLM output format invalid or inconclusive"
 	}
 
 	// Normalize checks
@@ -305,7 +265,7 @@ func (ta *TradeAggregator) GenerateTradingSignal(ctx context.Context, stockSymbo
 		cacheTTL := 5 * time.Minute
 		if err := ta.llmCache.SetAnalysis(ctx, stockSymbol, dataHash, signal, cacheTTL); err != nil {
 			// Log but don't fail - caching is optional optimization
-			// log.Printf("⚠️ Failed to cache LLM analysis for %s: %v", stockSymbol, err)
+			log.Printf("⚠️ Failed to cache LLM analysis for %s: %v", stockSymbol, err)
 		}
 	}
 
@@ -324,4 +284,45 @@ func contains(s string, substrs []string) bool {
 		}
 	}
 	return false
+}
+
+// ParseLLMAnalyzeResponse parses the LLM analysis string to extract decision, confidence, and reason
+func (ta *TradeAggregator) ParseLLMAnalyzeResponse(analysis string) (string, float64, string, error) {
+	decision := "WAIT"
+	confidence := 0.5
+	reason := ""
+
+	lines := strings.Split(analysis, "\n")
+	foundDecision := false
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "FINAL_DECISION:") {
+			d := strings.ToUpper(strings.TrimSpace(strings.TrimPrefix(line, "FINAL_DECISION:")))
+			switch d {
+			case "BUY":
+				decision = "BUY"
+				foundDecision = true
+			case "SELL":
+				decision = "SELL"
+				foundDecision = true
+			case "WAIT":
+				decision = "WAIT"
+				foundDecision = true
+			}
+		}
+		if strings.HasPrefix(line, "CONFIDENCE_SCORE:") {
+			fmt.Sscanf(strings.TrimPrefix(line, "CONFIDENCE_SCORE:"), "%f", &confidence)
+		}
+		if strings.HasPrefix(line, "ANALYSIS SUMMARY:") {
+			summary := strings.TrimPrefix(line, "ANALYSIS SUMMARY:")
+			reason = strings.TrimSpace(summary)
+		}
+	}
+
+	if !foundDecision {
+		return "WAIT", 0.0, "", fmt.Errorf("decision not found in valid format")
+	}
+
+	return decision, confidence, reason, nil
 }

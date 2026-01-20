@@ -146,16 +146,16 @@ func LoadFromEnv() *Config {
 			TakeProfit2ATRMultiplier:  getEnvFloat("TRADING_TP2_ATR_MULT", 8.0),
 
 			// LLM Signal Generation Optimization
-			MinVolumeForLLM:      getEnvInt("TRADING_MIN_VOLUME_FOR_LLM", 1000),        // 1000 lots minimum
-			MinValueForLLM:       getEnvFloat("TRADING_MIN_VALUE_FOR_LLM", 100000000),  // 100M IDR minimum
-			MinPriceChangeForLLM: getEnvFloat("TRADING_MIN_PRICE_CHANGE_FOR_LLM", 1.0), // 1% price change minimum
+			MinVolumeForLLM:      getEnvInt("TRADING_MIN_VOLUME_FOR_LLM", 5000),        // 5000 lots minimum (Strict)
+			MinValueForLLM:       getEnvFloat("TRADING_MIN_VALUE_FOR_LLM", 500000000),  // 500M IDR minimum (Strict)
+			MinPriceChangeForLLM: getEnvFloat("TRADING_MIN_PRICE_CHANGE_FOR_LLM", 1.5), // 1.5% price change minimum
 			LLMCacheTTLMinutes:   getEnvInt("TRADING_LLM_CACHE_TTL_MINUTES", 5),        // 5 minutes cache
 			LLMCooldownMinutes:   getEnvInt("TRADING_LLM_COOLDOWN_MINUTES", 3),         // 3 minutes cooldown
-			MinLLMConfidence:     getEnvFloat("TRADING_MIN_LLM_CONFIDENCE", 0.6),       // 0.6 minimum confidence
+			MinLLMConfidence:     getEnvFloat("TRADING_MIN_LLM_CONFIDENCE", 0.7),       // 0.7 minimum confidence
 
 			// Dynamic LLM Confidence Thresholds
-			MinLLMConfidenceTrending: getEnvFloat("TRADING_MIN_LLM_CONFIDENCE_TRENDING", 0.5),  // 0.5 for trending
-			MinLLMConfidenceVolatile: getEnvFloat("TRADING_MIN_LLM_CONFIDENCE_VOLATILE", 0.75), // 0.75 for volatile
+			MinLLMConfidenceTrending: getEnvFloat("TRADING_MIN_LLM_CONFIDENCE_TRENDING", 0.65), // 0.65 for trending (Strict)
+			MinLLMConfidenceVolatile: getEnvFloat("TRADING_MIN_LLM_CONFIDENCE_VOLATILE", 0.80), // 0.80 for volatile
 		},
 	}
 }

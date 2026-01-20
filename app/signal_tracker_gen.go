@@ -297,17 +297,17 @@ func (st *SignalTracker) getAdaptiveConfidenceThreshold(symbol string) float64 {
 	if err != nil || regime == nil {
 		return st.cfg.Trading.MinLLMConfidence // 0.6 default
 	}
-	
+
 	switch regime.Regime {
 	case "TRENDING_UP":
 		if regime.Confidence > 0.7 {
-			return 0.5 // Relax for strong uptrends
+			return 0.65 // Relaxed but still safe (0.65) for strong uptrends
 		}
 	case "VOLATILE":
 		return 0.75 // Strict for volatile stocks
 	case "TRENDING_DOWN":
 		return 0.7 // Stricter for downtrends (we only trade BUY)
 	}
-	
+
 	return st.cfg.Trading.MinLLMConfidence // 0.6 default
 }
