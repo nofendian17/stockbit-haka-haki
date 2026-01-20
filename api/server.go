@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -58,9 +60,29 @@ func (s *Server) Start(port int) error {
 
 	mux.HandleFunc("GET /health", s.handleHealth)
 
-	// Serve Static Files (Public UI)
+	// Serve Static Files (Public UI) with Cache Busting for index.html
 	fs := http.FileServer(http.Dir("./public"))
-	mux.Handle("GET /", fs)
+
+	// Cached index.html content (load once on startup)
+	indexContent, err := os.ReadFile("./public/index.html")
+	if err != nil {
+		log.Printf("⚠️ Warning: Could not read public/index.html: %v", err)
+	}
+
+	// Inject current timestamp as version
+	version := fmt.Sprintf("%d", time.Now().Unix())
+	re := regexp.MustCompile(`src="js/app\.js\?v=[^"]*"`)
+	modifiedIndex := re.ReplaceAll(indexContent, []byte(fmt.Sprintf(`src="js/app.js?v=%s"`, version)))
+
+	// Custom handler to serve index.html with dynamic version
+	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" || r.URL.Path == "/index.html" {
+			w.Header().Set("Content-Type", "text/html")
+			w.Write(modifiedIndex)
+			return
+		}
+		fs.ServeHTTP(w, r)
+	})
 
 	// Add middleware (gzip -> cors -> logging)
 	handler := s.gzipMiddleware(s.corsMiddleware(s.loggingMiddleware(mux)))
