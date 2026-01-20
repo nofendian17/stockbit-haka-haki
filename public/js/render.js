@@ -11,13 +11,15 @@ import { formatCurrency, formatNumber, formatTime, getTimeAgo, formatStrategyNam
  * @param {HTMLElement} tbody - Table body element
  * @param {HTMLElement} loadingDiv - Loading indicator element
  */
-export function renderWhaleAlertsTable(alerts, tbody, loadingDiv) {
+export function renderWhaleAlertsTable(alerts, tbody, loadingDiv, append = false) {
     if (!tbody) return;
 
-    // Reset
-    tbody.innerHTML = '';
+    // Reset only if not appending
+    if (!append) {
+        tbody.innerHTML = '';
+    }
 
-    if (alerts.length === 0) {
+    if (alerts.length === 0 && !append) {
         if (loadingDiv) {
             loadingDiv.innerText = 'Tidak ada alert yang sesuai filter.';
             loadingDiv.style.display = 'block';
