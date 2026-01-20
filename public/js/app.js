@@ -4,7 +4,7 @@
  */
 
 import { CONFIG } from './config.js';
-import { debounce, safeGetElement, setupTableInfiniteScroll } from './utils.js?v=2';
+import { debounce, safeGetElement, setupTableInfiniteScroll, formatNumber, renderWhaleAlignmentBadge, renderRegimeBadge } from './utils.js?v=2';
 import * as API from './api.js';
 import { renderRunningPositions, renderSummaryTable, updateStatsTicker, renderStockCorrelations, renderProfitLossHistory, renderMarketIntelligence, renderOrderFlow, renderPatternFeed, renderDailyPerformance } from './render.js';
 import { createWhaleAlertSSE, createPatternAnalysisSSE, createCustomPromptSSE } from './sse-handler.js?v=2';
