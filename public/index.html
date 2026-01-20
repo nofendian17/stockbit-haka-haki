@@ -828,46 +828,85 @@
                         </section>
 
                         <section class="space-y-2">
-                            <h3 class="text-base font-bold text-textPrimary">🐋 Whale Alerts Feed</h3>
-                            <p>Menampilkan transaksi besar secara real-time dengan fitur filter:</p>
+                            <h3 class="text-base font-bold text-textPrimary">⚡ Running Trade</h3>
+                            <p>Feed transaksi real-time yang menayangkan setiap transaksi yang terjadi di bursa.</p>
                             <ul class="list-disc pl-5 space-y-1">
-                                <li><strong class="text-textPrimary">Simbol</strong>: Cari kode saham tertentu (contoh:
-                                    BBCA, TLKM)</li>
-                                <li><strong class="text-textPrimary">Aksi</strong>: Filter BUY (akumulasi) atau SELL
-                                    (distribusi)</li>
-                                <li><strong class="text-textPrimary">Nilai Minimum</strong>: Filter berdasarkan nilai
-                                    transaksi minimum</li>
-                                <li><strong class="text-textPrimary">Tipe Board</strong>: RG (Regular), TN (Tunai), NG
-                                    (Negosiasi)</li>
+                                <li><strong class="text-textPrimary">Real-time</strong>: Data streaming langsung tanpa
+                                    delay.</li>
+                                <li><strong class="text-textPrimary">Filter Otomatis</strong>: Menampilkan transaksi
+                                    yang relevan.</li>
+                                <li><strong class="text-textPrimary">Indikator Warna</strong>: <span
+                                        class="text-accentSuccess">Hijau (HAKA)</span> untuk pembelian di offer, <span
+                                        class="text-accentDanger">Merah (HAKI)</span> untuk penjualan di bid.</li>
                             </ul>
                         </section>
 
                         <section class="space-y-2">
-                            <h3 class="text-base font-bold text-textPrimary">🎨 Code Warna</h3>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div
-                                    class="flex items-center gap-2 p-2 bg-bgSecondary rounded border border-borderColor">
-                                    <span class="badge bg-green-900/40 text-accentSuccess">BUY</span>
-                                    <span class="text-xs">Akumulasi / Pembelian besar</span>
+                            <h3 class="text-base font-bold text-textPrimary">🐋 Whale Alerts Feed</h3>
+                            <div class="space-y-2">
+                                <div>
+                                    <strong class="text-textPrimary text-xs uppercase tracking-wider">Kriteria
+                                        Deteksi</strong>
+                                    <ul class="list-disc pl-5 space-y-1 mt-1">
+                                        <li><strong class="text-textPrimary">Nominal Besar</strong>: Transaksi > Rp 1
+                                            Milyar per trade.</li>
+                                        <li><strong class="text-textPrimary">Anomali Statistik</strong>: Transaksi > Rp
+                                            100 Juta dengan Z-Score tinggi (>3.0) atau Volume Spike (>5x rata-rata).
+                                        </li>
+                                    </ul>
                                 </div>
-                                <div
-                                    class="flex items-center gap-2 p-2 bg-bgSecondary rounded border border-borderColor">
-                                    <span class="badge bg-red-900/40 text-accentDanger">SELL</span>
-                                    <span class="text-xs">Distribusi / Penjualan besar</span>
+                                <div>
+                                    <strong class="text-textPrimary text-xs uppercase tracking-wider">Cara
+                                        Kerja</strong>
+                                    <p class="text-sm mt-1">
+                                        Sistem memindai setiap transaksi yang masuk di Running Trade secara
+                                        <strong>real-time</strong>.
+                                        Jika sebuah transaksi memenuhi kriteria di atas, sistem langsung menangkapnya
+                                        sebagai "Whale Alert" dan menampilkannya di feed ini dalam hitungan milidetik.
+                                        Ini menangkap momentum agresif saat big boss sedang HAKA (Membeli) atau HAKI
+                                        (Menjual).
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="mt-2 text-xs bg-bgSecondary p-2 rounded border border-borderColor">
+                                <span class="font-bold text-textPrimary">Filter Tersedia:</span> Simbol, Aksi
+                                (Buy/Sell), Nilai Minimum, dan Tipe Board (RG/TN/NG).
+                            </div>
+                        </section>
+
+                        <section class="space-y-2">
+                            <h3 class="text-base font-bold text-textPrimary">📊 Aktivitas Bandar (24h)</h3>
+                            <p>Peringkat saham berdasarkan akumulasi/distribusi dana bandar dalam 24 jam terakhir.</p>
+                            <div class="grid grid-cols-1 gap-2 mt-2">
+                                <div class="p-2 bg-bgSecondary rounded border border-borderColor">
+                                    <strong class="text-accentSuccess block mb-1">📈 Akumulasi (Accumulation)</strong>
+                                    <ul class="list-disc pl-4 text-xs space-y-1">
+                                        <li>Dominasi Beli (>55% transaksi adalah BUY/HAKA).</li>
+                                        <li>Net Value Positif (Total Beli > Total Jual).</li>
+                                        <li>Menandakan bandar sedang mengumpulkan barang secara agresif.</li>
+                                    </ul>
+                                </div>
+                                <div class="p-2 bg-bgSecondary rounded border border-borderColor">
+                                    <strong class="text-accentDanger block mb-1">📉 Distribusi (Distribution)</strong>
+                                    <ul class="list-disc pl-4 text-xs space-y-1">
+                                        <li>Dominasi Jual (>55% transaksi adalah SELL/HAKI).</li>
+                                        <li>Net Value Negatif (Total Jual > Total Beli).</li>
+                                        <li>Menandakan bandar sedang membuang barang atau taking profit.</li>
+                                    </ul>
                                 </div>
                             </div>
                         </section>
 
                         <section class="space-y-2">
-                            <h3 class="text-base font-bold text-textPrimary">🧠 Market Intelligence</h3>
-                            <p>Fitur ini memberikan gambaran kondisi pasar secara keseluruhan:</p>
+                            <h3 class="text-base font-bold text-textPrimary">💼 Posisi & Riwayat Trading</h3>
+                            <p>Simulasi strategi trading otomatis berdasarkan sinyal AI:</p>
                             <ul class="list-disc pl-5 space-y-1">
-                                <li><strong class="text-textPrimary">Kondisi Pasar</strong>: Status tren pasar saat ini
-                                    (Bullish, Bearish, Ranging) berdasarkan analisis teknikal agregat.</li>
-                                <li><strong class="text-textPrimary">Tekanan Jual/Beli</strong>: Perbandingan volume
-                                    order beli vs jual secara real-time.</li>
-                                <li><strong class="text-textPrimary">Statistik Dasar</strong>: Data volatilitas dan
-                                    rata-rata volume untuk mendeteksi anomali.</li>
+                                <li><strong class="text-textPrimary">Posisi Aktif</strong>: Saham yang sedang dipegang
+                                    oleh sistem saat ini.</li>
+                                <li><strong class="text-textPrimary">Riwayat</strong>: Catatan trade yang sudah selesai
+                                    (Win/Loss).</li>
+                                <li><strong class="text-textPrimary">P&L</strong>: Profit & Loss dihitung real-time
+                                    berdasarkan harga pasar terakhir.</li>
                             </ul>
                         </section>
 
@@ -894,6 +933,17 @@
                         </section>
 
                         <section class="space-y-2">
+                            <h3 class="text-base font-bold text-textPrimary">🧠 Market Intelligence</h3>
+                            <p>Fitur ini memberikan gambaran kondisi pasar secara keseluruhan:</p>
+                            <ul class="list-disc pl-5 space-y-1">
+                                <li><strong class="text-textPrimary">Kondisi Pasar</strong>: Status tren pasar saat ini
+                                    (Bullish, Bearish, Ranging).</li>
+                                <li><strong class="text-textPrimary">Tekanan Jual/Beli</strong>: Perbandingan volume
+                                    order beli vs jual secara real-time.</li>
+                            </ul>
+                        </section>
+
+                        <section class="space-y-2">
                             <h3 class="text-base font-bold text-textPrimary">🤖 AI Pattern Analysis</h3>
                             <p>Analisis pola grafik otomatis menggunakan kecerdasan buatan:</p>
                             <ul class="list-disc pl-5 space-y-1">
@@ -902,19 +952,7 @@
                                 <li><strong class="text-textPrimary">Anomali</strong>: Menemukan pergerakan harga atau
                                     volume yang tidak wajar.</li>
                                 <li><strong class="text-textPrimary">Tanya Data</strong>: Gunakan fitur "Custom"
-                                    untuk bertanya langsung ke database menggunakan bahasa alami (contoh: "Saham apa
-                                    yang sedang uptrend?").</li>
-                            </ul>
-                        </section>
-
-                        <section class="space-y-2">
-                            <h3 class="text-base font-bold text-textPrimary">📊 Aktivitas Bandar</h3>
-                            <p>Peringkat saham berdasarkan aliran dana (fund flow):</p>
-                            <ul class="list-disc pl-5 space-y-1">
-                                <li><strong class="text-textPrimary">Top Akumulasi</strong>: Saham dengan pembelian
-                                    bersih terbesar dalam 24 jam.</li>
-                                <li><strong class="text-textPrimary">Top Distribusi</strong>: Saham dengan penjualan
-                                    bersih terbesar dalam 24 jam.</li>
+                                    untuk bertanya langsung ke database menggunakan bahasa alami.</li>
                             </ul>
                         </section>
                     </div>
