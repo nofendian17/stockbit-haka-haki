@@ -73,17 +73,8 @@ type TradingConfig struct {
 	TakeProfit1ATRMultiplier  float64
 	TakeProfit2ATRMultiplier  float64
 
-	// LLM Signal Generation Optimization
-	MinVolumeForLLM      int     // Minimum volume (lots) to trigger LLM analysis
-	MinValueForLLM       float64 // Minimum value (IDR) to trigger LLM analysis
-	MinPriceChangeForLLM float64 // Minimum price change % to trigger LLM analysis
-	LLMCacheTTLMinutes   int     // LLM result cache TTL in minutes
-	LLMCooldownMinutes   int     // Per-symbol LLM cooldown in minutes
-	MinLLMConfidence     float64 // Minimum confidence to save LLM signal (default)
+	// ATR Multipliers
 
-	// Dynamic LLM Confidence Thresholds (Regime-Adaptive)
-	MinLLMConfidenceTrending float64 // Minimum confidence for trending stocks (relaxed)
-	MinLLMConfidenceVolatile float64 // Minimum confidence for volatile stocks (strict)
 }
 
 // LoadFromEnv loads configuration from environment variables
@@ -142,20 +133,9 @@ func LoadFromEnv() *Config {
 
 			StopLossATRMultiplier:     getEnvFloat("TRADING_SL_ATR_MULT", 2.0),
 			TrailingStopATRMultiplier: getEnvFloat("TRADING_TS_ATR_MULT", 2.5),
-			TakeProfit1ATRMultiplier:  getEnvFloat("TRADING_TP1_ATR_MULT", 4.0),
-			TakeProfit2ATRMultiplier:  getEnvFloat("TRADING_TP2_ATR_MULT", 8.0),
 
-			// LLM Signal Generation Optimization
-			MinVolumeForLLM:      getEnvInt("TRADING_MIN_VOLUME_FOR_LLM", 5000),        // 5000 lots minimum (Strict)
-			MinValueForLLM:       getEnvFloat("TRADING_MIN_VALUE_FOR_LLM", 500000000),  // 500M IDR minimum (Strict)
-			MinPriceChangeForLLM: getEnvFloat("TRADING_MIN_PRICE_CHANGE_FOR_LLM", 1.5), // 1.5% price change minimum
-			LLMCacheTTLMinutes:   getEnvInt("TRADING_LLM_CACHE_TTL_MINUTES", 5),        // 5 minutes cache
-			LLMCooldownMinutes:   getEnvInt("TRADING_LLM_COOLDOWN_MINUTES", 3),         // 3 minutes cooldown
-			MinLLMConfidence:     getEnvFloat("TRADING_MIN_LLM_CONFIDENCE", 0.7),       // 0.7 minimum confidence
-
-			// Dynamic LLM Confidence Thresholds
-			MinLLMConfidenceTrending: getEnvFloat("TRADING_MIN_LLM_CONFIDENCE_TRENDING", 0.65), // 0.65 for trending (Strict)
-			MinLLMConfidenceVolatile: getEnvFloat("TRADING_MIN_LLM_CONFIDENCE_VOLATILE", 0.80), // 0.80 for volatile
+			TakeProfit1ATRMultiplier: getEnvFloat("TRADING_TP1_ATR_MULT", 4.0),
+			TakeProfit2ATRMultiplier: getEnvFloat("TRADING_TP2_ATR_MULT", 8.0),
 		},
 	}
 }
