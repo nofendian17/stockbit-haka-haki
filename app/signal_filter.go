@@ -346,8 +346,6 @@ func (f *OrderFlowFilter) Evaluate(ctx context.Context, signal *database.Trading
 
 	// Dynamic Threshold Logic
 	requiredThreshold := f.cfg.Trading.OrderFlowBuyThreshold
-	// Recalculate context flags (could be passed down in context, but recalculating is cheap enough here)
-	isHighVolume := signal.VolumeZScore > 2.5
 
 	// Check Trend Alignment (Reuse cached baseline if available)
 	isTrendAligned := false
@@ -364,8 +362,11 @@ func (f *OrderFlowFilter) Evaluate(ctx context.Context, signal *database.Trading
 		}
 	}
 
-	if isHighVolume || isTrendAligned {
-		requiredThreshold *= 0.9
+	// EXPERT MODE: Remove relaxation. Demand Order Flow to be good regardless of trend.
+	// Relaxation logic removed.
+	if !isTrendAligned {
+		// If NOT trend aligned, we actually want HIGHER buy pressure
+		requiredThreshold *= 1.1
 	}
 
 	// Whale Alignment Check (validate against institutional activity)
@@ -486,35 +487,36 @@ func (f *RegimeFilter) Name() string { return "Market Regime" }
 func (f *RegimeFilter) Evaluate(ctx context.Context, signal *database.TradingSignalDB) (bool, string, float64) {
 	regime, err := f.repo.GetLatestRegime(signal.StockSymbol)
 	if err != nil || regime == nil {
-		// No regime data - pass with neutral multiplier
-		return true, "No regime data available", 1.0
+		// No regime data - CAUTION (Expert: Reject unknown regimes)
+		return false, "No regime data available (Strict Mode)", 0.0
 	}
 
-	// REJECT: High confidence volatile stocks
-	if regime.Regime == "VOLATILE" && regime.Confidence > 0.7 {
-		return false, fmt.Sprintf("High volatility regime (%.1f%% confidence)", regime.Confidence*100), 0.0
+	// REJECT: Volatile regime (High Risk) - REJECT ALL
+	if regime.Regime == "VOLATILE" {
+		return false, fmt.Sprintf("Volatile regime forbidden (%.1f%% confidence)", regime.Confidence*100), 0.0
+	}
+
+	// REJECT: Downtrend (Trend Following Only)
+	if regime.Regime == "TRENDING_DOWN" {
+		return false, "Downtrend rejected (Trend Following Mode)", 0.0
+	}
+
+	// RANGING: Only allow if very high confidence or specific setups (reduced size)
+	if regime.Regime == "RANGING" {
+		if regime.Confidence < 0.6 {
+			return false, "Weak ranging market rejected", 0.0
+		}
+		return true, "Ranging market (Cautious)", 0.8
 	}
 
 	// BOOST: Strong uptrend
-	if regime.Regime == "TRENDING_UP" && regime.Confidence > 0.7 {
-		return true, fmt.Sprintf("Strong uptrend (%.1f%% confidence)", regime.Confidence*100), 1.3
+	if regime.Regime == "TRENDING_UP" {
+		if regime.Confidence > 0.7 {
+			return true, fmt.Sprintf("Strong uptrend (%.1f%% confidence)", regime.Confidence*100), 1.5 // Increased boost
+		}
+		return true, fmt.Sprintf("Moderate uptrend (%.1f%% confidence)", regime.Confidence*100), 1.2
 	}
 
-	// BOOST: Moderate uptrend
-	if regime.Regime == "TRENDING_UP" && regime.Confidence > 0.5 {
-		return true, fmt.Sprintf("Moderate uptrend (%.1f%% confidence)", regime.Confidence*100), 1.1
-	}
-
-	// REDUCE: Ranging market (less reliable)
-	if regime.Regime == "RANGING" {
-		return true, "Ranging market", 0.8
-	}
-
-	// REDUCE: Downtrend (we only trade BUY signals)
-	if regime.Regime == "TRENDING_DOWN" {
-		return true, "Downtrend detected", 0.7
-	}
-
-	// Default: pass with neutral multiplier
-	return true, "", 1.0
+	// Default reject for unknown states
+	return false, fmt.Sprintf("Unknown regime state: %s", regime.Regime), 0.0
 }

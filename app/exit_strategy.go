@@ -210,6 +210,18 @@ func (esc *ExitStrategyCalculator) ShouldExitPosition(
 			currentTrailingStop,
 			levels.TrailingStopPct,
 		)
+
+		// 0. AUTO-BREAKEVEN CHECK
+		// If profit reaches 50% of TP1 distance, move Stop Loss to Entry Price + small buffer (0.1%)
+		// Ensure we don't move it DOWN if it's already higher
+		halfTP1 := levels.TakeProfit1Pct / 2.0
+		if profitLossPct >= halfTP1 {
+			breakevenPrice := entryPrice * 1.001 // Entry + 0.1% to cover fees
+			if newTrailingStop < breakevenPrice {
+				newTrailingStop = breakevenPrice
+				// Implicitly, this will be returned and updated in the outcome
+			}
+		}
 	} else {
 		newTrailingStop = currentTrailingStop
 	}

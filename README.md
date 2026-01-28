@@ -6,10 +6,7 @@ A high-performance, containerized Go application for real-time stock market anal
 
 - **🐋 Whale Detection**: Real-time statistical anomaly detection (Z-Score > 3.0) to identify institutional activity with follow-up tracking.
 - **🧠 AI Insights**: Integrated LLM agent (OpenAI-compatible) with intelligent pre-filtering and regime-adaptive confidence thresholds.
-- **📊 Market Intelligence**:
-    - **Market Regimes**: Advanced ATR-based classification (Trending Up/Down, Ranging, Volatile) with confidence scoring.
-    - **Order Flow**: Real-time HAKA vs HAKI (Buy vs Sell Aggression) analysis with whale alignment validation.
-    - **Signal History**: Persistent quality tracking with regime-aware performance metrics.
+- **📊 Signal History**: Persistent quality tracking with regime-aware performance metrics.
 - **⚡ High Performance**:
     - **TimescaleDB**: Efficient storage of millions of trade records with optimized candle aggregation.
     - **Redis**: Low-latency caching for baselines, regime data, and LLM results.

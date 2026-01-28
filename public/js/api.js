@@ -91,30 +91,18 @@ export async function fetchAccumulationSummary(limit = 50, offset = 0) {
 export async function fetchAnalyticsHub() {
     try {
         // Fetch available analytics endpoints
-        const [performance, orderFlow] = await Promise.all([
-            fetchDailyPerformance().catch(() => null),
-            fetchOrderFlow().catch(() => null)
-        ]);
+        const performance = await fetchDailyPerformance().catch(() => null);
 
         return {
-            performance: performance || {},
-            orderFlow: orderFlow || {}
+            performance: performance || {}
         };
     } catch (error) {
         console.error('Failed to fetch analytics hub:', error);
-        return { performance: {}, orderFlow: {} };
+        return { performance: {} };
     }
 }
 
-/**
- * Fetch order flow data
- * @returns {Promise<Object>} Order flow data
- */
-export async function fetchOrderFlow(symbol = '') {
-    const params = new URLSearchParams();
-    if (symbol) params.append('symbol', symbol);
-    return apiFetch(`${API_ENDPOINTS.ORDER_FLOW}?${params.toString()}`);
-}
+
 
 /**
  * Fetch running/open positions
@@ -223,68 +211,7 @@ export async function fetchDailyPerformance(limit = 50, offset = 0) {
     return apiFetch(url);
 }
 
-/**
- * Fetch market intelligence data
- * @param {string} symbol - Optional symbol filter (defaults to IHSG for baseline)
- * @returns {Promise<Object>} Market intelligence data
- */
-export async function fetchMarketIntelligence(symbol = '') {
-    try {
-        // Fetch patterns without symbol requirement (gets all recent patterns)
-        const patternsData = await fetchDetectedPatterns().catch(() => null);
-        // Backend returns { patterns: [...], count: ... }
-        const patternsList = patternsData ? (patternsData.patterns || []) : [];
 
-        // Fetch baseline for symbol if provided, otherwise for IHSG
-        const baselineSymbol = symbol || 'IHSG';
-        const baseline = await fetchStatisticalBaselines(baselineSymbol).catch(() => null);
-
-        return {
-            patterns: patternsList,
-            baseline: baseline,
-            symbol: baselineSymbol
-        };
-    } catch (error) {
-        console.error('Failed to fetch market intelligence:', error);
-        return { patterns: [], baseline: null };
-    }
-}
-
-/**
- * Fetch statistical baselines for a specific symbol
- * @param {string} symbol - Stock symbol (required)
- * @returns {Promise<Object>} Statistical baselines
- */
-export async function fetchStatisticalBaselines(symbol) {
-    if (!symbol) {
-        throw new Error('Symbol parameter is required');
-    }
-    const params = new URLSearchParams();
-    params.append('symbol', symbol.toUpperCase());
-    return apiFetch(`${CONFIG.API_BASE}/baselines?${params.toString()}`);
-}
-
-/**
- * Fetch market regime for a specific symbol
- * @param {string} symbol - Stock symbol (required)
- * @returns {Promise<Object>} Market regime data
- */
-export async function fetchMarketRegime(symbol) {
-    if (!symbol) {
-        throw new Error('Symbol parameter is required');
-    }
-    const params = new URLSearchParams();
-    params.append('symbol', symbol.toUpperCase());
-    return apiFetch(`${CONFIG.API_BASE}/regimes?${params.toString()}`);
-}
-
-/**
- * Fetch detected patterns
- * @returns {Promise<Object>} Detected patterns
- */
-export async function fetchDetectedPatterns() {
-    return apiFetch(`${CONFIG.API_BASE}/patterns`);
-}
 
 /**
  * Fetch profit/loss history
@@ -365,46 +292,7 @@ export async function deleteWebhook(id) {
     });
 }
 
-/**
- * Pattern Analysis Functions (Non-streaming)
- */
 
-/**
- * Fetch accumulation patterns
- * @param {number} hoursBack - Hours to look back
- * @param {number} minAlerts - Minimum alerts threshold
- * @returns {Promise<Object>} Accumulation patterns
- */
-export async function fetchAccumulationPattern(hoursBack = 24, minAlerts = 3) {
-    const params = new URLSearchParams();
-    params.append('hours', hoursBack);
-    params.append('min_alerts', minAlerts);
-    return apiFetch(`${API_ENDPOINTS.PATTERN_ACCUMULATION}?${params.toString()}`);
-}
-
-/**
- * Fetch extreme anomalies
- * @param {number} minZScore - Minimum Z-score threshold
- * @param {number} hoursBack - Hours to look back
- * @returns {Promise<Object>} Extreme anomalies
- */
-export async function fetchExtremeAnomalies(minZScore = 5.0, hoursBack = 48) {
-    const params = new URLSearchParams();
-    params.append('min_z', minZScore);
-    params.append('hours', hoursBack);
-    return apiFetch(`${API_ENDPOINTS.PATTERN_ANOMALIES}?${params.toString()}`);
-}
-
-/**
- * Fetch time-based statistics
- * @param {number} daysBack - Days to look back
- * @returns {Promise<Object>} Time-based statistics
- */
-export async function fetchTimeBasedStats(daysBack = 7) {
-    const params = new URLSearchParams();
-    params.append('days', daysBack);
-    return apiFetch(`${API_ENDPOINTS.PATTERN_TIMING}?${params.toString()}`);
-}
 
 /**
  * Signal Performance Functions

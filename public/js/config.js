@@ -45,20 +45,7 @@ export const API_ENDPOINTS = {
 
     // Analytics
     ACCUMULATION_SUMMARY: '/api/accumulation-summary',
-    ORDER_FLOW: '/api/orderflow',
-    CORRELATIONS: '/api/analytics/correlations',
-    PERFORMANCE: '/api/analytics/performance/daily',
 
-    // Strategy Optimization Analytics
-    STRATEGY_EFFECTIVENESS: '/api/analytics/strategy-effectiveness',
-    OPTIMAL_THRESHOLDS: '/api/analytics/optimal-thresholds',
-    TIME_EFFECTIVENESS: '/api/analytics/time-effectiveness',
-    EXPECTED_VALUES: '/api/analytics/expected-values',
-
-    // Pattern Analysis (Non-streaming)
-    PATTERN_ACCUMULATION: '/api/patterns/accumulation',
-    PATTERN_ANOMALIES: '/api/patterns/anomalies',
-    PATTERN_TIMING: '/api/patterns/timing',
 
     // Webhooks Configuration
     WEBHOOKS: '/api/config/webhooks',

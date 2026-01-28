@@ -166,7 +166,7 @@ func (s *Server) registerMarketRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/whales/stats", s.handleGetWhaleStats)
 	mux.HandleFunc("GET /api/whales/{id}/followup", s.handleGetWhaleFollowup)
 	mux.HandleFunc("GET /api/whales/followups", s.handleGetWhaleFollowups)
-	mux.HandleFunc("GET /api/orderflow", s.handleGetOrderFlow)
+
 	mux.HandleFunc("GET /api/candles", s.handleGetCandles)
 }
 
@@ -179,18 +179,10 @@ func (s *Server) registerWebhookRoutes(mux *http.ServeMux) {
 
 func (s *Server) registerPatternRoutes(mux *http.ServeMux) {
 	// Standard Endpoints
-	mux.HandleFunc("GET /api/patterns/accumulation", s.handleAccumulationPattern)
-	mux.HandleFunc("GET /api/patterns/anomalies", s.handleExtremeAnomalies)
-	mux.HandleFunc("GET /api/patterns/timing", s.handleTimeBasedStats)
-	mux.HandleFunc("GET /api/patterns", s.handleGetDetectedPatterns)
 	mux.HandleFunc("GET /api/accumulation-summary", s.handleAccumulationSummary)
 
 	// Streaming Endpoints
-	mux.HandleFunc("GET /api/patterns/accumulation/stream", s.handleAccumulationPatternStream)
-	mux.HandleFunc("GET /api/patterns/anomalies/stream", s.handleExtremeAnomaliesStream)
-	mux.HandleFunc("GET /api/patterns/timing/stream", s.handleTimeBasedStatsStream)
-	mux.HandleFunc("GET /api/patterns/symbol/stream", s.handleSymbolAnalysisStream)
-	mux.HandleFunc("POST /api/patterns/custom/stream", s.handleCustomPromptStream)
+
 }
 
 func (s *Server) registerStrategyRoutes(mux *http.ServeMux) {
@@ -206,8 +198,6 @@ func (s *Server) registerStrategyRoutes(mux *http.ServeMux) {
 }
 
 func (s *Server) registerAnalyticsRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /api/baselines", s.handleGetStatisticalBaselines)
-	mux.HandleFunc("GET /api/regimes", s.handleGetMarketRegimes)
 	mux.HandleFunc("GET /api/analytics/correlations", s.handleGetStockCorrelations)
 	mux.HandleFunc("GET /api/analytics/performance/daily", s.handleGetDailyPerformance)
 

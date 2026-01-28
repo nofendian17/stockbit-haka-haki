@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -173,48 +172,6 @@ func (s *Server) handleGetCandles(w http.ResponseWriter, r *http.Request) {
 		"symbol":    symbol,
 		"timeframe": timeframe,
 		"count":     len(candles),
-	})
-}
-
-// handleGetOrderFlow returns order flow imbalance data
-func (s *Server) handleGetOrderFlow(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query()
-
-	symbol := query.Get("symbol")
-
-	limit := 100
-	if l := query.Get("limit"); l != "" {
-		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
-			limit = parsed
-			if limit > 500 {
-				limit = 500
-			}
-		}
-	}
-
-	var startTime, endTime time.Time
-	if start := query.Get("start"); start != "" {
-		startTime, _ = time.Parse(time.RFC3339, start)
-	}
-	if end := query.Get("end"); end != "" {
-		endTime, _ = time.Parse(time.RFC3339, end)
-	}
-
-	log.Printf("📊 Fetching order flow for symbol: %s (limit: %d)", symbol, limit)
-
-	flows, err := s.repo.GetOrderFlowImbalance(symbol, startTime, endTime, limit)
-	if err != nil {
-		log.Printf("❌ Failed to fetch order flow for %s: %v", symbol, err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	log.Printf("✅ Returning %d order flow records for %s", len(flows), symbol)
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"flows": flows,
-		"count": len(flows),
 	})
 }
 

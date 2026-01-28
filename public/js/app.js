@@ -6,8 +6,8 @@
 import { CONFIG } from './config.js';
 import { debounce, safeGetElement, setupTableInfiniteScroll, formatNumber, renderWhaleAlignmentBadge, renderRegimeBadge } from './utils.js';
 import * as API from './api.js';
-import { renderWhaleAlertsTable, renderRunningPositions, renderSummaryTable, updateStatsTicker, renderStockCorrelations, renderProfitLossHistory, renderMarketIntelligence, renderOrderFlow, renderPatternFeed, renderDailyPerformance } from './render.js?v=11';
-import { createWhaleAlertSSE, createPatternAnalysisSSE, createCustomPromptSSE } from './sse-handler.js';
+import { renderWhaleAlertsTable, renderRunningPositions, renderSummaryTable, updateStatsTicker, renderStockCorrelations, renderProfitLossHistory, renderDailyPerformance } from './render.js?v=11';
+import { createWhaleAlertSSE } from './sse-handler.js';
 import { initStrategySystem } from './strategy-manager.js';
 import { initWebhookManagement } from './webhook-config.js';
 
@@ -111,7 +111,7 @@ async function init() {
     setupFilterControls();
     setupModals();
     setupAnalyticsTabs();
-    setupPatternAnalysis();
+    setupAnalyticsTabs();
     setupInfiniteScroll();
     setupProfitLossHistory();
     setupAccumulationTables();
@@ -220,7 +220,7 @@ async function refreshAllData() {
 
     // Optional analytics - don't block on errors
     API.fetchAnalyticsHub().catch(err => console.warn('Analytics hub unavailable'));
-    API.fetchOrderFlow().catch(err => console.warn('Order flow unavailable'));
+
 
     // Reload correlations if tab is active
     if (document.getElementById('correlations-view')?.classList.contains('active')) {
@@ -1121,193 +1121,7 @@ async function loadOptimizationData() {
 window.loadOptimizationData = loadOptimizationData;
 
 
-/**
- * Setup pattern analysis
- */
-function setupPatternAnalysis() {
-    const tabs = document.querySelectorAll('.tab-btn');
-    const startBtn = safeGetElement('start-analysis-btn');
-    const stopBtn = safeGetElement('stop-analysis-btn');
 
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            tabs.forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            state.currentPatternType = tab.dataset.type;
-
-            const symbolInput = safeGetElement('symbol-input-container');
-            const customPromptContainer = safeGetElement('custom-prompt-container');
-
-            if (symbolInput) {
-                symbolInput.style.display = state.currentPatternType === 'symbol' ? 'block' : 'none';
-            }
-
-            if (customPromptContainer) {
-                customPromptContainer.style.display = state.currentPatternType === 'custom' ? 'block' : 'none';
-            }
-        });
-    });
-
-    if (startBtn) {
-        startBtn.addEventListener('click', () => startPatternAnalysis());
-    }
-
-    if (stopBtn) {
-        stopBtn.addEventListener('click', () => stopPatternAnalysis());
-    }
-}
-
-/**
- * Start pattern analysis
- */
-function startPatternAnalysis() {
-    const outputDiv = safeGetElement('llm-stream-output');
-    const statusBadge = safeGetElement('llm-status');
-    const startBtn = safeGetElement('start-analysis-btn');
-    const stopBtn = safeGetElement('stop-analysis-btn');
-
-    let symbol = '';
-    let customPrompt = '';
-    let customSymbols = [];
-    let hoursBack = 24;
-    let includeData = 'alerts,regimes';
-
-    if (state.currentPatternType === 'symbol') {
-        symbol = document.getElementById('symbol-input')?.value.trim().toUpperCase() || '';
-        if (!symbol) {
-            if (outputDiv) {
-                outputDiv.innerHTML = '<div class="flex flex-col items-center justify-center p-8 h-full text-textSecondary"><span class="text-4xl mb-4">⚠️</span><p class="text-accentDanger">Silakan masukkan kode saham terlebih dahulu</p></div>';
-            }
-            return;
-        }
-    } else if (state.currentPatternType === 'custom') {
-        customPrompt = document.getElementById('custom-prompt-input')?.value.trim() || '';
-        if (!customPrompt) {
-            if (outputDiv) {
-                outputDiv.innerHTML = '<div class="flex flex-col items-center justify-center p-8 h-full text-textSecondary"><span class="text-4xl mb-4">⚠️</span><p class="text-accentDanger">Silakan masukkan prompt terlebih dahulu</p></div>';
-            }
-            return;
-        }
-
-        const symbolsInput = document.getElementById('custom-symbols-input')?.value.trim() || '';
-        if (symbolsInput) {
-            customSymbols = symbolsInput.split(',').map(s => s.trim().toUpperCase()).filter(s => s);
-        }
-
-        hoursBack = parseInt(document.getElementById('custom-hours-input')?.value || '24');
-        includeData = document.getElementById('custom-data-type')?.value || 'alerts,regimes';
-    }
-
-    if (startBtn) startBtn.style.display = 'none';
-    if (stopBtn) stopBtn.style.display = 'flex';
-    if (statusBadge) {
-        statusBadge.textContent = 'Streaming...';
-        statusBadge.className = 'px-2 py-1 rounded-full text-xs font-bold bg-accentPrimary/20 text-accentPrimary animate-pulse';
-    }
-
-    if (outputDiv) outputDiv.innerHTML = '<div class="flex items-center justify-center p-4 text-textSecondary animate-pulse">🤖 Menganalisis data...</div>';
-
-    let streamText = '';
-
-    if (state.currentPatternType === 'custom') {
-        state.patternSSE = createCustomPromptSSE(customPrompt, customSymbols, hoursBack, includeData, {
-            onChunk: (chunk) => {
-                if (streamText === '' && outputDiv) {
-                    outputDiv.innerHTML = '<div class="bg-surface/50 rounded-lg p-4 border border-white/5"><div class="prose prose-invert max-w-none text-textPrimary leading-relaxed streaming-text"></div></div>';
-                }
-
-                streamText += chunk;
-                const htmlContent = marked.parse(streamText);
-
-                const textContainer = outputDiv?.querySelector('.streaming-text');
-                if (textContainer) {
-                    textContainer.innerHTML = `${htmlContent}<span class="inline-block w-2 h-4 bg-accentPrimary align-middle ml-1 animate-pulse"></span>`;
-                }
-
-                if (outputDiv) outputDiv.scrollTop = outputDiv.scrollHeight;
-            },
-            onDone: () => {
-                const htmlContent = marked.parse(streamText);
-                if (outputDiv) {
-                    outputDiv.innerHTML = `<div class="bg-surface/50 rounded-lg p-4 border border-white/5"><div class="prose prose-invert max-w-none text-textPrimary leading-relaxed streaming-text">${htmlContent}</div></div>`;
-                }
-
-                if (statusBadge) {
-                    statusBadge.textContent = 'Completed';
-                    statusBadge.className = 'px-2 py-1 rounded-full text-xs font-bold bg-accentSuccess/20 text-accentSuccess';
-                }
-
-                if (startBtn) startBtn.style.display = 'flex';
-                if (stopBtn) stopBtn.style.display = 'none';
-            },
-            onError: () => {
-                if (statusBadge) {
-                    statusBadge.textContent = 'Error';
-                    statusBadge.className = 'px-2 py-1 rounded-full text-xs font-bold bg-accentDanger/20 text-accentDanger';
-                }
-            }
-        });
-    } else {
-        state.patternSSE = createPatternAnalysisSSE(state.currentPatternType, symbol, {
-            onChunk: (chunk) => {
-                if (streamText === '' && outputDiv) {
-                    outputDiv.innerHTML = '<div class="bg-surface/50 rounded-lg p-4 border border-white/5"><div class="prose prose-invert max-w-none text-textPrimary leading-relaxed streaming-text"></div></div>';
-                }
-
-                streamText += chunk;
-                const htmlContent = marked.parse(streamText);
-
-                const textContainer = outputDiv?.querySelector('.streaming-text');
-                if (textContainer) {
-                    textContainer.innerHTML = `${htmlContent}<span class="inline-block w-2 h-4 bg-accentPrimary align-middle ml-1 animate-pulse"></span>`;
-                }
-
-                if (outputDiv) outputDiv.scrollTop = outputDiv.scrollHeight;
-            },
-            onDone: () => {
-                const htmlContent = marked.parse(streamText);
-                if (outputDiv) {
-                    outputDiv.innerHTML = `<div class="bg-surface/50 rounded-lg p-4 border border-white/5"><div class="prose prose-invert max-w-none text-textPrimary leading-relaxed streaming-text">${htmlContent}</div></div>`;
-                }
-
-                if (statusBadge) {
-                    statusBadge.textContent = 'Completed';
-                    statusBadge.className = 'px-2 py-1 rounded-full text-xs font-bold bg-accentSuccess/20 text-accentSuccess';
-                }
-
-                if (startBtn) startBtn.style.display = 'flex';
-                if (stopBtn) stopBtn.style.display = 'none';
-            },
-            onError: () => {
-                if (statusBadge) {
-                    statusBadge.textContent = 'Error';
-                    statusBadge.className = 'px-2 py-1 rounded-full text-xs font-bold bg-accentDanger/20 text-accentDanger';
-                }
-            }
-        });
-    }
-}
-
-/**
- * Stop pattern analysis
- */
-function stopPatternAnalysis() {
-    if (state.patternSSE) {
-        state.patternSSE.close();
-        state.patternSSE = null;
-    }
-
-    const startBtn = safeGetElement('start-analysis-btn');
-    const stopBtn = safeGetElement('stop-analysis-btn');
-    const statusBadge = safeGetElement('llm-status');
-
-    if (startBtn) startBtn.style.display = 'flex';
-    if (stopBtn) stopBtn.style.display = 'none';
-    if (statusBadge) {
-        statusBadge.textContent = 'Stopped';
-        statusBadge.className = 'status-badge';
-    }
-}
 
 /**
  * Start analytics polling with visibility optimization
@@ -1331,24 +1145,8 @@ function startAnalyticsPolling() {
         const promises = [
             // Always fetch these (critical for main dashboard)
             API.fetchOrderFlow(flowSymbol).then(renderOrderFlow).catch(() => null),
-            API.fetchMarketRegime(symbol).then(renderMarketIntelligence).catch(() => {
-                renderMarketIntelligence({ regime: 'UNKNOWN', confidence: 0 });
-            }),
             API.fetchRunningPositions().then(renderPositions).catch(() => null)
         ];
-
-        // Fetch market intelligence including baseline and patterns
-        promises.push(
-            API.fetchMarketIntelligence(symbol).then(data => {
-                // Render patterns
-                renderPatternFeed(data.patterns);
-
-                // Render baseline data
-                if (data.baseline) {
-                    renderMarketIntelligence({ baseline: data.baseline });
-                }
-            }).catch(() => null)
-        );
 
         // Fetch tab-specific data only if that tab is active
         if (state.activeAnalyticsTab === 'performance-view') {

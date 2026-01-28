@@ -10,6 +10,7 @@ graph TD
     Ingest -->|Raw Trades| TimescaleDB[(TimescaleDB)]
     Ingest -->|Stats Update| Redis[(Redis Cache)]
     
+    
     subgraph Core Processing
         Ingest -->|Stream| Detector[Whale Detector]
         Detector -->|Anomalies| AlertMgr[Alert Manager]
@@ -18,7 +19,6 @@ graph TD
     
     subgraph Intelligence Layer
         Strategy -->|Signals| LLM[LLM Agent]
-        LLM -->|Analysis| Insights[AI Insights]
         AlertMgr -->|Webhooks| External[Discord / Slack]
     end
     
@@ -63,9 +63,11 @@ graph TD
   - **Anomalies**: Explains potential reasons for extreme market moves.
   - **Timing**: Identifies optimal entry/exit times based on historical probabilities.
 
+> Note: AI Analysis features are currently internal-only and not exposed via API.
+
 ### 5. API & Real-time Layer
 - **REST API**: Standard CRUD and analytical endpoints.
-- **SSE (Server-Sent Events)**: Pushes real-time alerts and "typewriter" style LLM analysis to the frontend.
+- **SSE (Server-Sent Events)**: Pushes real-time alerts.
 
 ## Core Algorithms
 

@@ -147,9 +147,7 @@
 
                 <!-- Actions -->
                 <div class="flex items-center gap-3">
-                    <span id="market-regime"
-                        class="hidden md:inline-block px-3 py-1 bg-bgCard border border-borderColor rounded text-xs font-bold tracking-wide"
-                        style="display:none;">RANGING</span>
+
                     <button id="webhook-config-btn"
                         class="p-2 rounded-lg border border-borderColor hover:bg-bgHover transition-colors text-lg"
                         title="Webhook Config">🔔</button>
@@ -406,7 +404,7 @@
             <section class="card-base">
                 <div class="flex justify-between items-start mb-3">
                     <div>
-                        <h2 class="text-sm font-bold mb-0.5">💼 Posisi Aktif(Mock)</h2>
+                        <h2 class="text-sm font-bold mb-0.5">💼 Posisi Aktif</h2>
                         <p class="text-[10px] text-textSecondary">Active trading positions</p>
                     </div>
                 </div>
@@ -447,7 +445,7 @@
             <section class="card-base lg:col-span-2">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 gap-2">
                     <div>
-                        <h2 class="text-sm font-bold mb-0.5">📜 Riwayat Trading(Mock)</h2>
+                        <h2 class="text-sm font-bold mb-0.5">📜 Riwayat Trading</h2>
                         <p class="text-[10px] text-textSecondary">Completed trade history</p>
                     </div>
                     <div class="flex flex-wrap gap-2">
@@ -606,154 +604,9 @@
                 </div>
             </section>
 
-            <!-- Market Intelligence -->
-            <section class="card-base lg:col-span-2">
-                <div class="flex justify-between items-start mb-3">
-                    <div>
-                        <h2 class="text-sm font-bold mb-0.5">🧠 Market Intelligence</h2>
-                        <p class="text-[10px] text-textSecondary">Real-time market conditions and statistics</p>
-                    </div>
-                </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-                    <!-- Regime Card -->
-                    <div
-                        class="bg-bgSecondary border border-borderColor rounded-xl p-6 flex flex-col items-center text-center">
-                        <div class="text-xs uppercase tracking-wider text-textMuted font-bold mb-2">KONDISI PASAR</div>
-                        <div class="text-2xl font-bold text-accentInfo mb-2" id="intel-regime">STABIL</div>
-                        <div class="text-sm text-textSecondary" id="intel-regime-desc">Menganalisis kondisi pasar...
-                        </div>
-                    </div>
 
-                    <!-- Baseline Stats -->
-                    <div class="bg-bgSecondary border border-borderColor rounded-xl p-6 flex flex-col justify-center">
-                        <div class="text-xs uppercase tracking-wider text-textMuted font-bold mb-4 text-center">
-                            STATISTIK DASAR</div>
-                        <div class="space-y-3 text-sm">
-                            <div class="flex justify-between items-center border-b border-borderColor pb-2">
-                                <span class="text-textSecondary">Rata-rata Vol:</span>
-                                <strong id="b-avg-vol" class="text-textPrimary">-</strong>
-                            </div>
-                            <div class="flex justify-between items-center pt-1">
-                                <span class="text-textSecondary">Std Dev:</span>
-                                <strong id="b-std-dev" class="text-textPrimary">-</strong>
-                            </div>
-                        </div>
-                    </div>
 
-                    <!-- Pressure Bar -->
-                    <div class="bg-bgSecondary border border-borderColor rounded-xl p-6 flex flex-col justify-center">
-                        <div class="text-xs uppercase tracking-wider text-textMuted font-bold mb-4 text-center">TEKANAN
-                            JUAL/BELI</div>
-                        <div class="relative h-6 bg-bgCard rounded-full overflow-hidden mb-3">
-                            <div class="absolute inset-0 flex">
-                                <div id="buy-pressure-fill" class="h-full bg-accentSuccess transition-all duration-500"
-                                    style="width: 50%"></div>
-                                <div id="sell-pressure-fill" class="h-full bg-accentDanger transition-all duration-500"
-                                    style="width: 50%"></div>
-                            </div>
-                        </div>
-                        <div class="flex justify-between text-xs font-bold">
-                            <span id="buy-pressure-pct" class="text-accentSuccess">50% BELI</span>
-                            <span id="sell-pressure-pct" class="text-accentDanger">50% JUAL</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-bgSecondary border border-borderColor rounded-xl p-6">
-                    <h4 class="font-bold text-sm mb-4 text-textMuted uppercase tracking-wider">Pola Terkini</h4>
-                    <div id="pattern-list" class="space-y-2 max-h-[200px] overflow-y-auto pr-2">
-                        <div
-                            class="text-sm text-textSecondary italic p-4 text-center bg-bgCard rounded border border-borderColor border-dashed">
-                            Menunggu pola...</div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- AI Analysis -->
-            <section class="card-base lg:col-span-2">
-                <div class="flex justify-between items-start mb-3">
-                    <div>
-                        <h2 class="text-sm font-bold mb-0.5">🤖 AI Pattern Analysis</h2>
-                        <p class="text-[10px] text-textSecondary">Real-time AI-powered pattern detection</p>
-                    </div>
-                    <div class="px-2 py-0.5 bg-accentInfo/10 text-accentInfo border border-accentInfo/20 rounded text-[10px] font-bold uppercase"
-                        id="llm-status">Ready</div>
-                </div>
-
-                <div class="flex gap-2 mb-3 overflow-x-auto pb-1 border-b border-borderColor scrollbar-hide">
-                    <button
-                        class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-bgHover text-textPrimary hover:bg-accentInfo hover:text-white transition-colors tab-btn active whitespace-nowrap"
-                        data-type="accumulation">📈 Akumulasi</button>
-                    <button
-                        class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-bgHover text-textPrimary hover:bg-accentInfo hover:text-white transition-colors tab-btn whitespace-nowrap"
-                        data-type="anomalies">⚡ Anomali</button>
-                    <button
-                        class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-bgHover text-textPrimary hover:bg-accentInfo hover:text-white transition-colors tab-btn whitespace-nowrap"
-                        data-type="timing">⏰ Timing</button>
-                    <button
-                        class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-bgHover text-textPrimary hover:bg-accentInfo hover:text-white transition-colors tab-btn whitespace-nowrap"
-                        data-type="symbol">🎯 Symbol</button>
-                    <button
-                        class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-bgHover text-textPrimary hover:bg-accentInfo hover:text-white transition-colors tab-btn whitespace-nowrap"
-                        data-type="custom">✍️ Custom</button>
-                </div>
-
-                <div id="symbol-input-container" class="mb-4 hidden">
-                    <input type="text" id="symbol-input" class="input-base w-full max-w-sm uppercase"
-                        placeholder="Enter stock code (e.g., BBCA)" maxlength="4" />
-                </div>
-
-                <!-- Custom Prompt Input -->
-                <div id="custom-prompt-container" class="mb-4 hidden space-y-4">
-                    <textarea id="custom-prompt-input" class="input-base w-full resize-y h-32"
-                        placeholder="Tanyakan apa saja tentang data di database... Contoh: 'Saham mana yang paling banyak akumulasi hari ini?' atau 'Analisis pola BBCA dalam 24 jam terakhir'"></textarea>
-
-                    <div class="flex flex-wrap gap-4">
-                        <div class="flex-1 min-w-[200px]">
-                            <label class="block text-xs text-textSecondary mb-1">Symbols (opsional):</label>
-                            <input type="text" id="custom-symbols-input" class="input-base w-full uppercase"
-                                placeholder="e.g., BBCA,TLKM,BMRI" />
-                        </div>
-
-                        <div class="flex-1 min-w-[200px]">
-                            <label class="block text-xs text-textSecondary mb-1">Include Data:</label>
-                            <select id="custom-data-type" class="input-base w-full cursor-pointer">
-                                <option value="alerts,regimes">Alerts + Regimes</option>
-                                <option value="alerts,regimes,patterns">+ Patterns</option>
-                                <option value="alerts,regimes,patterns,signals">+ Signals</option>
-                                <option value="alerts">Alerts Only</option>
-                                <option value="regimes">Regimes Only</option>
-                                <option value="patterns">Patterns Only</option>
-                                <option value="signals">Signals Only</option>
-                            </select>
-                        </div>
-
-                        <div class="w-[100px]">
-                            <label class="block text-xs text-textSecondary mb-1">Hours Back:</label>
-                            <input type="number" id="custom-hours-input" class="input-base w-full" value="24" min="1"
-                                max="168" />
-                        </div>
-                    </div>
-                </div>
-
-                <div id="llm-stream-output"
-                    class="p-8 text-center text-textSecondary border border-borderColor border-dashed rounded-lg bg-bgSecondary/30 min-h-[200px] flex flex-col items-center justify-center prose prose-invert max-w-none">
-                    <div class="flex flex-col items-center">
-                        <span class="text-4xl mb-4 opacity-70">🧠</span>
-                        <p class="font-medium">Click "Start Analysis" to begin AI real-time analysis</p>
-                    </div>
-                </div>
-
-                <div class="mt-4 flex gap-3">
-                    <button id="start-analysis-btn" class="btn-primary">
-                        <span>▶</span> Start Analysis
-                    </button>
-                    <button id="stop-analysis-btn" class="btn-secondary hidden">
-                        <span>⏹</span> Stop
-                    </button>
-                </div>
-            </section>
 
         </div>
     </main>
@@ -891,29 +744,7 @@
                             </div>
                         </section>
 
-                        <section class="space-y-2">
-                            <h3 class="text-base font-bold text-textPrimary">🧠 Market Intelligence</h3>
-                            <p>Fitur ini memberikan gambaran kondisi pasar secara keseluruhan:</p>
-                            <ul class="list-disc pl-5 space-y-1">
-                                <li><strong class="text-textPrimary">Kondisi Pasar</strong>: Status tren pasar saat ini
-                                    (Bullish, Bearish, Ranging).</li>
-                                <li><strong class="text-textPrimary">Tekanan Jual/Beli</strong>: Perbandingan volume
-                                    order beli vs jual secara real-time.</li>
-                            </ul>
-                        </section>
 
-                        <section class="space-y-2">
-                            <h3 class="text-base font-bold text-textPrimary">🤖 AI Pattern Analysis</h3>
-                            <p>Analisis pola grafik otomatis menggunakan kecerdasan buatan:</p>
-                            <ul class="list-disc pl-5 space-y-1">
-                                <li><strong class="text-textPrimary">Akumulasi</strong>: Mendeteksi pola pembelian
-                                    bertahap oleh bandar.</li>
-                                <li><strong class="text-textPrimary">Anomali</strong>: Menemukan pergerakan harga atau
-                                    volume yang tidak wajar.</li>
-                                <li><strong class="text-textPrimary">Tanya Data</strong>: Gunakan fitur "Custom"
-                                    untuk bertanya langsung ke database menggunakan bahasa alami.</li>
-                            </ul>
-                        </section>
                     </div>
                 </div>
                 <div class="bg-bgSecondary px-6 py-4 flex flex-row-reverse border-t border-borderColor">

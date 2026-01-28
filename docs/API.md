@@ -9,11 +9,9 @@ The Stockbit Analysis system exposes a REST API on port `8080` (default) for ret
 1. [Health Check](#health-check)
 2. [Whale Alerts](#whale-alerts)
 3. [Trading Strategies & Signals](#trading-strategies--signals)
-4. [Market Analysis & Intelligence](#market-analysis--intelligence)
-5. [AI Pattern Analysis (LLM)](#ai-pattern-analysis-llm)
-6. [Analytics & Performance](#analytics--performance)
-7. [Webhook Management](#webhook-management)
-8. [Real-time Events (SSE)](#real-time-events-sse)
+4. [Analytics & Performance](#analytics--performance)
+5. [Webhook Management](#webhook-management)
+6. [Real-time Events (SSE)](#real-time-events-sse)
 
 ---
 
@@ -178,137 +176,10 @@ Check the performance outcome of a specific signal (Profit/Loss).
 
 ## Market Analysis & Intelligence
 
-### Get Statistical Baselines
-`GET /api/baselines`
-
-Get rolling statistical baselines (Mean, StdDev) for stocks.
-
-**Parameters:**
-- `symbol` (required): Stock symbol.
-
-### Get Market Regimes
-`GET /api/regimes`
-
-Get current market regime classification (e.g., TRENDING_UP, RANGING).
-
-**Parameters:**
-- `symbol` (required): Stock symbol.
-
-### Get Detected Patterns
-`GET /api/patterns`
-
-Get specific chart patterns detected by algorithms.
-
-**Parameters:**
-- `symbol` (optional): Stock symbol.
-- `type` (optional): Pattern type.
-
-### Get Order Flow Imbalance
-`GET /api/orderflow`
-
-Analyze Buy vs Sell pressure (HAKA vs HAKI).
-
-**Parameters:**
-- `symbol` (required): Stock symbol.
-- `minutes` (optional): Lookback window in minutes (default 30).
-
-**Response:**
-```json
-{
-  "stock_symbol": "GOTO",
-  "buy_volume_lots": 500000,
-  "sell_volume_lots": 300000,
-  "volume_imbalance_ratio": 1.66,
-  "aggressive_buy_pct": 62.5
-}
-```
-
 ### Accumulation/Distribution Summary
 `GET /api/accumulation-summary`
 
 Top 20 stocks with highest accumulation (buying) and distribution (selling) pressure.
-
----
-
-## AI Pattern Analysis (LLM)
-
-> **Note:** These endpoints require `LLM_ENABLED=true` in `.env`.
-
-### Analysis Endpoints
-- `GET /api/patterns/accumulation`: Analyze accumulation/distribution patterns.
-- `GET /api/patterns/anomalies`: Analyze extreme anomalies (Z-Score > 4).
-- `GET /api/patterns/timing`: Analyze timing-based patterns.
-
-All support standard filtering parameters (`hours`, `min_alerts`, `min_z`).
-
-### Streaming Analysis (SSE)
-For real-time generated insights, use the streaming endpoints:
-- `GET /api/patterns/accumulation/stream`
-- `GET /api/patterns/anomalies/stream`
-- `GET /api/patterns/timing/stream`
-- `GET /api/patterns/symbol/stream?symbol=XXXX`
-
-These endpoints return data in `text/event-stream` format.
-
-### Custom Prompt Analysis (NEW)
-`POST /api/patterns/custom/stream`
-
-Allow users to provide custom prompts for AI analysis based on database data.
-
-**Request Body:**
-```json
-{
-  "prompt": "Analisis pola BBCA dalam 24 jam terakhir",
-  "symbols": ["BBCA", "TLKM"],
-  "hours_back": 24,
-  "include_data": "alerts,regimes,patterns,signals"
-}
-```
-
-**Parameters:**
-- `prompt` (required): User's custom question or analysis request.
-- `symbols` (optional): Array of stock symbols to focus analysis on. If empty, includes top active stocks.
-- `hours_back` (optional): Hours of historical data to include (default: 24, max: 168).
-- `include_data` (optional): Comma-separated data types to include as context:
-  - `alerts`: Whale alerts (large transactions)
-  - `regimes`: Market regime (trending/ranging/volatile)
-  - `patterns`: Accumulation/distribution patterns
-  - `signals`: Trading signals with outcomes
-  - Default: `"alerts,regimes"`
-
-**Response:**
-Server-Sent Events (SSE) stream with AI-generated analysis.
-
-**Example Request:**
-```bash
-curl -X POST http://localhost:8080/api/patterns/custom/stream \
-  -H "Content-Type: application/json" \
-  -d '{
-    "prompt": "Saham mana yang paling banyak akumulasi hari ini?",
-    "hours_back": 24,
-    "include_data": "alerts,regimes,patterns"
-  }'
-```
-
-**Response Format:**
-```
-data: Berdasarkan data dalam 24 jam terakhir...
-data: 
-data: **Top 3 Saham dengan Akumulasi Tertinggi:**
-data: 1. **BBCA** - 15 alerts, Rp 5.4 Miliar
-...
-event: done
-data: Stream completed
-```
-
-**Use Cases:**
-- Free-form questions about market data
-- Custom analysis combining multiple data sources
-- Comparative analysis between stocks
-- Strategy validation based on historical signals
-- Risk assessment with anomaly detection
-
-See [CUSTOM_PROMPT_FEATURE.md](./CUSTOM_PROMPT_FEATURE.md) for detailed usage guide.
 
 ---
 
