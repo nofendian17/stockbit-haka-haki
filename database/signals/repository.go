@@ -368,7 +368,7 @@ func (r *Repository) EvaluateVolumeBreakoutStrategy(alert *models.WhaleAlert, zs
 		isAggressiveBuying = *orderFlow.AggressiveBuyPct > 50.0
 	}
 
-	if zscores.PriceChange > 2.0 && zscores.VolumeZScore > 2.5 {
+	if zscores.PriceZScore > 2.0 && zscores.VolumeZScore > 2.5 {
 		if isBullishTrend && isAggressiveBuying {
 			signal.Decision = "BUY"
 			signal.Confidence = calculateConfidence(zscores.VolumeZScore, 2.5, 6.0)
@@ -378,27 +378,27 @@ func (r *Repository) EvaluateVolumeBreakoutStrategy(alert *models.WhaleAlert, zs
 				signal.Confidence = min(signal.Confidence*1.2, 1.0)
 			}
 
-			signal.Reason = r.generateAIReasoning(signal, "Strong volume breakout with Order Flow & VWAP confirmation", regime, vwap)
+			signal.Reason = r.generateAIReasoning(signal, "Strong statistical breakout (Volume Z > 2.5) with Order Flow & VWAP confirmation", regime, vwap)
 		} else if isBullishTrend {
 			// Good trend but Order Flow weak -> WAIT
 			signal.Decision = "WAIT"
 			signal.Confidence = 0.4
-			signal.Reason = r.generateAIReasoning(signal, "Volume breakout detected but Order Flow is neutral/bearish", regime, vwap)
+			signal.Reason = r.generateAIReasoning(signal, "Statistical breakout detected but Order Flow is neutral/bearish", regime, vwap)
 		} else {
 			// Below VWAP -> WAIT/IGNORE
 			signal.Decision = "WAIT"
 			signal.Confidence = 0.3
-			signal.Reason = r.generateAIReasoning(signal, "Volume breakout below VWAP (Trend unconfirmed)", regime, vwap)
+			signal.Reason = r.generateAIReasoning(signal, "Statistical breakout below VWAP (Trend unconfirmed)", regime, vwap)
 		}
-	} else if zscores.PriceChange > 1.5 && zscores.VolumeZScore > 2.0 {
+	} else if zscores.PriceZScore > 1.5 && zscores.VolumeZScore > 2.0 {
 		// "Weak" breakout zone
 		signal.Decision = "WAIT"
 		signal.Confidence = 0.3
-		signal.Reason = r.generateAIReasoning(signal, "Volume not confirming price action strongly enough", regime, vwap)
+		signal.Reason = r.generateAIReasoning(signal, "Volume not confirming price Z-score strongly enough", regime, vwap)
 	} else {
 		signal.Decision = "NO_TRADE"
 		signal.Confidence = 0.1
-		signal.Reason = "No significant breakout detected"
+		signal.Reason = "No significant statistical breakout detected"
 	}
 
 	return signal
@@ -422,11 +422,11 @@ func (r *Repository) EvaluateMeanReversionStrategy(alert *models.WhaleAlert, zsc
 	// Detect volume divergence
 	volumeDeclining := zscores.VolumeZScore < prevVolumeZScore
 
-	// Check conditions: price_z_score > 3.5 AND volume declining
+	// Check conditions: price_z_score > 3.0 AND volume declining
 	if zscores.PriceZScore > 3.0 && volumeDeclining {
 		signal.Decision = "SELL"
 		signal.Confidence = calculateConfidence(zscores.PriceZScore, 3.0, 6.0)
-		signal.Reason = r.generateAIReasoning(signal, "Price overextended with fading volume", regime, vwap)
+		signal.Reason = r.generateAIReasoning(signal, "Price statistically overextended (Z > 3.0) with fading volume", regime, vwap)
 	} else if zscores.PriceZScore > 3.0 {
 		signal.Decision = "WAIT"
 		signal.Confidence = 0.5
@@ -480,7 +480,8 @@ func (r *Repository) EvaluateFakeoutFilterStrategy(alert *models.WhaleAlert, zsc
 	}
 
 	// Detect potential breakout (price moving significantly)
-	isBreakout := zscores.PriceChange > 3.0 || zscores.PriceZScore > 2.0
+	// Detect potential breakout (price moving significantly)
+	isBreakout := zscores.PriceZScore > 2.0
 
 	// Check volume strength
 	if isBreakout && zscores.VolumeZScore < 1.0 {
