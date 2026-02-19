@@ -227,7 +227,7 @@ export function closeAIAnalysisModal() {
     
     // Cancel any ongoing analysis
     if (currentAnalysisStream) {
-        currentAnalysisStream.close();
+        currentAnalysisStream.abort();
         currentAnalysisStream = null;
     }
     

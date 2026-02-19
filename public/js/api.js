@@ -387,7 +387,7 @@ export async function fetchOrderFlow(symbol = '') {
  * Create SSE connection for AI symbol analysis
  * @param {string} symbol - Stock symbol to analyze
  * @param {Object} handlers - Event handlers {onMessage, onError, onDone}
- * @returns {EventSource} EventSource instance
+ * @returns {Object} Controller with abort method
  */
 export function createAISymbolAnalysisStream(symbol, handlers = {}) {
     const { onMessage, onError, onDone } = handlers;
@@ -396,28 +396,65 @@ export function createAISymbolAnalysisStream(symbol, handlers = {}) {
     params.append('symbol', symbol.toUpperCase());
     
     const url = `${API_ENDPOINTS.AI_SYMBOL_ANALYSIS}?${params.toString()}`;
-    const evtSource = new EventSource(url);
+    const controller = new AbortController();
     
-    let analysisText = '';
-    
-    evtSource.onmessage = (event) => {
-        if (event.data === '[DONE]') {
-            evtSource.close();
-            if (onDone) onDone(analysisText);
-            return;
+    // Use fetch with ReadableStream instead of EventSource for better error handling
+    fetch(url, {
+        signal: controller.signal,
+        headers: {
+            'Accept': 'text/event-stream'
+        }
+    }).then(response => {
+        if (!response.ok) {
+            if (response.status === 404) {
+                throw new Error('No whale data available for this symbol');
+            } else if (response.status === 503) {
+                throw new Error('AI service is not enabled');
+            } else {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
         }
         
-        analysisText += event.data;
-        if (onMessage) onMessage(event.data, analysisText);
-    };
-    
-    evtSource.onerror = (err) => {
-        console.error('AI Analysis SSE Error:', err);
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let analysisText = '';
+        
+        function readStream() {
+            reader.read().then(({ done, value }) => {
+                if (done) {
+                    if (onDone) onDone(analysisText);
+                    return;
+                }
+                
+                const chunk = decoder.decode(value, { stream: true });
+                const lines = chunk.split('\n');
+                
+                lines.forEach(line => {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6);
+                        if (data === '[DONE]') {
+                            if (onDone) onDone(analysisText);
+                            return;
+                        }
+                        analysisText += data + '\n';
+                        if (onMessage) onMessage(data, analysisText);
+                    }
+                });
+                
+                readStream();
+            }).catch(err => {
+                console.error('AI Analysis stream error:', err);
+                if (onError) onError(err);
+            });
+        }
+        
+        readStream();
+    }).catch(err => {
+        console.error('AI Analysis fetch error:', err);
         if (onError) onError(err);
-        evtSource.close();
-    };
+    });
     
-    return evtSource;
+    return controller;
 }
 
 /**
