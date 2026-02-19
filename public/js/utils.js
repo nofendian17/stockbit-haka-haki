@@ -306,3 +306,58 @@ export function renderRegimeBadge(regime, confidence = 0) {
         ${regimeLabel}
     </span>`;
 }
+
+/**
+ * Show toast notification
+ * @param {string} message - Message to display
+ * @param {string} type - Type: 'success', 'error', 'warning', 'info'
+ * @param {number} duration - Duration in milliseconds
+ */
+export function showToast(message, type = 'info', duration = 3000) {
+    // Remove existing toast
+    const existingToast = document.getElementById('app-toast');
+    if (existingToast) {
+        existingToast.remove();
+    }
+
+    // Create toast element
+    const toast = document.createElement('div');
+    toast.id = 'app-toast';
+
+    // Type styling
+    const typeStyles = {
+        success: 'bg-accentSuccess/90 border-accentSuccess text-white',
+        error: 'bg-accentDanger/90 border-accentDanger text-white',
+        warning: 'bg-yellow-500/90 border-yellow-500 text-white',
+        info: 'bg-accentInfo/90 border-accentInfo text-white'
+    };
+
+    // Type icons
+    const typeIcons = {
+        success: '✓',
+        error: '✕',
+        warning: '⚠',
+        info: 'ℹ'
+    };
+
+    toast.className = `fixed bottom-4 right-4 z-50 px-4 py-3 rounded-lg border shadow-lg backdrop-blur-sm transform transition-all duration-300 translate-y-full opacity-0 ${typeStyles[type] || typeStyles.info}`;
+    toast.innerHTML = `
+        <div class="flex items-center gap-2">
+            <span class="font-bold">${typeIcons[type] || typeIcons.info}</span>
+            <span class="text-sm font-medium">${message}</span>
+        </div>
+    `;
+
+    document.body.appendChild(toast);
+
+    // Animate in
+    requestAnimationFrame(() => {
+        toast.classList.remove('translate-y-full', 'opacity-0');
+    });
+
+    // Remove after duration
+    setTimeout(() => {
+        toast.classList.add('translate-y-full', 'opacity-0');
+        setTimeout(() => toast.remove(), 300);
+    }, duration);
+}

@@ -280,13 +280,11 @@ func (st *SignalTracker) shouldCreateOutcome(signal *database.TradingSignalDB) (
 		}
 	}
 
-	// 3. Regime-Adaptive Position Limit
-	adaptiveLimit := st.filterService.GetRegimeAdaptiveLimit(signal.StockSymbol)
-
-	// Check if too many open positions globally (with adaptive limit)
+	// 3. Check position limits
+	// Check if too many open positions globally
 	openOutcomes, err := st.repo.GetSignalOutcomes("", "OPEN", time.Time{}, time.Time{}, 0, 0)
-	if err == nil && len(openOutcomes) >= adaptiveLimit {
-		return false, fmt.Sprintf("Max open positions reached (%d/%d adaptive)", len(openOutcomes), adaptiveLimit), 0.0
+	if err == nil && len(openOutcomes) >= st.cfg.Trading.MaxOpenPositions {
+		return false, fmt.Sprintf("Max open positions reached (%d/%d)", len(openOutcomes), st.cfg.Trading.MaxOpenPositions), 0.0
 	}
 
 	// Check if symbol already has open position

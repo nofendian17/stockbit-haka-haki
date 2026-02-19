@@ -247,7 +247,6 @@ func AnalyzeSymbolContext(client *Client, symbol string, alerts []database.Whale
 func FormatSymbolAnalysisPrompt(
 	symbol string,
 	alerts []database.WhaleAlert,
-	regime *database.MarketRegime,
 	baseline *database.StatisticalBaseline,
 	orderFlow *database.OrderFlowImbalance,
 	followups []database.WhaleAlertFollowup,
@@ -259,12 +258,6 @@ func FormatSymbolAnalysisPrompt(
 
 	// 1. Market Context & Statistics
 	sb.WriteString("🌐 **Market Context & Baselines**:\n")
-	if regime != nil {
-		sb.WriteString(fmt.Sprintf("- Regime: **%s** (Conf: %.1f%%)\n", regime.Regime, regime.Confidence*100))
-		if regime.Volatility != nil {
-			sb.WriteString(fmt.Sprintf("- Volatility Index: %.2f%%\n", *regime.Volatility*100))
-		}
-	}
 	if baseline != nil {
 		sb.WriteString(fmt.Sprintf("- Stat Baseline: Mean Price %.0f, StdDev Vol %.1f Lots (Sample: %d)\n",
 			baseline.MeanPrice, baseline.StdDevVolume, baseline.SampleSize))

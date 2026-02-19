@@ -52,7 +52,6 @@ func (s *Server) handleSymbolAnalysisStream(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Fetch enriched metadata for context
-	regime, _ := s.repo.GetLatestRegime(symbol)
 	baseline, _ := s.repo.GetLatestBaseline(symbol)
 	orderFlow, _ := s.repo.GetLatestOrderFlow(symbol)
 
@@ -77,7 +76,7 @@ func (s *Server) handleSymbolAnalysisStream(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Generate prompt with enriched data
-	prompt := llm.FormatSymbolAnalysisPrompt(symbol, alerts, regime, baseline, orderFlow, followups)
+	prompt := llm.FormatSymbolAnalysisPrompt(symbol, alerts, baseline, orderFlow, followups)
 
 	// Stream LLM response
 	err = s.llmClient.AnalyzeStream(r.Context(), prompt, func(chunk string) error {
@@ -199,22 +198,6 @@ func (s *Server) handleCustomPromptStream(w http.ResponseWriter, r *http.Request
 						"- %s (%s): Rp %.1fM, Z-Score: %.2f, %.0f menit lalu\n",
 						a.StockSymbol, a.Action, a.TriggerValue/1000000.0, zScore, timeSince,
 					))
-				}
-				contextBuilder.WriteString("\n")
-			}
-
-		case "regimes":
-			// Get market regimes
-			if len(reqBody.Symbols) > 0 {
-				contextBuilder.WriteString("=== MARKET REGIME (Kondisi Pasar) ===\n")
-				for _, symbol := range reqBody.Symbols {
-					if regime, err := s.repo.GetLatestRegime(symbol); err == nil && regime != nil {
-						volatility := safeFloat64(regime.Volatility, 0.0)
-						contextBuilder.WriteString(fmt.Sprintf(
-							"- %s: %s (Confidence: %.0f%%, Volatility: %.2f%%)\n",
-							symbol, regime.Regime, regime.Confidence*100, volatility*100,
-						))
-					}
 				}
 				contextBuilder.WriteString("\n")
 			}

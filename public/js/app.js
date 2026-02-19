@@ -4,12 +4,13 @@
  */
 
 import { CONFIG } from './config.js';
-import { debounce, safeGetElement, setupTableInfiniteScroll, formatNumber, renderWhaleAlignmentBadge, renderRegimeBadge } from './utils.js';
+import { debounce, safeGetElement, setupTableInfiniteScroll, formatNumber, renderWhaleAlignmentBadge } from './utils.js';
 import * as API from './api.js';
 import { renderWhaleAlertsTable, renderRunningPositions, renderSummaryTable, updateStatsTicker, renderStockCorrelations, renderProfitLossHistory, renderDailyPerformance } from './render.js?v=11';
 import { createWhaleAlertSSE } from './sse-handler.js';
 import { initStrategySystem } from './strategy-manager.js';
 import { initWebhookManagement } from './webhook-config.js';
+import { initAIAnalysis, openAIAnalysisModal } from './ai-analysis.js';
 
 // Configure marked.js for markdown rendering
 if (typeof marked !== 'undefined') {
@@ -121,6 +122,9 @@ async function init() {
 
     // Initialize webhook management
     initWebhookManagement();
+
+    // Initialize AI analysis system
+    initAIAnalysis();
 
     // Setup mobile filter toggle
     setupMobileFilterToggle();
@@ -653,6 +657,9 @@ function setupModals() {
     // Help modal
     setupHelpModal();
 
+    // AI Analysis button
+    setupAIAnalysisButton();
+
     // Candle modal
     setupCandleModal();
 
@@ -689,293 +696,71 @@ function setupHelpModal() {
 }
 
 /**
+ * Setup AI Analysis button
+ */
+function setupAIAnalysisButton() {
+    const aiBtn = safeGetElement('ai-analysis-btn');
+    if (aiBtn) {
+        aiBtn.addEventListener('click', () => {
+            openAIAnalysisModal();
+        });
+    }
+}
+
+/**
  * Setup candle modal
  */
 function setupCandleModal() {
-    const modal = safeGetElement('candle-modal');
-    const closeBtn = safeGetElement('candle-modal-close');
+    const modal = document.getElementById('candle-modal');
+    const closeBtn = document.getElementById('candle-modal-close');
+    const overlay = document.getElementById('candle-modal-overlay');
 
-    if (closeBtn) {
-        closeBtn.addEventListener('click', () => {
-            if (modal) modal.classList.add('hidden');
-        });
-    }
+    if (!modal) return;
 
-    if (modal) {
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) modal.classList.add('hidden');
-        });
-    }
+    const closeModal = () => modal.classList.add('hidden');
 
-    // Setup timeframe tabs
-    const tabs = document.querySelectorAll('.c-tab');
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            const timeframe = tab.dataset.timeframe;
-            const symbol = modal.dataset.currentSymbol;
+    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+    if (overlay) overlay.addEventListener('click', closeModal);
 
-            if (symbol && timeframe) {
-                tabs.forEach(t => t.classList.remove('active'));
-                tab.classList.add('active');
-                fetchAndDisplayCandles(symbol, timeframe);
-            }
-        });
-    });
-
-    // Global function to open modal
-    window.openCandleModal = async (symbol) => {
-        console.log('Opening candle modal for:', symbol);
-
-        if (!modal) {
-            console.error('Candle modal not found');
-            return;
-        }
-
-        // Update modal title
-        const titleEl = safeGetElement('candle-modal-title');
-        if (titleEl) titleEl.textContent = `📉 Market Details: ${symbol}`;
-
-        // Store current symbol
-        modal.dataset.currentSymbol = symbol;
-
-        // Show modal
+    // Make openCandleModal available globally
+    window.openCandleModal = (symbol) => {
+        const title = document.getElementById('candle-modal-title');
+        if (title) title.textContent = `📉 ${symbol} - Market Details`;
         modal.classList.remove('hidden');
-
-        // Reset to default timeframe
-        const tabs = document.querySelectorAll('.c-tab');
-        tabs.forEach(t => t.classList.remove('active'));
-        const defaultTab = document.querySelector('.c-tab[data-timeframe="5m"]');
-        if (defaultTab) defaultTab.classList.add('active');
-
-        // Fetch and display candles
-        await fetchAndDisplayCandles(symbol, '5m');
     };
 }
-
-/**
- * Fetch and display candle data
- * @param {string} symbol - Stock symbol
- * @param {string} timeframe - Timeframe (5m, 15m, 1h, 1d)
- */
-async function fetchAndDisplayCandles(symbol, timeframe) {
-    const tbody = safeGetElement('candle-list-body');
-    if (!tbody) return;
-
-    // Show loading
-    tbody.innerHTML = '<tr><td colspan="6" class="text-center p-8 text-textSecondary">Loading candles...</td></tr>';
-
-    try {
-        const data = await API.fetchCandles(symbol, timeframe);
-        displayCandles(data.candles || []);
-    } catch (error) {
-        console.error('Failed to fetch candles:', error);
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center p-8 text-accentDanger">Failed to load candle data</td></tr>';
-    }
-}
-
-/**
- * Display candles in the table
- * @param {Array} candles - Array of candle objects
- */
-function displayCandles(candles) {
-    const tbody = safeGetElement('candle-list-body');
-    if (!tbody) return;
-
-    if (candles.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center p-8 text-textSecondary">No candle data available</td></tr>';
-        return;
-    }
-
-    tbody.innerHTML = '';
-    candles.forEach(candle => {
-        const row = document.createElement('tr');
-        row.className = 'hover:bg-bgHover transition-colors border-b border-borderColor last:border-0';
-
-        // Determine candle color (green for bullish, red for bearish)
-        const isBullish = candle.close >= candle.open;
-        const priceClass = isBullish ? 'text-accentSuccess' : 'text-accentDanger';
-
-        // Format time with proper error handling - use 'time' field from API
-        let time = 'N/A';
-        try {
-            const timeField = candle.time || candle.timestamp; // Support both field names
-            if (timeField) {
-                const date = new Date(timeField);
-                if (!isNaN(date.getTime())) {
-                    time = date.toLocaleString('id-ID', {
-                        month: 'short',
-                        day: '2-digit',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                    });
-                }
-            }
-        } catch (error) {
-            console.error('Error formatting time:', candle.time || candle.timestamp, error);
-        }
-
-        // Format trade count if available
-        const tradeInfo = candle.trade_count ? ` (${candle.trade_count} trades)` : '';
-
-        row.innerHTML = `
-            <td class="px-4 py-2 text-sm text-textMuted" title="Trade Count: ${candle.trade_count || 0}">${time}</td>
-            <td class="px-4 py-2 text-right text-textPrimary">${(candle.open || 0).toLocaleString('id-ID')}</td>
-            <td class="px-4 py-2 text-right text-accentSuccess">${(candle.high || 0).toLocaleString('id-ID')}</td>
-            <td class="px-4 py-2 text-right text-accentDanger">${(candle.low || 0).toLocaleString('id-ID')}</td>
-            <td class="px-4 py-2 text-right ${priceClass} font-bold">${(candle.close || 0).toLocaleString('id-ID')}</td>
-            <td class="px-4 py-2 text-right text-sm" title="Total Value: Rp ${(candle.total_value || 0).toLocaleString('id-ID')}">${(candle.volume || 0).toLocaleString('id-ID')}</td>
-        `;
-
-        tbody.appendChild(row);
-    });
-}
-
 
 /**
  * Setup followup modal
  */
 function setupFollowupModal() {
-    const modal = safeGetElement('followup-modal');
-    const closeBtn = safeGetElement('followup-close');
+    const modal = document.getElementById('followup-modal');
+    const closeBtn = document.getElementById('followup-close');
+    const overlay = document.getElementById('followup-modal-overlay');
 
-    if (closeBtn) {
-        closeBtn.addEventListener('click', () => {
-            if (modal) modal.classList.add('hidden');
-        });
-    }
+    if (!modal) return;
 
-    if (modal) {
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) modal.classList.add('hidden');
-        });
-    }
+    const closeModal = () => modal.classList.add('hidden');
 
-    // Global function to open modal
-    window.openFollowupModal = async (alertId, symbol, triggerPrice) => {
-        console.log('Opening followup modal:', { alertId, symbol, triggerPrice });
+    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+    if (overlay) overlay.addEventListener('click', closeModal);
 
-        if (!modal) {
-            console.error('Followup modal not found');
-            return;
-        }
-
-        // Update modal title
-        const titleEl = safeGetElement('followup-symbol');
-        if (titleEl) titleEl.textContent = symbol || 'N/A';
-
-        const triggerEl = safeGetElement('followup-trigger-price');
-        if (triggerEl) triggerEl.textContent = triggerPrice ? `Rp ${triggerPrice}` : 'N/A';
-
-        // Show modal
+    // Make openFollowupModal available globally
+    window.openFollowupModal = (alertId, symbol, price) => {
         modal.classList.remove('hidden');
-
-        // Fetch followup data
-        try {
-            const data = await API.fetchWhaleFollowup(alertId);
-            displayFollowupData(data);
-        } catch (error) {
-            console.error('Failed to fetch followup:', error);
-            const container = safeGetElement('followup-data');
-            if (container) {
-                container.innerHTML = '<div class="p-8 text-center text-accentDanger">Gagal memuat data followup</div>';
-            }
-        }
     };
 }
 
 /**
- * Display followup data in modal
- * @param {Object} data - Followup data
+ * Render order flow data
+ * @param {Object} data - Order flow data
  */
-function displayFollowupData(data) {
-    if (!data) {
-        console.error('No followup data received');
-        return;
+function renderOrderFlow(data) {
+    // Stub function - backend endpoint not implemented yet
+    // Order flow visualization would go here
+    if (data && data.symbol) {
+        console.log('Order flow data:', data);
     }
-
-    // Update modal with followup information
-    const symbolEl = document.getElementById('followup-symbol');
-    const triggerPriceEl = document.getElementById('followup-trigger-price');
-    const followupDataEl = document.getElementById('followup-data');
-
-    if (symbolEl) symbolEl.textContent = data.stock_symbol || 'N/A';
-    if (triggerPriceEl) triggerPriceEl.textContent = data.alert_price ? `Rp ${data.alert_price}` : 'N/A';
-
-    if (!followupDataEl) {
-        console.error('Followup data container not found');
-        return;
-    }
-
-    // Create followup content
-    const priceChange = data.price_change_pct || 0;
-    const priceChangeClass = priceChange >= 0 ? 'text-accentSuccess' : 'text-accentDanger';
-    const priceChangeSign = priceChange >= 0 ? '+' : '';
-
-    // Calculate time elapsed since alert
-    let timeDiff = 'N/A';
-    if (data.alert_time) {
-        try {
-            const alertTime = new Date(data.alert_time);
-            const now = new Date();
-            const diffMs = now - alertTime;
-            const diffMins = Math.floor(diffMs / 60000);
-
-            if (diffMins < 60) {
-                timeDiff = `${diffMins}m`;
-            } else {
-                const diffHours = Math.floor(diffMins / 60);
-                const remainingMins = diffMins % 60;
-                timeDiff = `${diffHours}h ${remainingMins}m`;
-            }
-        } catch (e) {
-            console.error('Error calculating time diff:', e);
-        }
-    }
-
-    const currentPrice = data.current_price || 0;
-    const alertPrice = data.alert_price || 0;
-
-    const html = `
-        <div class="grid grid-cols-2 gap-4 mb-4">
-            <div class="bg-bgCard p-3 rounded border border-borderColor">
-                <span class="text-xs text-textSecondary block">Harga Alert</span> 
-                <strong class="text-textPrimary">Rp ${alertPrice.toLocaleString('id-ID')}</strong>
-            </div>
-            <div class="bg-bgCard p-3 rounded border border-borderColor">
-                <span class="text-xs text-textSecondary block">Harga Sekarang</span> 
-                <strong class="text-textPrimary">Rp ${currentPrice.toLocaleString('id-ID')}</strong>
-            </div>
-            <div class="bg-bgCard p-3 rounded border border-borderColor">
-                <span class="text-xs text-textSecondary block">Perubahan</span> 
-                <strong class="${priceChangeClass}">${priceChangeSign}${priceChange.toFixed(2)}%</strong>
-            </div>
-            <div class="bg-bgCard p-3 rounded border border-borderColor">
-                <span class="text-xs text-textSecondary block">Waktu Berlalu</span> 
-                <strong class="text-textPrimary">${timeDiff}</strong>
-            </div>
-        </div>
-        <div class="bg-bgCard p-4 rounded border border-borderColor">
-            <h4 class="text-sm font-bold text-textPrimary mb-2">📊 Analisis Pergerakan</h4>
-            <p class="text-sm text-textSecondary">${data.analysis || 'Data analisis tidak tersedia'}</p>
-        </div>
-    `;
-
-    followupDataEl.innerHTML = html;
-}
-
-/**
- * Render whale alerts table (Compact Mode)
-                <button onclick="openFollowupModal('${alert.id}', '${alert.stock_symbol}', ${alert.trigger_price})" class="p-1 hover:bg-bgSecondary rounded text-accentInfo transition-colors" title="Lihat Followup">
-                    🔍
-                </button>
-                <button onclick="openCandleModal('${alert.stock_symbol}')" class="p-1 hover:bg-bgSecondary rounded text-accentWarning transition-colors ml-1" title="Lihat Chart">
-                    📈
-                </button>
-            </td>
-        `;
-
-        tbody.appendChild(row);
-    });
 }
 
 /**
@@ -1089,7 +874,7 @@ async function loadOptimizationData() {
         if (effectivenessBody) {
             const effs = effectivenessData.effectiveness || [];
             if (effs.length === 0) {
-                effectivenessBody.innerHTML = '<tr><td colspan="6" class="text-center p-4 text-textSecondary">Belum ada data historis</td></tr>';
+                effectivenessBody.innerHTML = '<tr><td colspan="5" class="text-center p-4 text-textSecondary">Belum ada data historis</td></tr>';
             } else {
                 effectivenessBody.innerHTML = effs.map(e => {
                     const wrClass = e.win_rate >= 50 ? 'text-accentSuccess' : (e.win_rate < 40 ? 'text-accentDanger' : 'text-textSecondary');
@@ -1097,7 +882,6 @@ async function loadOptimizationData() {
                     return `
                         <tr class="hover:bg-bgHover transition-colors border-b border-borderColor last:border-0">
                             <td class="p-3"><strong>${e.strategy}</strong></td>
-                            <td class="p-3">${e.market_regime}</td>
                             <td class="p-3 text-right">${e.total_signals}</td>
                             <td class="p-3 text-right ${wrClass}">${e.win_rate.toFixed(1)}%</td>
                             <td class="p-3 text-right text-textPrimary">${e.avg_profit_pct.toFixed(2)}%</td>
@@ -1252,12 +1036,6 @@ function setupProfitLossHistory() {
         limitSelect.addEventListener('change', () => loadProfitLossHistory(true));
     }
 
-    // NEW: Regime filter
-    const regimeSelect = safeGetElement('history-regime');
-    if (regimeSelect) {
-        regimeSelect.addEventListener('change', () => loadProfitLossHistory(true));
-    }
-
     // Setup infinite scroll for history table
     setupTableInfiniteScroll({
         tableBodyId: 'history-table-body',
@@ -1305,7 +1083,6 @@ async function loadProfitLossHistory(reset = false) {
         const filters = {
             strategy: document.getElementById('history-strategy')?.value || 'ALL',
             status: document.getElementById('history-status')?.value || '',
-            regime: document.getElementById('history-regime')?.value || 'ALL',
             limit: 50, // Fixed page size for lazy loading
             offset: reset ? 0 : state.tables.history.offset,
             symbol: state.currentFilters.search || ''

@@ -37,8 +37,7 @@ func (s *Server) handleGetStockCorrelations(w http.ResponseWriter, r *http.Reque
 	})
 }
 
-// handleGetStrategyEffectiveness returns multi-dimensional strategy effectiveness
-// by market regime for adaptive strategy selection
+// handleGetStrategyEffectiveness returns strategy effectiveness analysis
 func (s *Server) handleGetStrategyEffectiveness(w http.ResponseWriter, r *http.Request) {
 	daysBack := 30
 	if d := r.URL.Query().Get("days"); d != "" {
@@ -47,7 +46,7 @@ func (s *Server) handleGetStrategyEffectiveness(w http.ResponseWriter, r *http.R
 		}
 	}
 
-	effectiveness, err := s.repo.GetStrategyEffectivenessByRegime(daysBack)
+	effectiveness, err := s.repo.GetStrategyEffectiveness(daysBack)
 	if err != nil {
 		log.Printf("❌ Failed to get strategy effectiveness: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

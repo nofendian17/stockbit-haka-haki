@@ -147,7 +147,9 @@
 
                 <!-- Actions -->
                 <div class="flex items-center gap-3">
-
+                    <button id="ai-analysis-btn"
+                        class="p-2 rounded-lg border border-borderColor hover:bg-bgHover transition-colors text-lg bg-gradient-to-r from-purple-500/10 to-blue-500/10 hover:from-purple-500/20 hover:to-blue-500/20"
+                        title="AI Analysis">🤖</button>
                     <button id="webhook-config-btn"
                         class="p-2 rounded-lg border border-borderColor hover:bg-bgHover transition-colors text-lg"
                         title="Webhook Config">🔔</button>
@@ -461,14 +463,6 @@
                             <option value="">Semua Status</option>
                             <option value="WIN">Win</option>
                             <option value="LOSS">Loss</option>
-                        </select>
-                        <select id="history-regime"
-                            class="bg-bgSecondary border border-borderColor text-textPrimary text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:border-accentInfo">
-                            <option value="ALL">Semua Regime</option>
-                            <option value="TRENDING_UP">📈 Trending Up</option>
-                            <option value="TRENDING_DOWN">📉 Trending Down</option>
-                            <option value="RANGING">↔️ Ranging</option>
-                            <option value="VOLATILE">⚡ Volatile</option>
                         </select>
                         <button id="history-refresh-btn"
                             class="p-1.5 rounded-lg border border-borderColor hover:bg-bgHover transition-transform">

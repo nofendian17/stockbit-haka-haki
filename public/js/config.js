@@ -54,6 +54,10 @@ export const API_ENDPOINTS = {
     CANDLES: '/api/candles',
     FOLLOWUP: '/api/whales',  // Use /api/whales/{id}/followup
     RECENT_FOLLOWUPS: '/api/whales/followups',
+
+    // AI Analysis
+    AI_SYMBOL_ANALYSIS: '/api/ai/analysis/symbol',
+    AI_CUSTOM_PROMPT: '/api/ai/analysis/custom',
 };
 
 export default CONFIG;

@@ -33,9 +33,8 @@ func NewSignalFilterService(repo *database.TradeRepository, redis *cache.RedisCl
 		cfg:   cfg,
 	}
 
-	// Register filters in order (5 filters with regime-based filtering)
+	// Register filters in order
 	service.filters = []SignalFilter{
-		&RegimeFilter{repo: repo, cfg: cfg}, // NEW: Check regime first
 		&StrategyPerformanceFilter{repo: repo, redis: redis, cfg: cfg},
 		&DynamicConfidenceFilter{repo: repo, redis: redis, cfg: cfg},
 		&OrderFlowFilter{repo: repo, redis: redis, cfg: cfg},
@@ -78,25 +77,6 @@ func (s *SignalFilterService) Evaluate(signal *database.TradingSignalDB) (bool, 
 // GetRegimeAdaptiveLimit returns max positions based on market regime
 // Kept as a separate public method for external usage
 func (s *SignalFilterService) GetRegimeAdaptiveLimit(symbol string) int {
-	regime, err := s.repo.GetLatestRegime(symbol)
-	if err != nil || regime == nil {
-		return s.cfg.Trading.MaxOpenPositions
-	}
-
-	if regime.Regime == "TRENDING_UP" && regime.Confidence > 0.7 {
-		return 15
-	}
-
-	if regime.Regime == "VOLATILE" {
-		if regime.ATR != nil && regime.Volatility != nil && *regime.Volatility > 3.0 {
-			return 5
-		}
-	}
-
-	if regime.Regime == "RANGING" {
-		return 8
-	}
-
 	return s.cfg.Trading.MaxOpenPositions
 }
 
@@ -470,53 +450,4 @@ func (f *TimeOfDayFilter) Evaluate(ctx context.Context, signal *database.Trading
 	}
 
 	return true, "", 1.0
-}
-
-// ============================================================================
-// REGIME FILTER
-// ============================================================================
-
-// RegimeFilter evaluates signals based on market regime
-type RegimeFilter struct {
-	repo *database.TradeRepository
-	cfg  *config.Config
-}
-
-func (f *RegimeFilter) Name() string { return "Market Regime" }
-
-func (f *RegimeFilter) Evaluate(ctx context.Context, signal *database.TradingSignalDB) (bool, string, float64) {
-	regime, err := f.repo.GetLatestRegime(signal.StockSymbol)
-	if err != nil || regime == nil {
-		// No regime data - CAUTION (Expert: Reject unknown regimes)
-		return false, "No regime data available (Strict Mode)", 0.0
-	}
-
-	// REJECT: Volatile regime (High Risk) - REJECT ALL
-	if regime.Regime == "VOLATILE" {
-		return false, fmt.Sprintf("Volatile regime forbidden (%.1f%% confidence)", regime.Confidence*100), 0.0
-	}
-
-	// REJECT: Downtrend (Trend Following Only)
-	if regime.Regime == "TRENDING_DOWN" {
-		return false, "Downtrend rejected (Trend Following Mode)", 0.0
-	}
-
-	// RANGING: Only allow if very high confidence or specific setups (reduced size)
-	if regime.Regime == "RANGING" {
-		if regime.Confidence < 0.6 {
-			return false, "Weak ranging market rejected", 0.0
-		}
-		return true, "Ranging market (Cautious)", 0.8
-	}
-
-	// BOOST: Strong uptrend
-	if regime.Regime == "TRENDING_UP" {
-		if regime.Confidence > 0.7 {
-			return true, fmt.Sprintf("Strong uptrend (%.1f%% confidence)", regime.Confidence*100), 1.5 // Increased boost
-		}
-		return true, fmt.Sprintf("Moderate uptrend (%.1f%% confidence)", regime.Confidence*100), 1.2
-	}
-
-	// Default reject for unknown states
-	return false, fmt.Sprintf("Unknown regime state: %s", regime.Regime), 0.0
 }

@@ -342,7 +342,7 @@ func (r *Repository) GetDailyStrategyPerformance(strategy, symbol string, limit 
 
 // EvaluateVolumeBreakoutStrategy implements Volume Breakout Validation strategy
 // Logic: Price increase (>2.5%) + explosive volume (z-score > 3.0) + Price > VWAP + Net Buy > 0 = BUY signal
-func (r *Repository) EvaluateVolumeBreakoutStrategy(alert *models.WhaleAlert, zscores *types.ZScoreData, regime *models.MarketRegime, vwap float64, orderFlow *models.OrderFlowImbalance) *models.TradingSignal {
+func (r *Repository) EvaluateVolumeBreakoutStrategy(alert *models.WhaleAlert, zscores *types.ZScoreData, vwap float64, orderFlow *models.OrderFlowImbalance) *models.TradingSignal {
 	signal := &models.TradingSignal{
 		StockSymbol:  alert.StockSymbol,
 		Timestamp:    alert.DetectedAt,
@@ -378,23 +378,23 @@ func (r *Repository) EvaluateVolumeBreakoutStrategy(alert *models.WhaleAlert, zs
 				signal.Confidence = min(signal.Confidence*1.2, 1.0)
 			}
 
-			signal.Reason = r.generateAIReasoning(signal, "Strong statistical breakout (Volume Z > 2.5) with Order Flow & VWAP confirmation", regime, vwap)
+			signal.Reason = r.generateAIReasoning(signal, "Strong statistical breakout (Volume Z > 2.5) with Order Flow & VWAP confirmation", vwap)
 		} else if isBullishTrend {
 			// Good trend but Order Flow weak -> WAIT
 			signal.Decision = "WAIT"
 			signal.Confidence = 0.4
-			signal.Reason = r.generateAIReasoning(signal, "Statistical breakout detected but Order Flow is neutral/bearish", regime, vwap)
+			signal.Reason = r.generateAIReasoning(signal, "Statistical breakout detected but Order Flow is neutral/bearish", vwap)
 		} else {
 			// Below VWAP -> WAIT/IGNORE
 			signal.Decision = "WAIT"
 			signal.Confidence = 0.3
-			signal.Reason = r.generateAIReasoning(signal, "Statistical breakout below VWAP (Trend unconfirmed)", regime, vwap)
+			signal.Reason = r.generateAIReasoning(signal, "Statistical breakout below VWAP (Trend unconfirmed)", vwap)
 		}
 	} else if zscores.PriceZScore > 1.5 && zscores.VolumeZScore > 2.0 {
 		// "Weak" breakout zone
 		signal.Decision = "WAIT"
 		signal.Confidence = 0.3
-		signal.Reason = r.generateAIReasoning(signal, "Volume not confirming price Z-score strongly enough", regime, vwap)
+		signal.Reason = r.generateAIReasoning(signal, "Volume not confirming price Z-score strongly enough", vwap)
 	} else {
 		signal.Decision = "NO_TRADE"
 		signal.Confidence = 0.1
@@ -407,7 +407,7 @@ func (r *Repository) EvaluateVolumeBreakoutStrategy(alert *models.WhaleAlert, zs
 // EvaluateMeanReversionStrategy implements Mean Reversion (Contrarian) strategy
 // Logic: Extreme price (z-score > 3.5) + declining volume = SELL signal (overbought)
 // ENHANCEMENT: Uses VWAP deviation and Order Flow Aggressive Buy for entry confidence
-func (r *Repository) EvaluateMeanReversionStrategy(alert *models.WhaleAlert, zscores *types.ZScoreData, prevVolumeZScore float64, regime *models.MarketRegime, vwap float64, orderFlow *models.OrderFlowImbalance) *models.TradingSignal {
+func (r *Repository) EvaluateMeanReversionStrategy(alert *models.WhaleAlert, zscores *types.ZScoreData, prevVolumeZScore float64, vwap float64, orderFlow *models.OrderFlowImbalance) *models.TradingSignal {
 	signal := &models.TradingSignal{
 		StockSymbol:  alert.StockSymbol,
 		Timestamp:    alert.DetectedAt,
@@ -426,11 +426,11 @@ func (r *Repository) EvaluateMeanReversionStrategy(alert *models.WhaleAlert, zsc
 	if zscores.PriceZScore > 3.0 && volumeDeclining {
 		signal.Decision = "SELL"
 		signal.Confidence = calculateConfidence(zscores.PriceZScore, 3.0, 6.0)
-		signal.Reason = r.generateAIReasoning(signal, "Price statistically overextended (Z > 3.0) with fading volume", regime, vwap)
+		signal.Reason = r.generateAIReasoning(signal, "Price statistically overextended (Z > 3.0) with fading volume", vwap)
 	} else if zscores.PriceZScore > 3.0 {
 		signal.Decision = "WAIT"
 		signal.Confidence = 0.5
-		signal.Reason = r.generateAIReasoning(signal, "Overbought but volume remains high", regime, vwap)
+		signal.Reason = r.generateAIReasoning(signal, "Overbought but volume remains high", vwap)
 	} else if zscores.PriceZScore < -3.0 {
 		// ENHANCEMENT: Check simple oversold vs VWAP
 		// If price is significantly below VWAP, it strengthens the reversal thesis
@@ -446,15 +446,15 @@ func (r *Repository) EvaluateMeanReversionStrategy(alert *models.WhaleAlert, zsc
 		if isDeepValue && isSmartMoneyBuying {
 			signal.Decision = "BUY"
 			signal.Confidence = calculateConfidence(-zscores.PriceZScore, 3.0, 6.0) * 1.3 // Boost confidence
-			signal.Reason = r.generateAIReasoning(signal, "Price deeply oversold (Below VWAP) with Aggressive Buying detected", regime, vwap)
+			signal.Reason = r.generateAIReasoning(signal, "Price deeply oversold (Below VWAP) with Aggressive Buying detected", vwap)
 		} else if isDeepValue {
 			signal.Decision = "WAIT"
 			signal.Confidence = 0.4
-			signal.Reason = r.generateAIReasoning(signal, "Price deeply oversold but no Aggressive Buying yet", regime, vwap)
+			signal.Reason = r.generateAIReasoning(signal, "Price deeply oversold but no Aggressive Buying yet", vwap)
 		} else {
 			signal.Decision = "WAIT"
 			signal.Confidence = 0.3
-			signal.Reason = r.generateAIReasoning(signal, "Price oversold/undervalued (Waiting for confirmation)", regime, vwap)
+			signal.Reason = r.generateAIReasoning(signal, "Price oversold/undervalued (Waiting for confirmation)", vwap)
 		}
 	} else {
 		signal.Decision = "NO_TRADE"
@@ -467,7 +467,7 @@ func (r *Repository) EvaluateMeanReversionStrategy(alert *models.WhaleAlert, zsc
 
 // EvaluateFakeoutFilterStrategy implements Fakeout Filter (Defense) strategy
 // Logic: Price breakout + low volume (z-score < 1) = NO_TRADE (likely bull trap)
-func (r *Repository) EvaluateFakeoutFilterStrategy(alert *models.WhaleAlert, zscores *types.ZScoreData, regime *models.MarketRegime, vwap float64) *models.TradingSignal {
+func (r *Repository) EvaluateFakeoutFilterStrategy(alert *models.WhaleAlert, zscores *types.ZScoreData, vwap float64) *models.TradingSignal {
 	signal := &models.TradingSignal{
 		StockSymbol:  alert.StockSymbol,
 		Timestamp:    alert.DetectedAt,
@@ -487,15 +487,15 @@ func (r *Repository) EvaluateFakeoutFilterStrategy(alert *models.WhaleAlert, zsc
 	if isBreakout && zscores.VolumeZScore < 1.0 {
 		signal.Decision = "NO_TRADE"
 		signal.Confidence = 0.8 // High confidence to AVOID
-		signal.Reason = r.generateAIReasoning(signal, "FAKEOUT DETECTED: Price jump without volume support", regime, vwap)
+		signal.Reason = r.generateAIReasoning(signal, "FAKEOUT DETECTED: Price jump without volume support", vwap)
 	} else if isBreakout && zscores.VolumeZScore >= 2.0 {
 		signal.Decision = "BUY"
 		signal.Confidence = calculateConfidence(zscores.VolumeZScore, 2.0, 5.0)
-		signal.Reason = r.generateAIReasoning(signal, "Valid breakout with confirmed volume", regime, vwap)
+		signal.Reason = r.generateAIReasoning(signal, "Valid breakout with confirmed volume", vwap)
 	} else if isBreakout {
 		signal.Decision = "WAIT"
 		signal.Confidence = 0.4
-		signal.Reason = r.generateAIReasoning(signal, "Breakout volume is moderate, awaiting confirmation", regime, vwap)
+		signal.Reason = r.generateAIReasoning(signal, "Breakout volume is moderate, awaiting confirmation", vwap)
 	} else {
 		signal.Decision = "NO_TRADE"
 		signal.Confidence = 0.1
@@ -506,7 +506,7 @@ func (r *Repository) EvaluateFakeoutFilterStrategy(alert *models.WhaleAlert, zsc
 }
 
 // generateAIReasoning constructs a sophisticated, natural-language explanation mimicking LLM output
-func (r *Repository) generateAIReasoning(signal *models.TradingSignal, coreReason string, regime *models.MarketRegime, vwap float64) string {
+func (r *Repository) generateAIReasoning(signal *models.TradingSignal, coreReason string, vwap float64) string {
 	reason := fmt.Sprintf("🤖 **AI Analysis:** %s.", coreReason)
 
 	// Add statistical context
@@ -517,15 +517,6 @@ func (r *Repository) generateAIReasoning(signal *models.TradingSignal, coreReaso
 		}
 	} else if signal.Decision == "SELL" {
 		reason += fmt.Sprintf(" Bearish divergence identified (Price Z: %.2f).", signal.PriceZScore)
-	}
-
-	// Add Regime Context if available
-	if regime != nil {
-		if regime.Regime == "TRENDING_UP" && signal.Decision == "BUY" {
-			reason += " Confluence with market uptrend ✅."
-		} else if regime.Regime == "RANGING" && signal.Strategy == "VOLUME_BREAKOUT" {
-			reason += " Caution: Market is ranging ⚠️."
-		}
 	}
 
 	// Add confidence context
@@ -608,9 +599,6 @@ func (r *Repository) GetStrategySignals(lookbackMinutes int, minConfidence float
 			continue
 		}
 
-		// Get regime for this stock symbol
-		regime, _ := r.analytics.GetLatestRegime(alert.StockSymbol)
-
 		// Get detected patterns for this symbol
 		patterns, _ := r.analytics.GetRecentPatterns(alert.StockSymbol, time.Now().Add(-2*time.Hour))
 
@@ -635,20 +623,12 @@ func (r *Repository) GetStrategySignals(lookbackMinutes int, minConfidence float
 
 			switch strategy {
 			case "VOLUME_BREAKOUT":
-				signal = r.EvaluateVolumeBreakoutStrategy(&alert, zscores, regime, vwap, orderFlow)
-				// Filter breakouts in RANGING markets
-				if signal != nil && regime != nil && regime.Regime == "RANGING" && regime.Confidence > 0.6 {
-					signal.Confidence *= 0.5 // Deprioritize
-				}
+				signal = r.EvaluateVolumeBreakoutStrategy(&alert, zscores, vwap, orderFlow)
 			case "MEAN_REVERSION":
 				prevZScore := prevVolumeZScores[alert.StockSymbol]
-				signal = r.EvaluateMeanReversionStrategy(&alert, zscores, prevZScore, regime, vwap, orderFlow)
-				// Boost Mean Reversion in RANGING/VOLATILE markets
-				if signal != nil && regime != nil && (regime.Regime == "RANGING" || regime.Regime == "VOLATILE") {
-					signal.Confidence *= 1.2
-				}
+				signal = r.EvaluateMeanReversionStrategy(&alert, zscores, prevZScore, vwap, orderFlow)
 			case "FAKEOUT_FILTER":
-				signal = r.EvaluateFakeoutFilterStrategy(&alert, zscores, regime, vwap)
+				signal = r.EvaluateFakeoutFilterStrategy(&alert, zscores, vwap)
 			}
 
 			// Pattern Confirmation
@@ -699,31 +679,6 @@ func (r *Repository) getWhaleAlertsForStrategy(startTime time.Time) ([]models.Wh
 	}
 
 	return alerts, nil
-}
-
-// getMarketRegimesForStrategy fetches market regimes for strategy context
-func (r *Repository) getMarketRegimesForStrategy() (map[string]*models.MarketRegime, error) {
-	var regimes []models.MarketRegime
-	regimeMap := make(map[string]*models.MarketRegime)
-
-	// Get the most recent regime for each stock symbol
-	subQuery := r.db.Model(&models.MarketRegime{}).
-		Select("stock_symbol, MAX(detected_at) as max_detected_at").
-		Group("stock_symbol")
-
-	query := r.db.Joins("JOIN (?) AS latest ON market_regimes.stock_symbol = latest.stock_symbol AND market_regimes.detected_at = latest.max_detected_at", subQuery).
-		Order("market_regimes.detected_at DESC")
-
-	if err := query.Find(&regimes).Error; err != nil {
-		return nil, fmt.Errorf("getMarketRegimesForStrategy: %w", err)
-	}
-
-	for _, regime := range regimes {
-		regimeCopy := regime
-		regimeMap[regime.StockSymbol] = &regimeCopy
-	}
-
-	return regimeMap, nil
 }
 
 // getDetectedPatternsForStrategy fetches detected patterns for strategy confirmation
@@ -829,15 +784,14 @@ func (r *Repository) GetRecentSignalsWithOutcomes(lookbackMinutes int, minConfid
 // Signal Effectiveness Analysis Functions
 // ============================================================================
 
-// GetStrategyEffectivenessByRegime returns multi-dimensional effectiveness analysis
-// Strategy performance broken down by market regime for adaptive strategy selection
-func (r *Repository) GetStrategyEffectivenessByRegime(daysBack int) ([]types.StrategyEffectiveness, error) {
+// GetStrategyEffectiveness returns strategy effectiveness analysis
+func (r *Repository) GetStrategyEffectiveness(daysBack int) ([]types.StrategyEffectiveness, error) {
 	var results []types.StrategyEffectiveness
 
 	query := `
 		SELECT
 			ts.strategy,
-			COALESCE(ts.market_regime, 'UNKNOWN') as market_regime,
+			'ALL' as market_regime,
 			COUNT(*) as total_signals,
 			SUM(CASE WHEN so.outcome_status = 'WIN' THEN 1 ELSE 0 END) as wins,
 			SUM(CASE WHEN so.outcome_status = 'LOSS' THEN 1 ELSE 0 END) as losses,
@@ -848,7 +802,6 @@ func (r *Repository) GetStrategyEffectivenessByRegime(daysBack int) ([]types.Str
 			) as win_rate,
 			COALESCE(AVG(CASE WHEN so.outcome_status = 'WIN' THEN so.profit_loss_pct END), 0) as avg_profit_pct,
 			COALESCE(AVG(CASE WHEN so.outcome_status = 'LOSS' THEN so.profit_loss_pct END), 0) as avg_loss_pct,
-			-- EV = (WinRate * AvgWin) - ((1 - WinRate) * |AvgLoss|)
 			ROUND(
 				(SUM(CASE WHEN so.outcome_status = 'WIN' THEN 1 ELSE 0 END)::DECIMAL /
 					NULLIF(SUM(CASE WHEN so.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN') THEN 1 ELSE 0 END), 0)) *
@@ -862,13 +815,13 @@ func (r *Repository) GetStrategyEffectivenessByRegime(daysBack int) ([]types.Str
 		JOIN signal_outcomes so ON ts.id = so.signal_id
 		WHERE so.outcome_status IN ('WIN', 'LOSS', 'BREAKEVEN')
 		  AND ts.generated_at >= NOW() - INTERVAL '1 day' * ?
-		GROUP BY ts.strategy, ts.market_regime
+		GROUP BY ts.strategy
 		HAVING COUNT(*) >= 5
 		ORDER BY expected_value DESC
 	`
 
 	if err := r.db.Raw(query, daysBack).Scan(&results).Error; err != nil {
-		return nil, fmt.Errorf("GetStrategyEffectivenessByRegime: %w", err)
+		return nil, fmt.Errorf("GetStrategyEffectiveness: %w", err)
 	}
 
 	return results, nil

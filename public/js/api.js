@@ -236,9 +236,7 @@ export async function fetchProfitLossHistory(filters = {}) {
     if (filters.symbol) {
         params.append('symbol', filters.symbol.toUpperCase());
     }
-    if (filters.regime && filters.regime !== 'ALL') {
-        params.append('regime', filters.regime);
-    }
+
 
     const url = `${API_ENDPOINTS.POSITIONS_HISTORY}?${params.toString()}`;
     return apiFetch(url);
@@ -325,7 +323,7 @@ export async function fetchSignalOutcome(signalId) {
  */
 
 /**
- * Fetch strategy effectiveness by market regime
+ * Fetch strategy effectiveness
  * @param {number} daysBack - Days to look back
  * @returns {Promise<Object>} Strategy effectiveness data
  */
@@ -366,5 +364,133 @@ export async function fetchExpectedValues(daysBack = 30) {
     const params = new URLSearchParams();
     params.append('days', daysBack);
     return apiFetch(`${API_ENDPOINTS.EXPECTED_VALUES}?${params.toString()}`);
+}
+
+/**
+ * Fetch order flow data for a symbol
+ * @param {string} symbol - Stock symbol (optional, empty for global)
+ * @returns {Promise<Object>} Order flow data
+ */
+export async function fetchOrderFlow(symbol = '') {
+    // Stub function - backend endpoint not implemented yet
+    // Returns mock data structure expected by frontend
+    return {
+        symbol: symbol || 'GLOBAL',
+        buy_pressure: 0,
+        sell_pressure: 0,
+        net_flow: 0,
+        timestamp: new Date().toISOString()
+    };
+}
+
+/**
+ * Create SSE connection for AI symbol analysis
+ * @param {string} symbol - Stock symbol to analyze
+ * @param {Object} handlers - Event handlers {onMessage, onError, onDone}
+ * @returns {EventSource} EventSource instance
+ */
+export function createAISymbolAnalysisStream(symbol, handlers = {}) {
+    const { onMessage, onError, onDone } = handlers;
+    
+    const params = new URLSearchParams();
+    params.append('symbol', symbol.toUpperCase());
+    
+    const url = `${API_ENDPOINTS.AI_SYMBOL_ANALYSIS}?${params.toString()}`;
+    const evtSource = new EventSource(url);
+    
+    let analysisText = '';
+    
+    evtSource.onmessage = (event) => {
+        if (event.data === '[DONE]') {
+            evtSource.close();
+            if (onDone) onDone(analysisText);
+            return;
+        }
+        
+        analysisText += event.data;
+        if (onMessage) onMessage(event.data, analysisText);
+    };
+    
+    evtSource.onerror = (err) => {
+        console.error('AI Analysis SSE Error:', err);
+        if (onError) onError(err);
+        evtSource.close();
+    };
+    
+    return evtSource;
+}
+
+/**
+ * Send custom prompt to AI for analysis
+ * @param {string} prompt - User's question/prompt
+ * @param {Object} options - Options {symbols, hoursBack, includeData}
+ * @param {Object} handlers - Event handlers {onMessage, onError, onDone}
+ * @returns {EventSource} EventSource instance
+ */
+export function createAICustomPromptStream(prompt, options = {}, handlers = {}) {
+    const { onMessage, onError, onDone } = handlers;
+    
+    const body = {
+        prompt,
+        symbols: options.symbols || [],
+        hours_back: options.hoursBack || 24,
+        include_data: options.includeData || 'alerts'
+    };
+    
+    // For POST with SSE, we need to use fetch with ReadableStream
+    const controller = new AbortController();
+    
+    fetch(API_ENDPOINTS.AI_CUSTOM_PROMPT, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal
+    }).then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let analysisText = '';
+        
+        function readStream() {
+            reader.read().then(({ done, value }) => {
+                if (done) {
+                    if (onDone) onDone(analysisText);
+                    return;
+                }
+                
+                const chunk = decoder.decode(value, { stream: true });
+                const lines = chunk.split('\n');
+                
+                lines.forEach(line => {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6);
+                        if (data === '[DONE]') {
+                            if (onDone) onDone(analysisText);
+                            reader.cancel();
+                            return;
+                        }
+                        analysisText += data + '\n';
+                        if (onMessage) onMessage(data, analysisText);
+                    }
+                });
+                
+                readStream();
+            }).catch(err => {
+                if (onError) onError(err);
+            });
+        }
+        
+        readStream();
+    }).catch(err => {
+        console.error('AI Custom Prompt Error:', err);
+        if (onError) onError(err);
+    });
+    
+    return controller;
 }
 

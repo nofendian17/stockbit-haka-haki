@@ -4,7 +4,7 @@
  */
 
 import { CONFIG } from './config.js';
-import { safeGetElement, formatStrategyName, getTimeAgo, parseTimestamp, setupTableInfiniteScroll, renderWhaleAlignmentBadge, renderRegimeBadge } from './utils.js?v=2';
+import { safeGetElement, formatStrategyName, getTimeAgo, parseTimestamp, setupTableInfiniteScroll, renderWhaleAlignmentBadge } from './utils.js?v=2';
 import { fetchStrategySignals, fetchSignalHistory } from './api.js';
 import { createStrategySignalSSE, closeSSE } from './sse-handler.js';
 
@@ -289,9 +289,8 @@ function renderSignalRow(signal, isInitialLoad = false) {
     const enhancedReason = signal.reason || '-';
     // const zScoreInfo = `Price Z: ${priceZScore.toFixed(2)} | Vol Z: ${volumeZScore.toFixed(2)}`;
 
-    // NEW: Whale alignment and regime badges
+    // NEW: Whale alignment badge
     const whaleBadge = renderWhaleAlignmentBadge(signal);
-    const regimeBadge = renderRegimeBadge(signal.market_regime, signal.regime_confidence);
 
     // Create row
     const row = document.createElement('tr');
@@ -302,7 +301,6 @@ function renderSignalRow(signal, isInitialLoad = false) {
         <td data-label="Saham" class="table-cell font-bold">
             <strong class="cursor-pointer hover:text-accentInfo transition-colors" onclick="if(window.openCandleModal) window.openCandleModal('${signal.stock_symbol}')">${signal.stock_symbol}</strong>
             <div class="flex gap-1 mt-1">
-                ${regimeBadge}
                 ${whaleBadge}
             </div>
         </td>

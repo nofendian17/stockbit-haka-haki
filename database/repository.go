@@ -303,35 +303,18 @@ func (r *TradeRepository) createHypertableTables() error {
 			id BIGSERIAL,
 			stock_symbol TEXT NOT NULL,
 			calculated_at TIMESTAMPTZ NOT NULL,
-			lookback_hours INTEGER NOT NULL,
-			sample_size INTEGER,
 			mean_price DECIMAL(15,2),
 			std_dev_price DECIMAL(15,4),
-			median_price DECIMAL(15,2),
-			price_p25 DECIMAL(15,2),
-			price_p75 DECIMAL(15,2),
-			mean_volume_lots DECIMAL(15,2),
+			mean_volume DECIMAL(15,2),
 			std_dev_volume DECIMAL(15,4),
+			mean_volume_lots DECIMAL(15,2),
+			std_dev_volume_lots DECIMAL(15,4),
 			median_volume_lots DECIMAL(15,2),
 			volume_p25 DECIMAL(15,2),
 			volume_p75 DECIMAL(15,2),
 			mean_value DECIMAL(20,2),
 			std_dev_value DECIMAL(20,4),
 			PRIMARY KEY (id, calculated_at)
-		)`,
-		`market_regimes (
-			id BIGSERIAL,
-			stock_symbol TEXT NOT NULL,
-			detected_at TIMESTAMPTZ NOT NULL,
-			lookback_periods INTEGER NOT NULL,
-			regime TEXT NOT NULL,
-			confidence DECIMAL(5,4),
-			adx DECIMAL(10,4),
-			atr DECIMAL(15,4),
-			bollinger_width DECIMAL(10,4),
-			price_change_pct DECIMAL(10,4),
-			volatility DECIMAL(10,4),
-			PRIMARY KEY (id, detected_at)
 		)`,
 		`detected_patterns (
 			id BIGSERIAL,
@@ -386,8 +369,6 @@ func (r *TradeRepository) createIndexes() error {
 		"CREATE INDEX IF NOT EXISTS idx_signal_outcomes_symbol ON signal_outcomes(stock_symbol, outcome_status)",
 		"CREATE INDEX IF NOT EXISTS idx_whale_followup_alert ON whale_alert_followup(whale_alert_id)",
 		"CREATE INDEX IF NOT EXISTS idx_baselines_symbol_time ON statistical_baselines(stock_symbol, calculated_at)",
-		"CREATE INDEX IF NOT EXISTS idx_regimes_symbol_time ON market_regimes(stock_symbol, detected_at)",
-		"CREATE INDEX IF NOT EXISTS idx_regimes_regime ON market_regimes(regime, confidence)",
 		"CREATE INDEX IF NOT EXISTS idx_patterns_symbol_time ON detected_patterns(stock_symbol, detected_at, pattern_type)",
 		"CREATE INDEX IF NOT EXISTS idx_patterns_outcome ON detected_patterns(outcome)",
 		"CREATE INDEX IF NOT EXISTS idx_correlations_pair ON stock_correlations(stock_a, stock_b, calculated_at)",
@@ -586,7 +567,6 @@ func (r *TradeRepository) setupEnhancedTables() error {
 		retention string
 	}{
 		{"statistical_baselines", "calculated_at", "INTERVAL '7 days'", "INTERVAL '3 months'"},
-		{"market_regimes", "detected_at", "INTERVAL '7 days'", "INTERVAL '6 months'"},
 		{"detected_patterns", "detected_at", "INTERVAL '7 days'", "INTERVAL '1 year'"},
 	}
 
@@ -850,7 +830,7 @@ func (r *TradeRepository) GetDailyStrategyPerformance(strategy, symbol string, l
 }
 
 func (r *TradeRepository) EvaluateVolumeBreakoutStrategy(alert *models.WhaleAlert, zscores *types.ZScoreData, vwap float64, orderFlow *models.OrderFlowImbalance) *TradingSignal {
-	signal := r.signals.EvaluateVolumeBreakoutStrategy(alert, zscores, nil, vwap, orderFlow)
+	signal := r.signals.EvaluateVolumeBreakoutStrategy(alert, zscores, vwap, orderFlow)
 	// Convert models.TradingSignal back to TradingSignal
 	return &TradingSignal{
 		StockSymbol:  signal.StockSymbol,
@@ -868,7 +848,7 @@ func (r *TradeRepository) EvaluateVolumeBreakoutStrategy(alert *models.WhaleAler
 }
 
 func (r *TradeRepository) EvaluateMeanReversionStrategy(alert *models.WhaleAlert, zscores *types.ZScoreData, prevVolumeZScore float64, vwap float64, orderFlow *models.OrderFlowImbalance) *TradingSignal {
-	signal := r.signals.EvaluateMeanReversionStrategy(alert, zscores, prevVolumeZScore, nil, vwap, orderFlow)
+	signal := r.signals.EvaluateMeanReversionStrategy(alert, zscores, prevVolumeZScore, vwap, orderFlow)
 	// Convert models.TradingSignal back to TradingSignal
 	return &TradingSignal{
 		StockSymbol:  signal.StockSymbol,
@@ -886,7 +866,7 @@ func (r *TradeRepository) EvaluateMeanReversionStrategy(alert *models.WhaleAlert
 }
 
 func (r *TradeRepository) EvaluateFakeoutFilterStrategy(alert *models.WhaleAlert, zscores *types.ZScoreData, vwap float64) *TradingSignal {
-	signal := r.signals.EvaluateFakeoutFilterStrategy(alert, zscores, nil, vwap)
+	signal := r.signals.EvaluateFakeoutFilterStrategy(alert, zscores, vwap)
 	// Convert models.TradingSignal back to TradingSignal
 	return &TradingSignal{
 		StockSymbol:  signal.StockSymbol,
@@ -967,18 +947,6 @@ func (r *TradeRepository) GetAggregateBaseline() (*models.StatisticalBaseline, e
 	return r.analytics.GetAggregateBaseline()
 }
 
-func (r *TradeRepository) SaveMarketRegime(regime *models.MarketRegime) error {
-	return r.analytics.SaveMarketRegime(regime)
-}
-
-func (r *TradeRepository) GetLatestRegime(symbol string) (*models.MarketRegime, error) {
-	return r.analytics.GetLatestRegime(symbol)
-}
-
-func (r *TradeRepository) GetAggregateMarketRegime() (*models.MarketRegime, error) {
-	return r.analytics.GetAggregateMarketRegime()
-}
-
 func (r *TradeRepository) SaveDetectedPattern(pattern *models.DetectedPattern) error {
 	return r.analytics.SaveDetectedPattern(pattern)
 }
@@ -1052,9 +1020,9 @@ func (r *TradeRepository) GetRecentSignalsWithOutcomes(lookbackMinutes int, minC
 // Signal Effectiveness Analysis Facade Methods
 // ============================================================================
 
-// GetStrategyEffectivenessByRegime returns multi-dimensional effectiveness analysis
-func (r *TradeRepository) GetStrategyEffectivenessByRegime(daysBack int) ([]types.StrategyEffectiveness, error) {
-	return r.signals.GetStrategyEffectivenessByRegime(daysBack)
+// GetStrategyEffectiveness returns strategy effectiveness analysis
+func (r *TradeRepository) GetStrategyEffectiveness(daysBack int) ([]types.StrategyEffectiveness, error) {
+	return r.signals.GetStrategyEffectiveness(daysBack)
 }
 
 // GetOptimalConfidenceThresholds calculates optimal confidence thresholds per strategy

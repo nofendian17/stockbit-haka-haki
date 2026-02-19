@@ -38,7 +38,6 @@ type App struct {
 	signalTracker   *SignalTracker        // Phase 1: Signal outcome tracking
 	whaleFollowup   *WhaleFollowupTracker // Phase 1: Whale alert followup
 	baselineCalc    *BaselineCalculator   // Phase 2: Statistical baselines
-	regimeDetector  *RegimeDetector       // Phase 2: Market regime detection
 	correlationAnal *CorrelationAnalyzer  // Phase 3: Stock correlations
 	perfRefresher   *PerformanceRefresher // Phase 3: Performance view refresher
 }
@@ -125,17 +124,15 @@ func (a *App) Start() error {
 	if err := a.authManager.EnsureAuthenticated(); err != nil {
 		return fmt.Errorf("authentication failed: %w", err)
 	}
+	log.Println("✅ Stockbit authentication successful")
 
 	// 4. Connect Trading WebSocket
 	if err := a.wsManager.Connect(); err != nil {
 		return fmt.Errorf("trading WebSocket connection failed: %w", err)
 	}
-
-	// 5. Start ping (handled by manager, but we can explicit start or rely on Connect implicitly doing it?
-	// The Manager's Connect calls AuthenticateAndSubscribe, but we should ensure ping is started.
-	// In the refactor, I added StartPing implicitly in Reconnect, but maybe not in Connect.
-	// Let's call it here explicitly to be safe as per original code.)
+	// 5. Start ping
 	a.wsManager.StartPing(25 * time.Second)
+	log.Println("✅ Trading WebSocket connected")
 
 	// 6. Setup handlers
 	a.setupHandlers()
@@ -180,10 +177,6 @@ func (a *App) Start() error {
 	// Statistical Baseline Calculator
 	a.baselineCalc = NewBaselineCalculator(a.tradeRepo)
 	go a.baselineCalc.Start()
-
-	// Market Regime Detector
-	a.regimeDetector = NewRegimeDetector(a.tradeRepo)
-	go a.regimeDetector.Start()
 
 	// Pattern Detector removed - 100% loss rate on Range Breakout patterns
 
@@ -263,10 +256,6 @@ func (a *App) gracefulShutdown(cancel context.CancelFunc) error {
 		if a.baselineCalc != nil {
 			fmt.Println("📊 Stopping statistical baseline calculator...")
 			a.baselineCalc.Stop()
-		}
-		if a.regimeDetector != nil {
-			fmt.Println("📈 Stopping market regime detector...")
-			a.regimeDetector.Stop()
 		}
 		// Pattern detector removed
 		if a.correlationAnal != nil {

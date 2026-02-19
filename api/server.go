@@ -140,7 +140,8 @@ func (s *Server) gzipMiddleware(next http.Handler) http.Handler {
 		}
 
 		// Skip SSE endpoints (streaming)
-		if strings.Contains(r.URL.Path, "/stream") || r.URL.Path == "/api/events" {
+		if strings.Contains(r.URL.Path, "/stream") || r.URL.Path == "/api/events" ||
+			strings.Contains(r.URL.Path, "/api/ai/analysis") {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -210,4 +211,8 @@ func (s *Server) registerAnalyticsRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/analytics/optimal-thresholds", s.handleGetOptimalThresholds)
 	mux.HandleFunc("GET /api/analytics/time-effectiveness", s.handleGetTimeEffectiveness)
 	mux.HandleFunc("GET /api/analytics/expected-values", s.handleGetExpectedValues)
+
+	// AI Analysis Endpoints
+	mux.HandleFunc("GET /api/ai/analysis/symbol", s.handleSymbolAnalysisStream)
+	mux.HandleFunc("POST /api/ai/analysis/custom", s.handleCustomPromptStream)
 }

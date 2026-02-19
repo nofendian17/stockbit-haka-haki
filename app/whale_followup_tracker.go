@@ -215,7 +215,7 @@ func (wt *WhaleFollowupTracker) updateFollowup(followup *database.WhaleAlertFoll
 
 	// Generate analysis text if significant time has passed or significant movement
 	if elapsed >= 1*time.Hour || (priceChange > 2.0 || priceChange < -2.0) {
-		analysis := wt.generateAnalysis(followup.StockSymbol, followup.AlertAction, followup.AlertPrice, currentPrice, priceChange, elapsed)
+		analysis := wt.generateAnalysis(followup.StockSymbol, followup.AlertAction, priceChange, elapsed)
 		updates["analysis"] = analysis
 	}
 
@@ -267,7 +267,7 @@ func (wt *WhaleFollowupTracker) detectReversal(change5min, change60min float64) 
 }
 
 // generateAnalysis creates a descriptive analysis string
-func (wt *WhaleFollowupTracker) generateAnalysis(symbol, action string, entryPrice, currentPrice, changePct float64, elapsed time.Duration) string {
+func (wt *WhaleFollowupTracker) generateAnalysis(symbol, action string, changePct float64, elapsed time.Duration) string {
 	impact := "NEUTRAL"
 	if action == "BUY" {
 		if changePct > 0.5 {
