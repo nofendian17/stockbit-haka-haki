@@ -259,6 +259,8 @@ func (st *SignalTracker) shouldCreateOutcome(signal *database.TradingSignalDB) (
 	// 1. Evaluate signal using SignalFilterService (Consolidated Logic)
 	shouldTrade, reason, multiplier := st.filterService.Evaluate(signal)
 	if !shouldTrade {
+		// DEBUG: Log detailed rejection reason
+		log.Printf("🔍 FILTER REJECTED signal %d (%s): %s", signal.ID, signal.StockSymbol, reason)
 		return false, reason, 0.0
 	}
 
@@ -312,6 +314,21 @@ func (st *SignalTracker) shouldCreateOutcome(signal *database.TradingSignalDB) (
 		}
 	}
 
+	// NEW: Check daily loss limit (circuit breaker)
+	todayStart := time.Now().Truncate(24 * time.Hour)
+	todayOutcomes, err := st.repo.GetSignalOutcomes("", "", todayStart, time.Time{}, 0, 0)
+	if err == nil {
+		dailyLoss := 0.0
+		for _, outcome := range todayOutcomes {
+			if outcome.OutcomeStatus == "LOSS" && outcome.ProfitLossPct != nil {
+				dailyLoss += *outcome.ProfitLossPct
+			}
+		}
+		if dailyLoss <= -st.cfg.Trading.MaxDailyLossPct {
+			return false, fmt.Sprintf("Daily loss limit reached (%.2f%% >= %.2f%%)", dailyLoss, st.cfg.Trading.MaxDailyLossPct), 0.0
+		}
+	}
+
 	return true, "", multiplier
 }
 
@@ -348,19 +365,31 @@ func (st *SignalTracker) createSignalOutcome(signal *database.TradingSignalDB) (
 	// Check duplicate prevention and position limits (with ALL optimizations)
 	shouldCreate, reason, multiplier := st.shouldCreateOutcome(signal)
 	if !shouldCreate {
-		log.Printf("⏭️ Skipping signal %d (%s): %s", signal.ID, signal.StockSymbol, reason)
+		log.Printf("⏭️ Skipping signal %d (%s %s): %s", signal.ID, signal.StockSymbol, signal.Decision, reason)
 		st.createSkippedOutcome(signal, reason)
 		return false, nil
 	}
 
 	session := getTradingSession(signal.GeneratedAt)
-	log.Printf("✅ Creating outcome for signal %d (%s) - Session: %s (Mult: %.2fx)",
-		signal.ID, signal.StockSymbol, session, multiplier)
 
-	// Calculate ATR-based exit levels for initial setup
-	exitLevels := st.exitCalc.GetExitLevels(signal.StockSymbol, signal.TriggerPrice)
+	// Check if this signal qualifies for swing trading
+	isSwing, swingScore, swingReason := st.filterService.IsSwingSignal(signal)
 
-	// Create outcome
+	var exitLevels *ExitLevels
+	positionType := "DAY"
+	if isSwing {
+		positionType = "SWING"
+		exitLevels = st.exitCalc.GetSwingExitLevels(signal.StockSymbol, signal.TriggerPrice)
+		log.Printf("📈 SWING TRADE detected for signal %d (%s): score=%.2f, %s",
+			signal.ID, signal.StockSymbol, swingScore, swingReason)
+	} else {
+		exitLevels = st.exitCalc.GetExitLevels(signal.StockSymbol, signal.TriggerPrice)
+	}
+
+	log.Printf("✅ Creating %s outcome for signal %d (%s %s) - Session: %s (Mult: %.2fx)",
+		positionType, signal.ID, signal.StockSymbol, signal.Decision, session, multiplier)
+
+	// Create outcome with position type annotation in analysis_data
 	outcome := &database.SignalOutcome{
 		SignalID:          signal.ID,
 		StockSymbol:       signal.StockSymbol,
@@ -413,9 +442,12 @@ func (st *SignalTracker) updateSignalOutcome(signal *database.TradingSignalDB, o
 	now := time.Now()
 	currentSession := getTradingSession(now)
 
-	// Auto-close positions at market close (16:00 WIB)
-	if currentSession == "AFTER_HOURS" && outcome.ExitTime == nil {
-		log.Printf("🔔 Market closed - Auto-closing position for signal %d (%s)",
+	// Check if this is a swing trade
+	isSwing := st.isSwingTrade(signal, outcome)
+
+	// Auto-close positions at market close (16:00 WIB) - ONLY FOR DAY TRADES
+	if !isSwing && currentSession == "AFTER_HOURS" && outcome.ExitTime == nil {
+		log.Printf("🔔 Market closed - Auto-closing DAY position for signal %d (%s)",
 			signal.ID, signal.StockSymbol)
 		// Will force exit below
 	}
@@ -446,6 +478,7 @@ func (st *SignalTracker) updateSignalOutcome(signal *database.TradingSignalDB, o
 
 	// Calculate holding period
 	holdingMinutes := int(time.Since(outcome.EntryTime).Minutes())
+	holdingDays := int(time.Since(outcome.EntryTime).Hours() / 24)
 
 	// Update MAE and MFE (track current extremes)
 	mae := outcome.MaxAdverseExcursion
@@ -473,8 +506,13 @@ func (st *SignalTracker) updateSignalOutcome(signal *database.TradingSignalDB, o
 	shouldExit := false
 	exitReason := ""
 
-	// Calculate ATR-based exit levels
-	exitLevels := st.exitCalc.GetExitLevels(signal.StockSymbol, outcome.EntryPrice)
+	// Calculate ATR-based exit levels - USE SWING LEVELS FOR SWING TRADES
+	var exitLevels *ExitLevels
+	if isSwing {
+		exitLevels = st.exitCalc.GetSwingExitLevels(signal.StockSymbol, outcome.EntryPrice)
+	} else {
+		exitLevels = st.exitCalc.GetExitLevels(signal.StockSymbol, outcome.EntryPrice)
+	}
 
 	// Get current trailing stop (initialize if nil)
 	var currentTrailingStop float64
@@ -545,11 +583,26 @@ func (st *SignalTracker) updateSignalOutcome(signal *database.TradingSignalDB, o
 	}
 
 	// 6. Check Max Holding Loss (Cut Loss if stuck in loss for too long)
-	// Example: If held > 60 mins and loss > MaxHoldingLossPct (e.g., 1.5%), cut loss
-	if !shouldExit && holdingMinutes > 60 && profitLossPct < -st.cfg.Trading.MaxHoldingLossPct {
-		shouldExit = true
-		exitReason = "TIME_BASED_CUT_LOSS"
-		log.Printf("✂️ Time-based cut loss for %s: held %d mins, P/L %.2f%%", signal.StockSymbol, holdingMinutes, profitLossPct)
+	// For DAY trades: If held > 60 mins and loss > MaxHoldingLossPct, cut loss
+	// For SWING trades: If held > max days, force exit
+	if !shouldExit {
+		if isSwing {
+			// SWING: Check max holding days
+			if holdingDays >= st.cfg.Trading.SwingMaxHoldingDays {
+				shouldExit = true
+				exitReason = "SWING_MAX_HOLDING_DAYS"
+				log.Printf("📅 Swing max holding reached for %s: %d days, P/L %.2f%%",
+					signal.StockSymbol, holdingDays, profitLossPct)
+			}
+		} else {
+			// DAY TRADE: Check max holding minutes
+			if holdingMinutes > 60 && profitLossPct < -st.cfg.Trading.MaxHoldingLossPct {
+				shouldExit = true
+				exitReason = "TIME_BASED_CUT_LOSS"
+				log.Printf("✂️ Time-based cut loss for %s: held %d mins, P/L %.2f%%",
+					signal.StockSymbol, holdingMinutes, profitLossPct)
+			}
+		}
 	}
 
 	if shouldExit {
@@ -558,10 +611,11 @@ func (st *SignalTracker) updateSignalOutcome(signal *database.TradingSignalDB, o
 		outcome.ExitPrice = &currentPrice
 		outcome.ExitReason = &exitReason
 
-		// Determine outcome status - More sensitive thresholds
-		if profitLossPct > 0.2 {
+		// Determine outcome status - Accounting for trading fees (0.25% total: 0.15% buy + 0.10% sell)
+		const feeThreshold = 0.25 // Total round-trip fees in percentage
+		if profitLossPct > feeThreshold {
 			outcome.OutcomeStatus = "WIN"
-		} else if profitLossPct < -0.2 {
+		} else if profitLossPct < -feeThreshold {
 			outcome.OutcomeStatus = "LOSS"
 		} else {
 			outcome.OutcomeStatus = "BREAKEVEN"
@@ -593,4 +647,17 @@ func (st *SignalTracker) GetOpenPositions(symbol, strategy string, limit int) ([
 	}
 
 	return outcomes, nil
+}
+
+// isSwingTrade determines if a position is a swing trade
+// Checks: signal confidence, trend strength, and holding duration
+func (st *SignalTracker) isSwingTrade(signal *database.TradingSignalDB, outcome *database.SignalOutcome) bool {
+	// If swing trading is disabled, never treat as swing
+	if !st.cfg.Trading.EnableSwingTrading {
+		return false
+	}
+
+	// Check if signal meets swing criteria using the filter service
+	isSwing, _, _ := st.filterService.IsSwingSignal(signal)
+	return isSwing
 }

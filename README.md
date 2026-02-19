@@ -170,6 +170,111 @@ WHERE so.created_at > NOW() - INTERVAL '24 hours'
 GROUP BY mr.regime;
 ```
 
+## 🆕 Recent Updates
+
+### Enhanced Signal Quality (v2.0)
+
+We've significantly improved signal quality through stricter filtering and better risk management:
+
+#### Stricter Entry Criteria
+| Parameter | Before | After | Impact |
+|-----------|--------|-------|--------|
+| **Require Order Flow** | `false` | `true` | Must have order flow confirmation |
+| **Buy Pressure Threshold** | 50% | 55% | Stronger buying confirmation |
+| **Aggressive Buy Threshold** | 55% | 60% | Higher smart money requirement |
+| **Min Baseline Samples** | 30 | 50 | More historical data required |
+| **Low Win Rate Filter** | 40% | 45% | Faster rejection of underperforming strategies |
+| **Confidence Threshold** | 0.50 | 0.55 | Higher signal quality |
+
+#### Improved Risk Management
+- **Daily Loss Limit**: Max 5% daily loss before trading stops
+- **Circuit Breaker**: Stops after 3 consecutive losses
+- **Breakeven Protection**: Triggers at 1% profit, moves stop to +0.15%
+- **Fee-Aware Outcomes**: Accounts for 0.25% round-trip fees
+
+#### Time-Based Filters
+- **Skip First 15 Minutes**: Avoid 09:00-09:15 volatility
+- **Pre-Lunch Caution**: No signals 11:30-12:00
+- **Post-Lunch Wait**: Skip 13:30-13:45
+- **Best Window**: Priority for 10:00-11:00 signals
+
+Read more: [SIGNAL_IMPROVEMENTS.md](SIGNAL_IMPROVEMENTS.md)
+
+---
+
+### Swing Trading Support (NEW)
+
+Hold positions overnight for larger profit potential!
+
+#### Day Trading vs Swing Trading
+
+| Feature | Day Trading | Swing Trading |
+|---------|-------------|---------------|
+| **Holding Period** | Max 4 hours | Max 30 days |
+| **Auto-Close** | 16:00 WIB | ❌ No (hold overnight) |
+| **Stop Loss** | 1.5× ATR | 4.5× Daily ATR |
+| **Take Profit** | 3×/6× ATR | 9×/18× Daily ATR |
+| **Min Confidence** | 0.55 | 0.75 |
+| **Min History** | 50 samples | 400 samples (20 days) |
+| **Trend Required** | Above VWAP | Strong trend (score > 0.6) |
+
+#### Swing Trade Criteria
+A signal qualifies as swing trade if:
+1. ✅ Confidence ≥ 0.75
+2. ✅ 20+ days of historical data
+3. ✅ Trend score ≥ 0.6
+4. ✅ Swing Score ≥ 0.65
+   ```
+   Swing Score = (Confidence × 0.4) + (Trend × 0.4) + (Volume × 0.2)
+   ```
+
+#### Configuration
+```bash
+# Enable Swing Trading
+SWING_TRADING_ENABLED=true
+SWING_MIN_CONFIDENCE=0.75
+SWING_MAX_HOLDING_DAYS=30
+SWING_ATR_MULTIPLIER=3.0
+SWING_MIN_BASELINE_DAYS=20
+SWING_POSITION_SIZE_PCT=5.0
+SWING_REQUIRE_TREND=true
+```
+
+Read more: [SWING_TRADING.md](SWING_TRADING.md)
+
+---
+
+## 📊 API Reference
+
+### Signal Statistics Endpoint
+Debug signal flow and filtering:
+```bash
+GET /api/signals/stats?lookback=60
+```
+
+Response:
+```json
+{
+  "total_signals": 50,
+  "by_decision": {"BUY": 5, "WAIT": 20, "NO_TRADE": 25},
+  "by_outcome_status": {"OPEN": 2, "SKIPPED": 45, "PENDING": 3},
+  "truly_pending": 3
+}
+```
+
+### Position Endpoints
+- `GET /api/positions/open` - View open positions
+- `GET /api/positions/history` - View closed positions with P&L
+- `GET /api/signals/history` - Full signal history
+
+### Analytics Endpoints
+- `GET /api/analytics/strategy-effectiveness` - Performance by strategy
+- `GET /api/analytics/optimal-thresholds` - Best confidence levels
+- `GET /api/analytics/time-effectiveness` - Best trading hours
+- `GET /api/analytics/expected-values` - EV calculations
+
+---
+
 ## License
 
 This project is for educational purposes only. Not for financial advice.

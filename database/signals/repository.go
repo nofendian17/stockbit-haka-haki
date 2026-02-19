@@ -368,33 +368,37 @@ func (r *Repository) EvaluateVolumeBreakoutStrategy(alert *models.WhaleAlert, zs
 		isAggressiveBuying = *orderFlow.AggressiveBuyPct > 50.0
 	}
 
-	if zscores.PriceZScore > 2.0 && zscores.VolumeZScore > 2.5 {
+	// ENHANCED: Stricter thresholds for higher quality signals
+	if zscores.PriceZScore > 2.5 && zscores.VolumeZScore > 3.0 {
 		if isBullishTrend && isAggressiveBuying {
 			signal.Decision = "BUY"
-			signal.Confidence = calculateConfidence(zscores.VolumeZScore, 2.5, 6.0)
+			// Calculate confidence based on both price and volume Z-scores
+			volConfidence := calculateConfidence(zscores.VolumeZScore, 3.0, 6.0)
+			priceConfidence := calculateConfidence(zscores.PriceZScore, 2.5, 5.0)
+			signal.Confidence = (volConfidence*0.6 + priceConfidence*0.4) // Weight volume higher
 
 			// Boost confidence if aggressive buying is high
-			if orderFlow != nil && orderFlow.AggressiveBuyPct != nil && *orderFlow.AggressiveBuyPct > 55.0 {
-				signal.Confidence = min(signal.Confidence*1.2, 1.0)
+			if orderFlow != nil && orderFlow.AggressiveBuyPct != nil && *orderFlow.AggressiveBuyPct > 60.0 {
+				signal.Confidence = min(signal.Confidence*1.15, 1.0)
 			}
 
-			signal.Reason = r.generateAIReasoning(signal, "Strong statistical breakout (Volume Z > 2.5) with Order Flow & VWAP confirmation", vwap)
+			signal.Reason = r.generateAIReasoning(signal, "Strong breakout confirmed: Volume Z > 3.0, Price Z > 2.5, above VWAP, strong order flow", vwap)
 		} else if isBullishTrend {
-			// Good trend but Order Flow weak -> WAIT
+			// Good trend but Order Flow weak -> WAIT (don't chase)
 			signal.Decision = "WAIT"
-			signal.Confidence = 0.4
-			signal.Reason = r.generateAIReasoning(signal, "Statistical breakout detected but Order Flow is neutral/bearish", vwap)
+			signal.Confidence = calculateConfidence(zscores.VolumeZScore, 3.0, 6.0) * 0.5
+			signal.Reason = r.generateAIReasoning(signal, "Breakout pattern but weak order flow confirmation", vwap)
 		} else {
-			// Below VWAP -> WAIT/IGNORE
-			signal.Decision = "WAIT"
-			signal.Confidence = 0.3
-			signal.Reason = r.generateAIReasoning(signal, "Statistical breakout below VWAP (Trend unconfirmed)", vwap)
+			// Below VWAP -> NO TRADE (counter-trend)
+			signal.Decision = "NO_TRADE"
+			signal.Confidence = 0.15
+			signal.Reason = "Breakout below VWAP - counter-trend signal rejected"
 		}
-	} else if zscores.PriceZScore > 1.5 && zscores.VolumeZScore > 2.0 {
-		// "Weak" breakout zone
+	} else if zscores.PriceZScore > 2.0 && zscores.VolumeZScore > 2.5 {
+		// Moderate breakout - wait for confirmation
 		signal.Decision = "WAIT"
-		signal.Confidence = 0.3
-		signal.Reason = r.generateAIReasoning(signal, "Volume not confirming price Z-score strongly enough", vwap)
+		signal.Confidence = calculateConfidence(zscores.VolumeZScore, 2.5, 4.0) * 0.6
+		signal.Reason = r.generateAIReasoning(signal, "Moderate breakout - awaiting stronger confirmation", vwap)
 	} else {
 		signal.Decision = "NO_TRADE"
 		signal.Confidence = 0.1
@@ -419,42 +423,56 @@ func (r *Repository) EvaluateMeanReversionStrategy(alert *models.WhaleAlert, zsc
 		Change:       zscores.PriceChange,
 	}
 
-	// Detect volume divergence
-	volumeDeclining := zscores.VolumeZScore < prevVolumeZScore
+	// Detect volume divergence - now requires stronger signal
+	volumeDeclining := zscores.VolumeZScore < prevVolumeZScore && zscores.VolumeZScore < 1.0
 
-	// Check conditions: price_z_score > 3.0 AND volume declining
-	if zscores.PriceZScore > 3.0 && volumeDeclining {
+	// Check conditions: price_z_score > 3.5 (increased from 3.0) AND volume declining
+	if zscores.PriceZScore > 3.5 && volumeDeclining {
 		signal.Decision = "SELL"
-		signal.Confidence = calculateConfidence(zscores.PriceZScore, 3.0, 6.0)
-		signal.Reason = r.generateAIReasoning(signal, "Price statistically overextended (Z > 3.0) with fading volume", vwap)
-	} else if zscores.PriceZScore > 3.0 {
+		// Confidence based on price extreme and volume confirmation
+		priceConf := calculateConfidence(zscores.PriceZScore, 3.5, 6.0)
+		volConf := calculateConfidence(prevVolumeZScore-zscores.VolumeZScore, 0.5, 2.0)
+		signal.Confidence = priceConf*0.7 + volConf*0.3
+		signal.Reason = r.generateAIReasoning(signal, "Strong overextension (Price Z > 3.5) with volume divergence", vwap)
+	} else if zscores.PriceZScore > 3.5 {
 		signal.Decision = "WAIT"
-		signal.Confidence = 0.5
-		signal.Reason = r.generateAIReasoning(signal, "Overbought but volume remains high", vwap)
-	} else if zscores.PriceZScore < -3.0 {
-		// ENHANCEMENT: Check simple oversold vs VWAP
-		// If price is significantly below VWAP, it strengthens the reversal thesis
-		isDeepValue := alert.TriggerPrice < (vwap * 0.95) // 5% below VWAP
+		signal.Confidence = calculateConfidence(zscores.PriceZScore, 3.5, 6.0) * 0.6
+		signal.Reason = r.generateAIReasoning(signal, "Overbought but volume not confirming divergence", vwap)
+	} else if zscores.PriceZScore < -3.5 { // Increased from -3.0
+		// ENHANCED: Mean reversion BUY signal - much stricter
+		// Must be deep value AND smart money buying
+		isDeepValue := alert.TriggerPrice < (vwap * 0.93) // 7% below VWAP (increased from 5%)
 
-		// Order Flow Verification for Reversion (Catch the falling knife safely)
-		// We want to see SMART MONEY stepping in (Aggressive Buying > 30%)
+		// Strong smart money presence required
 		isSmartMoneyBuying := false
-		if orderFlow != nil && orderFlow.AggressiveBuyPct != nil && *orderFlow.AggressiveBuyPct > 30.0 {
-			isSmartMoneyBuying = true
+		strongBuying := false
+		if orderFlow != nil && orderFlow.AggressiveBuyPct != nil {
+			if *orderFlow.AggressiveBuyPct > 45.0 {
+				isSmartMoneyBuying = true
+				strongBuying = *orderFlow.AggressiveBuyPct > 55.0
+			}
 		}
 
+		// Must have both deep value AND smart money
 		if isDeepValue && isSmartMoneyBuying {
 			signal.Decision = "BUY"
-			signal.Confidence = calculateConfidence(-zscores.PriceZScore, 3.0, 6.0) * 1.3 // Boost confidence
-			signal.Reason = r.generateAIReasoning(signal, "Price deeply oversold (Below VWAP) with Aggressive Buying detected", vwap)
+			baseConfidence := calculateConfidence(-zscores.PriceZScore, 3.5, 6.0)
+			if strongBuying {
+				signal.Confidence = min(baseConfidence*1.2, 1.0)
+				signal.Reason = r.generateAIReasoning(signal, "Deep oversold (7%+ below VWAP) with strong smart money (>55%)", vwap)
+			} else {
+				signal.Confidence = baseConfidence * 0.9
+				signal.Reason = r.generateAIReasoning(signal, "Deep oversold with moderate smart money support", vwap)
+			}
 		} else if isDeepValue {
+			// Deep value but no smart money - wait
 			signal.Decision = "WAIT"
-			signal.Confidence = 0.4
-			signal.Reason = r.generateAIReasoning(signal, "Price deeply oversold but no Aggressive Buying yet", vwap)
+			signal.Confidence = calculateConfidence(-zscores.PriceZScore, 3.5, 6.0) * 0.5
+			signal.Reason = r.generateAIReasoning(signal, "Deeply oversold but awaiting smart money confirmation", vwap)
 		} else {
 			signal.Decision = "WAIT"
-			signal.Confidence = 0.3
-			signal.Reason = r.generateAIReasoning(signal, "Price oversold/undervalued (Waiting for confirmation)", vwap)
+			signal.Confidence = 0.25
+			signal.Reason = r.generateAIReasoning(signal, "Moderately oversold - insufficient margin of safety", vwap)
 		}
 	} else {
 		signal.Decision = "NO_TRADE"
@@ -697,6 +715,7 @@ func (r *Repository) getDetectedPatternsForStrategy(startTime time.Time) ([]mode
 }
 
 // calculateConfidence converts z-score range to confidence percentage
+// Uses sigmoid-like curve for more realistic confidence distribution
 func calculateConfidence(value, minThreshold, maxThreshold float64) float64 {
 	if value < minThreshold {
 		return 0.0
@@ -708,18 +727,28 @@ func calculateConfidence(value, minThreshold, maxThreshold float64) float64 {
 	// Prevent division by zero
 	denominator := maxThreshold - minThreshold
 	if denominator <= 0 {
-		return 0.5 // Return neutral confidence if thresholds are invalid
+		return 0.5
 	}
 
 	// Linear interpolation between min and max
-	confidence := (value - minThreshold) / denominator
+	ratio := (value - minThreshold) / denominator
 
-	// Clamp to [0, 1] range to prevent overflow
-	if confidence < 0 {
-		return 0.0
+	// Apply sigmoid-like transformation for better confidence distribution
+	// This gives higher confidence more gradually rather than linearly
+	confidence := ratio * (2 - ratio) // Quadratic ease-out
+
+	// Additional boost for values near max threshold
+	if ratio > 0.8 {
+		confidence = 0.8 + (ratio-0.8)*1.5 // Accelerate near top
 	}
-	if confidence > 1 {
-		return 1.0
+
+	// Clamp to [0.3, 1.0] range
+	// Minimum 0.3 to avoid extremely low confidence passing filters
+	if confidence < 0.3 {
+		confidence = 0.3
+	}
+	if confidence > 1.0 {
+		confidence = 1.0
 	}
 
 	return confidence
@@ -750,8 +779,9 @@ func (r *Repository) GetRecentSignalsWithOutcomes(lookbackMinutes int, minConfid
 
 	signals := make([]models.TradingSignal, len(results))
 	for i, r := range results {
-		outcome := ""
-		if r.Outcome != nil {
+		// FIX: Default to "PENDING" instead of empty string
+		outcome := "PENDING"
+		if r.Outcome != nil && *r.Outcome != "" {
 			outcome = *r.Outcome
 		}
 

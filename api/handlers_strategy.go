@@ -462,3 +462,63 @@ func (s *Server) handleGetProfitLossHistory(w http.ResponseWriter, r *http.Reque
 		"count":   len(enrichedOutcomes),
 	})
 }
+
+// handleGetSignalStats returns signal statistics for debugging
+func (s *Server) handleGetSignalStats(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+
+	lookbackMinutes := 60
+	if l := query.Get("lookback"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil {
+			lookbackMinutes = parsed
+		}
+	}
+
+	// Get all signals in lookback period
+	signals, err := s.repo.GetTradingSignals("", "", "", time.Now().Add(-time.Duration(lookbackMinutes)*time.Minute), time.Time{}, 1000, 0)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Count by decision
+	decisionCount := make(map[string]int)
+	for _, s := range signals {
+		decisionCount[s.Decision]++
+	}
+
+	// Get outcomes
+	outcomes, err := s.repo.GetSignalOutcomes("", "", time.Now().Add(-time.Duration(lookbackMinutes)*time.Minute), time.Time{}, 1000, 0)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Count by outcome status
+	outcomeCount := make(map[string]int)
+	for _, o := range outcomes {
+		outcomeCount[o.OutcomeStatus]++
+	}
+
+	// Calculate signals without outcomes (truly pending)
+	signalsWithOutcome := make(map[int64]bool)
+	for _, o := range outcomes {
+		signalsWithOutcome[o.SignalID] = true
+	}
+	pendingCount := 0
+	for _, s := range signals {
+		if !signalsWithOutcome[s.ID] {
+			pendingCount++
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"lookback_minutes":  lookbackMinutes,
+		"total_signals":     len(signals),
+		"by_decision":       decisionCount,
+		"total_outcomes":    len(outcomes),
+		"by_outcome_status": outcomeCount,
+		"truly_pending":     pendingCount,
+	})
+}

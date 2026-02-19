@@ -196,6 +196,9 @@ func (s *Server) registerStrategyRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/signals/{id}/outcome", s.handleGetSignalOutcome)
 	mux.HandleFunc("GET /api/positions/open", s.handleGetOpenPositions)
 	mux.HandleFunc("GET /api/positions/history", s.handleGetProfitLossHistory)
+
+	// Signal Statistics for Debugging
+	mux.HandleFunc("GET /api/signals/stats", s.handleGetSignalStats)
 }
 
 func (s *Server) registerAnalyticsRoutes(mux *http.ServeMux) {

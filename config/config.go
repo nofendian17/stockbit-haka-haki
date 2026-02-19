@@ -65,7 +65,9 @@ type TradingConfig struct {
 	RequireOrderFlow bool // If true, reject signals if order flow data is missing
 
 	// Risk Management
-	MaxHoldingLossPct float64 // Cut loss if held too long and loss exceeds this (positive value representing negative %)
+	MaxHoldingLossPct    float64 // Cut loss if held too long and loss exceeds this (positive value representing negative %)
+	MaxDailyLossPct      float64 // Maximum daily loss percentage before stopping trading
+	MaxConsecutiveLosses int     // Maximum consecutive losses before circuit breaker
 
 	// ATR Multipliers
 	StopLossATRMultiplier     float64
@@ -73,8 +75,18 @@ type TradingConfig struct {
 	TakeProfit1ATRMultiplier  float64
 	TakeProfit2ATRMultiplier  float64
 
-	// ATR Multipliers
+	// Breakeven Settings
+	BreakevenTriggerPct float64 // Profit percentage to trigger breakeven stop
+	BreakevenBufferPct  float64 // Buffer above entry price for breakeven stop
 
+	// Swing Trading Configuration
+	EnableSwingTrading   bool    // Enable swing trading mode
+	SwingMinConfidence   float64 // Minimum confidence for swing signals (higher than day trading)
+	SwingMaxHoldingDays  int     // Maximum holding period for swing (default 30 days)
+	SwingATRMultiplier   float64 // ATR multiplier for swing (more lenient than day trading)
+	SwingMinBaselineDays int     // Minimum baseline data in days for swing
+	SwingPositionSizePct float64 // Position size as % of portfolio for swing
+	SwingRequireTrend    bool    // Require strong trend confirmation for swing
 }
 
 // LoadFromEnv loads configuration from environment variables
@@ -110,32 +122,52 @@ func LoadFromEnv() *Config {
 			Model:    getEnvOrDefault("LLM_MODEL", "qwen3-max"),
 		},
 
-		// Trading configuration
+		// Trading configuration - Enhanced for better signal quality
 		Trading: TradingConfig{
-			// Default values matching previous constants
-			MinSignalIntervalMinutes: getEnvInt("TRADING_MIN_SIGNAL_INTERVAL", 15),
-			MaxOpenPositions:         getEnvInt("TRADING_MAX_OPEN_POSITIONS", 10),
+			// Position Management - More conservative
+			MinSignalIntervalMinutes: getEnvInt("TRADING_MIN_SIGNAL_INTERVAL", 20), // Increased from 15 to reduce over-trading
+			MaxOpenPositions:         getEnvInt("TRADING_MAX_OPEN_POSITIONS", 8),   // Reduced from 10 for better focus
 			MaxPositionsPerSymbol:    getEnvInt("TRADING_MAX_POSITIONS_PER_SYMBOL", 1),
-			SignalTimeWindowMinutes:  getEnvInt("TRADING_SIGNAL_TIME_WINDOW", 5),
+			SignalTimeWindowMinutes:  getEnvInt("TRADING_SIGNAL_TIME_WINDOW", 10), // Increased from 5 to avoid duplicates
 
-			OrderFlowBuyThreshold:       getEnvFloat("TRADING_ORDER_FLOW_THRESHOLD", 0.50), // Was 0.45
-			AggressiveBuyThreshold:      getEnvFloat("TRADING_AGGRESSIVE_BUY_THRESHOLD", 55.0),
-			MinBaselineSampleSize:       getEnvInt("TRADING_MIN_BASELINE_SAMPLE", 30),
-			MinBaselineSampleSizeStrict: getEnvInt("TRADING_MIN_BASELINE_SAMPLE_STRICT", 50),
+			// Thresholds - Stricter for better quality
+			OrderFlowBuyThreshold:       getEnvFloat("TRADING_ORDER_FLOW_THRESHOLD", 0.55),     // Increased from 0.50
+			AggressiveBuyThreshold:      getEnvFloat("TRADING_AGGRESSIVE_BUY_THRESHOLD", 60.0), // Increased from 55.0
+			MinBaselineSampleSize:       getEnvInt("TRADING_MIN_BASELINE_SAMPLE", 50),          // Increased from 30
+			MinBaselineSampleSizeStrict: getEnvInt("TRADING_MIN_BASELINE_SAMPLE_STRICT", 100),  // Increased from 50
 
-			MinStrategySignals:   getEnvInt("TRADING_MIN_STRATEGY_SIGNALS", 10),
-			LowWinRateThreshold:  getEnvFloat("TRADING_LOW_WIN_RATE", 40.0), // Was 30.0
-			HighWinRateThreshold: getEnvFloat("TRADING_HIGH_WIN_RATE", 65.0),
+			// Strategy Performance - Higher standards
+			MinStrategySignals:   getEnvInt("TRADING_MIN_STRATEGY_SIGNALS", 15), // Increased from 10
+			LowWinRateThreshold:  getEnvFloat("TRADING_LOW_WIN_RATE", 45.0),     // Increased from 40.0
+			HighWinRateThreshold: getEnvFloat("TRADING_HIGH_WIN_RATE", 70.0),    // Increased from 65.0
 
-			RequireOrderFlow: getEnvOrDefault("TRADING_REQUIRE_ORDER_FLOW", "false") == "true", // Default false for now to match previous behavior (soft check), plan to enable later
+			// Fail-Safe - Enabled by default for safety
+			RequireOrderFlow: getEnvOrDefault("TRADING_REQUIRE_ORDER_FLOW", "true") == "true", // CHANGED: Enabled by default
 
-			MaxHoldingLossPct: getEnvFloat("TRADING_MAX_HOLDING_LOSS_PCT", 5.0), // Relaxed from 1.5 to 5.0 to prevent premature cut loss
+			// Risk Management - Tighter to prevent large losses
+			MaxHoldingLossPct:    getEnvFloat("TRADING_MAX_HOLDING_LOSS_PCT", 3.0), // Reduced from 5.0
+			MaxDailyLossPct:      getEnvFloat("TRADING_MAX_DAILY_LOSS_PCT", 5.0),   // NEW: Daily loss limit
+			MaxConsecutiveLosses: getEnvInt("TRADING_MAX_CONSECUTIVE_LOSSES", 3),   // NEW: Circuit breaker
 
-			StopLossATRMultiplier:     getEnvFloat("TRADING_SL_ATR_MULT", 2.0),
-			TrailingStopATRMultiplier: getEnvFloat("TRADING_TS_ATR_MULT", 2.5),
+			// ATR Multipliers - Optimized for risk/reward
+			StopLossATRMultiplier:     getEnvFloat("TRADING_SL_ATR_MULT", 1.5), // Reduced from 2.0 for tighter stops
+			TrailingStopATRMultiplier: getEnvFloat("TRADING_TS_ATR_MULT", 2.0), // Reduced from 2.5
 
-			TakeProfit1ATRMultiplier: getEnvFloat("TRADING_TP1_ATR_MULT", 4.0),
-			TakeProfit2ATRMultiplier: getEnvFloat("TRADING_TP2_ATR_MULT", 8.0),
+			TakeProfit1ATRMultiplier: getEnvFloat("TRADING_TP1_ATR_MULT", 3.0), // Reduced from 4.0 for faster profits
+			TakeProfit2ATRMultiplier: getEnvFloat("TRADING_TP2_ATR_MULT", 6.0), // Reduced from 8.0
+
+			// Breakeven Settings - NEW
+			BreakevenTriggerPct: getEnvFloat("TRADING_BREAKEVEN_TRIGGER_PCT", 1.0), // Trigger at 1% profit
+			BreakevenBufferPct:  getEnvFloat("TRADING_BREAKEVEN_BUFFER_PCT", 0.15), // Set stop at +0.15% to cover fees
+
+			// Swing Trading Configuration - NEW
+			EnableSwingTrading:   getEnvOrDefault("SWING_TRADING_ENABLED", "true") == "false", // Disabled by default
+			SwingMinConfidence:   getEnvFloat("SWING_MIN_CONFIDENCE", 0.75),                   // Higher threshold for swing
+			SwingMaxHoldingDays:  getEnvInt("SWING_MAX_HOLDING_DAYS", 30),                     // Max 30 days
+			SwingATRMultiplier:   getEnvFloat("SWING_ATR_MULTIPLIER", 3.0),                    // More lenient than day trading (1.5)
+			SwingMinBaselineDays: getEnvInt("SWING_MIN_BASELINE_DAYS", 20),                    // Need 20 days of history
+			SwingPositionSizePct: getEnvFloat("SWING_POSITION_SIZE_PCT", 5.0),                 // 5% of portfolio
+			SwingRequireTrend:    getEnvOrDefault("SWING_REQUIRE_TREND", "true") == "true",    // Require trend confirmation
 		},
 	}
 }
