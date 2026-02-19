@@ -184,6 +184,9 @@ function createAIAnalysisModal() {
         }
     };
     
+    // Expose analyzeSymbol globally for inline onclick handlers
+    window.analyzeSymbol = analyzeSymbol;
+    
     return modal;
 }
 
