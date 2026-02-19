@@ -286,12 +286,17 @@ function analyzeSymbol(symbol) {
         },
         onError: (err) => {
             console.error('AI Analysis error:', err);
+            // EventSource error doesn't provide HTTP status or response body
+            // Common causes: 404 (no data), 503 (LLM disabled), network error
+            let errorMsg = 'Unable to connect to AI service. Please try again.';
+            
             if (contentDiv) {
                 contentDiv.innerHTML = `
                     <div class="flex flex-col items-center justify-center h-64 text-accentDanger">
                         <div class="text-5xl mb-4">⚠️</div>
                         <p class="text-lg font-semibold">Analysis Failed</p>
-                        <p class="text-sm text-textMuted mt-2">${err.message || 'Unable to connect to AI service'}</p>
+                        <p class="text-sm text-textMuted mt-2 text-center max-w-md">${errorMsg}</p>
+                        <p class="text-xs text-textMuted mt-1">Possible causes: No whale data available, LLM service disabled, or network issue</p>
                         <button onclick="analyzeSymbol('${symbol}')" class="mt-4 px-4 py-2 bg-accentInfo/20 text-accentInfo rounded-lg hover:bg-accentInfo/30 transition-colors">
                             Try Again
                         </button>
