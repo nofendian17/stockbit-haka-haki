@@ -547,6 +547,26 @@ function renderAccumulationSummary(data, reset = true) {
     const accumulation = data.accumulation || [];
     const distribution = data.distribution || [];
 
+    // Update timeframe display
+    const timeframeEl = document.getElementById('bandar-timeframe');
+    if (timeframeEl && data.timeframe) {
+        timeframeEl.textContent = data.timeframe;
+        // Add market status indicator
+        if (data.market_status) {
+            const statusColors = {
+                'PRE_MARKET': 'text-yellow-500',
+                'SESSION_1': 'text-green-500',
+                'LUNCH_BREAK': 'text-orange-500',
+                'SESSION_2': 'text-green-500',
+                'PRE_CLOSING': 'text-yellow-500',
+                'POST_MARKET': 'text-gray-500',
+                'CLOSED': 'text-gray-500'
+            };
+            const statusClass = statusColors[data.market_status] || 'text-textSecondary';
+            timeframeEl.innerHTML = `${data.timeframe} <span class="${statusClass}">(${data.market_status})</span>`;
+        }
+    }
+
     // Update state
     if (reset) {
         state.tables.accumulation.data = accumulation;

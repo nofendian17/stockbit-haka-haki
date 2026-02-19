@@ -526,8 +526,8 @@
             <section class="card-base lg:col-span-2">
                 <div class="flex justify-between items-start mb-3">
                     <div>
-                        <h2 class="text-sm font-bold mb-0.5">📊 Aktivitas Bandar (24h)</h2>
-                        <p class="text-[10px] text-textSecondary">Top whale activities</p>
+                        <h2 class="text-sm font-bold mb-0.5">📊 Aktivitas Bandar</h2>
+                        <p id="bandar-timeframe" class="text-[10px] text-textSecondary">Memuat data...</p>
                     </div>
                 </div>
 
@@ -681,8 +681,13 @@
                         </section>
 
                         <section class="space-y-2">
-                            <h3 class="text-base font-bold text-textPrimary">📊 Aktivitas Bandar (24h)</h3>
-                            <p>Peringkat saham berdasarkan akumulasi/distribusi dana bandar dalam 24 jam terakhir.</p>
+                            <h3 class="text-base font-bold text-textPrimary">📊 Aktivitas Bandar</h3>
+                            <p>Peringkat saham berdasarkan akumulasi/distribusi dana bandar dengan timeframe dinamis:</p>
+                            <ul class="list-disc pl-4 text-xs space-y-1 mb-3">
+                                <li><strong>Sebelum 08:30 WIB:</strong> Menampilkan data 24 jam terakhir (sesi kemarin).</li>
+                                <li><strong>08:30 - 09:00 WIB:</strong> Menampilkan aktivitas pre-market.</li>
+                                <li><strong>Setelah 09:00 WIB:</strong> Menampilkan data sejak market open (sesi hari ini).</li>
+                            </ul>
                             <div class="grid grid-cols-1 gap-2 mt-2">
                                 <div class="p-2 bg-bgSecondary rounded border border-borderColor">
                                     <strong class="text-accentSuccess block mb-1">📈 Akumulasi (Accumulation)</strong>
