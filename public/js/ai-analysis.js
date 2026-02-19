@@ -273,16 +273,12 @@ function analyzeSymbol(symbol) {
         `;
     }
     
-    let analysisText = '';
+    // Use streaming renderer for smooth text updates
+    const renderer = new StreamingTextRenderer('ai-analysis-content');
     
     currentAnalysisStream = createAISymbolAnalysisStream(symbol, {
         onMessage: (chunk, fullText) => {
-            analysisText = fullText;
-            if (contentDiv) {
-                // Convert markdown-like formatting to HTML
-                const formatted = formatAnalysisText(analysisText);
-                contentDiv.innerHTML = formatted;
-            }
+            renderer.append(chunk);
         },
         onError: (err) => {
             console.error('AI Analysis error:', err);
@@ -326,16 +322,19 @@ function analyzeSymbol(symbol) {
                 `;
             }
             
+            renderer.finalize();
+            
             if (contentDiv && finalText) {
-                const formatted = formatAnalysisText(finalText);
-                contentDiv.innerHTML = formatted + `
-                    <div class="mt-6 pt-4 border-t border-borderColor">
-                        <p class="text-xs text-textMuted flex items-center gap-2">
-                            <span class="w-2 h-2 rounded-full bg-accentSuccess"></span>
-                            Analysis completed at ${new Date().toLocaleTimeString('id-ID')}
-                        </p>
-                    </div>
+                // Add completion timestamp
+                const completionDiv = document.createElement('div');
+                completionDiv.className = 'mt-6 pt-4 border-t border-borderColor';
+                completionDiv.innerHTML = `
+                    <p class="text-xs text-textMuted flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-accentSuccess"></span>
+                        Analysis completed at ${new Date().toLocaleTimeString('id-ID')}
+                    </p>
                 `;
+                contentDiv.appendChild(completionDiv);
             }
             
             showToast(`Analysis for ${symbol} completed!`, 'success');
@@ -344,50 +343,146 @@ function analyzeSymbol(symbol) {
 }
 
 /**
- * Format analysis text with HTML
+ * Format analysis text with HTML - Optimized for streaming
+ * Uses a streaming-friendly approach that maintains formatting state
  */
 function formatAnalysisText(text) {
     if (!text) return '';
     
-    // First, normalize the text
-    let formatted = text
-        // Headers (must be at start of line)
+    // Process line by line for better streaming support
+    const lines = text.split('\n');
+    let result = [];
+    let currentParagraph = [];
+    let inList = false;
+    let listItems = [];
+    
+    const flushParagraph = () => {
+        if (currentParagraph.length > 0) {
+            const content = currentParagraph.join(' ').trim();
+            if (content) {
+                result.push(`<p class="mb-3 text-textSecondary leading-relaxed">${content}</p>`);
+            }
+            currentParagraph = [];
+        }
+    };
+    
+    const flushList = () => {
+        if (listItems.length > 0) {
+            result.push('<ul class="mb-4 space-y-1">' + listItems.join('') + '</ul>');
+            listItems = [];
+            inList = false;
+        }
+    };
+    
+    for (let i = 0; i < lines.length; i++) {
+        let line = lines[i].trim();
+        if (!line) {
+            flushParagraph();
+            flushList();
+            continue;
+        }
+        
+        // Headers
+        if (line.match(/^#{1,3}\s/)) {
+            flushParagraph();
+            flushList();
+            const level = line.match(/^(#+)/)[0].length;
+            const content = line.replace(/^#+\s*/, '');
+            const sizes = { 1: 'text-2xl', 2: 'text-xl', 3: 'text-lg' };
+            result.push(`<h${level} class="${sizes[level]} font-bold text-accentInfo mt-6 mb-3">${formatInline(content)}</h${level}>`);
+            continue;
+        }
+        
+        // List items
+        const listMatch = line.match(/^(\d+\.\s+|[-*]\s+)(.+)/);
+        if (listMatch) {
+            flushParagraph();
+            inList = true;
+            const content = formatInline(listMatch[2]);
+            listItems.push(`<li class="ml-4 text-textSecondary flex items-start gap-2"><span class="text-accentInfo mt-1">•</span><span>${content}</span></li>`);
+            continue;
+        }
+        
+        // Continue list if in list mode and line doesn't start with special marker
+        if (inList && !line.match(/^(#{1,3}\s+|\d+\.\s+|[-*]\s+)/)) {
+            // Append to last list item
+            if (listItems.length > 0) {
+                const lastIdx = listItems.length - 1;
+                listItems[lastIdx] = listItems[lastIdx].replace('</span></li>', ` ${formatInline(line)}</span></li>`);
+            }
+            continue;
+        }
+        
+        // Regular paragraph text
+        flushList();
+        currentParagraph.push(formatInline(line));
+    }
+    
+    flushParagraph();
+    flushList();
+    
+    return result.join('\n');
+}
+
+/**
+ * Format inline elements (bold, badges, etc.)
+ */
+function formatInline(text) {
+    return text
         .replace(/\*\*(.+?)\*\*/g, '<strong class="text-textPrimary">$1</strong>')
-        .replace(/^(#{3}\s*)(.+)$/gm, '<h3 class="text-lg font-bold text-accentInfo mt-6 mb-3">$2</h3>')
-        .replace(/^(#{2}\s*)(.+)$/gm, '<h2 class="text-xl font-bold text-accentInfo mt-6 mb-3">$2</h2>')
-        .replace(/^(#{1}\s*)(.+)$/gm, '<h1 class="text-2xl font-bold text-accentInfo mt-6 mb-4">$2</h1>')
-        // Signal badges
         .replace(/AGGRESSIVE BUY/g, '<span class="px-2 py-0.5 bg-accentSuccess/20 text-accentSuccess rounded text-sm font-bold">AGGRESSIVE BUY</span>')
         .replace(/ACCUMULATION/g, '<span class="px-2 py-0.5 bg-accentInfo/20 text-accentInfo rounded text-sm font-bold">ACCUMULATION</span>')
         .replace(/WAIT/g, '<span class="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 rounded text-sm font-bold">WAIT</span>')
-        .replace(/DISTRIBUTION/g, '<span class="px-2 py-0.5 bg-accentDanger/20 text-accentDanger rounded text-sm font-bold">DISTRIBUTION</span>');
+        .replace(/DISTRIBUTION/g, '<span class="px-2 py-0.5 bg-accentDanger/20 text-accentDanger rounded text-sm font-bold">DISTRIBUTION</span>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>');
+}
+
+/**
+ * Streaming text renderer - maintains state for smooth updates
+ */
+class StreamingTextRenderer {
+    constructor(containerId) {
+        this.container = document.getElementById(containerId);
+        this.buffer = '';
+        this.renderedContent = '';
+        this.lastRenderTime = 0;
+        this.renderDebounceMs = 50; // Minimum time between renders
+    }
     
-    // Split by double newlines to create paragraphs
-    const paragraphs = formatted.split(/\n\n+/);
+    append(text) {
+        this.buffer += text;
+        this.scheduleRender();
+    }
     
-    return paragraphs.map(para => {
-        para = para.trim();
-        if (!para) return '';
+    scheduleRender() {
+        const now = Date.now();
+        const timeSinceLastRender = now - this.lastRenderTime;
         
-        // Skip if already wrapped in HTML tags
-        if (para.startsWith('<h') || para.startsWith('<li') || para.startsWith('<p')) {
-            return para;
+        if (timeSinceLastRender >= this.renderDebounceMs) {
+            this.render();
+        } else {
+            setTimeout(() => this.render(), this.renderDebounceMs - timeSinceLastRender);
         }
+    }
+    
+    render() {
+        if (!this.container) return;
         
-        // Check if it's a list item
-        if (para.match(/^\d+\.\s/)) {
-            return `<li class="ml-4 text-textSecondary mb-1">${para.replace(/^\d+\.\s/, '')}</li>`;
+        this.lastRenderTime = Date.now();
+        const formatted = formatAnalysisText(this.buffer);
+        
+        // Only update if content changed significantly
+        if (formatted !== this.renderedContent) {
+            this.renderedContent = formatted;
+            this.container.innerHTML = formatted;
+            this.container.scrollTop = this.container.scrollHeight;
         }
-        if (para.match(/^[-*]\s/)) {
-            return `<li class="ml-4 text-textSecondary mb-1 flex items-start gap-2"><span class="text-accentInfo mt-1">•</span><span>${para.replace(/^[-*]\s/, '')}</span></li>`;
-        }
-        
-        // Convert single newlines to spaces within a paragraph
-        para = para.replace(/\n/g, ' ');
-        
-        // Wrap in paragraph
-        return `<p class="mb-3 text-textSecondary leading-relaxed">${para}</p>`;
-    }).filter(Boolean).join('\n');
+    }
+    
+    finalize() {
+        this.render();
+        this.buffer = '';
+    }
 }
 
 /**
@@ -563,23 +658,45 @@ function sendChatMessage() {
     addChatMessage('user', message);
     input.value = '';
     
-    // Add loading indicator
-    const loadingId = 'loading-' + Date.now();
-    addChatMessage('ai', '<div class="flex items-center gap-2"><div class="w-2 h-2 bg-accentInfo rounded-full animate-bounce"></div><div class="w-2 h-2 bg-accentInfo rounded-full animate-bounce" style="animation-delay: 0.1s"></div><div class="w-2 h-2 bg-accentInfo rounded-full animate-bounce" style="animation-delay: 0.2s"></div></div>', loadingId);
+    // Create message container for AI response
+    const messageId = 'ai-response-' + Date.now();
+    addChatMessage('ai', '<div class="typing-indicator flex items-center gap-2"><div class="w-2 h-2 bg-accentInfo rounded-full animate-bounce"></div><div class="w-2 h-2 bg-accentInfo rounded-full animate-bounce" style="animation-delay: 0.1s"></div><div class="w-2 h-2 bg-accentInfo rounded-full animate-bounce" style="animation-delay: 0.2s"></div></div>', messageId);
     
-    // Send to AI
+    // Get the content div for streaming updates
+    const messageDiv = document.getElementById(messageId);
+    const contentDiv = messageDiv ? messageDiv.querySelector('.ai-message-content') : null;
+    
+    if (!contentDiv) return;
+    
+    // Send to AI with streaming support
     let responseText = '';
+    let lastUpdate = 0;
+    const updateInterval = 100; // Update every 100ms max
+    
     currentPromptController = createAICustomPromptStream(message, {}, {
         onMessage: (chunk, fullText) => {
             responseText = fullText;
-            updateChatMessage(loadingId, responseText);
+            
+            // Throttle updates for smooth rendering
+            const now = Date.now();
+            if (now - lastUpdate > updateInterval) {
+                lastUpdate = now;
+                // Use requestAnimationFrame for smooth DOM updates
+                requestAnimationFrame(() => {
+                    contentDiv.innerHTML = formatAnalysisText(responseText);
+                    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                });
+            }
         },
         onError: (err) => {
             console.error('AI Chat error:', err);
-            updateChatMessage(loadingId, 'Sorry, I encountered an error. Please try again.', true);
+            contentDiv.innerHTML = formatAnalysisText('Sorry, I encountered an error. Please try again.');
+            contentDiv.classList.add('border', 'border-accentDanger');
         },
         onDone: (finalText) => {
-            // Message already updated, just ensure it's marked as complete
+            // Final render to ensure complete formatting
+            contentDiv.innerHTML = formatAnalysisText(finalText || responseText);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
     });
 }
@@ -590,11 +707,11 @@ function sendChatMessage() {
 function addChatMessage(type, content, id = null) {
     const messagesDiv = document.getElementById('ai-chat-messages');
     if (!messagesDiv) return;
-    
+
     const messageDiv = document.createElement('div');
     messageDiv.className = 'flex gap-3';
     if (id) messageDiv.id = id;
-    
+
     if (type === 'user') {
         messageDiv.innerHTML = `
             <div class="flex-1 flex justify-end">
@@ -607,37 +724,39 @@ function addChatMessage(type, content, id = null) {
             </div>
         `;
     } else {
+        // For AI messages, create a structure that's easy to update during streaming
         messageDiv.innerHTML = `
             <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center flex-shrink-0">
                 <span class="text-sm">🤖</span>
             </div>
             <div class="flex-1">
-                <div class="bg-bgSecondary rounded-lg p-3 text-textSecondary text-sm max-w-[90%]">
+                <div class="ai-message-content bg-bgSecondary rounded-lg p-3 text-textSecondary text-sm max-w-[90%] min-h-[40px]">
                     ${content}
                 </div>
             </div>
         `;
     }
-    
+
     messagesDiv.appendChild(messageDiv);
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
 
 /**
- * Update chat message
+ * Update chat message with streaming support
  */
 function updateChatMessage(id, content, isError = false) {
     const messageDiv = document.getElementById(id);
     if (!messageDiv) return;
-    
-    const contentDiv = messageDiv.querySelector('.bg-bgSecondary');
+
+    const contentDiv = messageDiv.querySelector('.ai-message-content, .bg-bgSecondary');
     if (contentDiv) {
         if (isError) {
             contentDiv.classList.add('border', 'border-accentDanger');
         }
+        // Use streaming renderer for smooth updates
         contentDiv.innerHTML = formatAnalysisText(content);
     }
-    
+
     // Scroll to bottom
     const messagesDiv = document.getElementById('ai-chat-messages');
     if (messagesDiv) {
