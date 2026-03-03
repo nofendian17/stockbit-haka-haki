@@ -11,6 +11,9 @@
         rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.2.0/dist/chartjs-chart-financial.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@sgratzl/chartjs-chart-boxplot@4.2.0/build/index.umd.min.js"></script>
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -897,8 +900,24 @@
                                 data-timeframe="1d">Daily</button>
                         </div>
 
+                        <!-- Chart Section -->
+                        <div class="mb-6">
+                            <canvas id="candle-chart" height="250"></canvas>
+                            <div id="candle-chart-loading" class="hidden flex items-center justify-center h-[250px] bg-bgSecondary rounded-lg">
+                                <div class="animate-spin h-8 w-8 border-4 border-borderColor border-t-accentInfo rounded-full"></div>
+                            </div>
+                        </div>
+
+                        <!-- Technical Analysis Panel -->
+                        <div class="mb-6">
+                            <h4 class="text-sm font-bold text-textPrimary mb-3">📊 Technical Analysis</h4>
+                            <div id="analysis-panel">
+                                <div class="text-center p-4 text-textSecondary">Loading analysis...</div>
+                            </div>
+                        </div>
+
                         <!-- Candle Table -->
-                        <div class="overflow-x-auto table-wrapper max-h-[500px] border border-borderColor rounded-lg">
+                        <div class="overflow-x-auto table-wrapper max-h-[300px] border border-borderColor rounded-lg">
                             <table class="min-w-[700px] divide-y divide-borderColor">
                                 <thead class="bg-bgSecondary sticky top-0 z-10">
                                     <tr>

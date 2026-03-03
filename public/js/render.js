@@ -659,3 +659,110 @@ export function renderDailyPerformance(data) {
         tbody.appendChild(tr);
     });
 }
+
+/**
+ * Render candle data table
+ * @param {Array} candles - Array of candle data
+ * @param {HTMLElement} tbody - Table body element
+ */
+export function renderCandleTable(candles, tbody) {
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+
+    if (!candles || candles.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center p-8 text-textSecondary">No candle data available</td></tr>';
+        return;
+    }
+
+    // Sort by time descending (newest first)
+    const sortedCandles = [...candles].sort((a, b) => new Date(b.time) - new Date(a.time));
+
+    sortedCandles.forEach(candle => {
+        const row = document.createElement('tr');
+        row.className = 'border-b border-borderColor last:border-0 hover:bg-bgHover transition-colors';
+
+        const isGreen = candle.close >= candle.open;
+        const colorClass = isGreen ? 'text-accentSuccess' : 'text-accentDanger';
+        const changePct = candle.open > 0 ? ((candle.close - candle.open) / candle.open * 100).toFixed(2) : 0;
+        const changeSign = changePct >= 0 ? '+' : '';
+
+        const time = candle.time ? new Date(candle.time).toLocaleString('id-ID', {
+            day: '2-digit',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit'
+        }) : '-';
+
+        row.innerHTML = `
+            <td class="py-2 px-4 text-xs text-textSecondary whitespace-nowrap">${time}</td>
+            <td class="py-2 px-4 text-xs text-right font-medium ${colorClass}">${formatNumber(candle.open)}</td>
+            <td class="py-2 px-4 text-xs text-right font-medium ${colorClass}">${formatNumber(candle.high)}</td>
+            <td class="py-2 px-4 text-xs text-right font-medium ${colorClass}">${formatNumber(candle.low)}</td>
+            <td class="py-2 px-4 text-xs text-right font-bold ${colorClass}">${formatNumber(candle.close)} <span class="text-[10px] font-normal">(${changeSign}${changePct}%)</span></td>
+            <td class="py-2 px-4 text-xs text-right text-textSecondary">${formatNumber(candle.volume)}</td>
+        `;
+
+        tbody.appendChild(row);
+    });
+}
+
+/**
+ * Render technical analysis summary
+ * @param {Object} analysis - Analysis data (indicators object)
+ * @param {HTMLElement} container - Container element
+ */
+export function renderTechnicalAnalysis(analysis, container) {
+    if (!container) return;
+
+    if (!analysis) {
+        container.innerHTML = '<div class="text-center p-4 text-textSecondary">No analysis data available</div>';
+        return;
+    }
+
+    const ind = analysis;
+    const trend = ind.trend || 'NEUTRAL';
+    const momentum = ind.momentum || 'NEUTRAL';
+    
+    const trendClass = trend === 'BULLISH' ? 'text-accentSuccess' : trend === 'BEARISH' ? 'text-accentDanger' : 'text-textSecondary';
+    const trendIcon = trend === 'BULLISH' ? '🟢' : trend === 'BEARISH' ? '🔴' : '⚪';
+    const momentumClass = momentum === 'BULLISH' ? 'text-accentSuccess' : momentum === 'BEARISH' ? 'text-accentDanger' : 'text-textSecondary';
+    const momentumIcon = momentum === 'BULLISH' ? '🟢' : momentum === 'BEARISH' ? '🔴' : '⚪';
+
+    let rsiValue = ind.rsi || 0;
+    let rsiStatus = 'NEUTRAL';
+    let rsiClass = 'text-textSecondary';
+    if (rsiValue >= 70) { rsiStatus = 'OVERBOUGHT'; rsiClass = 'text-accentDanger'; }
+    else if (rsiValue <= 30) { rsiStatus = 'OVERSOLD'; rsiClass = 'text-accentSuccess'; }
+
+    container.innerHTML = `
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div class="bg-bgSecondary rounded-lg p-3 border border-borderColor">
+                <div class="text-[10px] text-textMuted uppercase tracking-wider mb-1">Trend</div>
+                <div class="text-lg font-bold ${trendClass}">${trendIcon} ${trend}</div>
+            </div>
+            <div class="bg-bgSecondary rounded-lg p-3 border border-borderColor">
+                <div class="text-[10px] text-textMuted uppercase tracking-wider mb-1">Momentum</div>
+                <div class="text-lg font-bold ${momentumClass}">${momentumIcon} ${momentum}</div>
+            </div>
+            <div class="bg-bgSecondary rounded-lg p-3 border border-borderColor">
+                <div class="text-[10px] text-textMuted uppercase tracking-wider mb-1">RSI (14)</div>
+                <div class="text-lg font-bold ${rsiClass}">${rsiValue.toFixed(1)} <span class="text-xs font-normal">${rsiStatus}</span></div>
+            </div>
+            <div class="bg-bgSecondary rounded-lg p-3 border border-borderColor">
+                <div class="text-[10px] text-textMuted uppercase tracking-wider mb-1">Volume</div>
+                <div class="text-lg font-bold text-textPrimary">${ind.volumeRatio ? ind.volumeRatio.toFixed(1) + 'x' : 'N/A'}</div>
+            </div>
+        </div>
+        <div class="mt-3 grid grid-cols-2 gap-3">
+            <div class="bg-bgSecondary rounded-lg p-3 border border-borderColor">
+                <div class="text-[10px] text-textMuted uppercase tracking-wider mb-1">SMA 20</div>
+                <div class="text-sm font-bold text-textPrimary">${ind.sma20 ? formatNumber(ind.sma20) : 'N/A'}</div>
+            </div>
+            <div class="bg-bgSecondary rounded-lg p-3 border border-borderColor">
+                <div class="text-[10px] text-textMuted uppercase tracking-wider mb-1">SMA 50</div>
+                <div class="text-sm font-bold text-textPrimary">${ind.sma50 ? formatNumber(ind.sma50) : 'N/A'}</div>
+            </div>
+        </div>
+    `;
+}

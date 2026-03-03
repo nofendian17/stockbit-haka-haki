@@ -142,7 +142,7 @@ func (s *Server) handleGetWhaleStats(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// handleGetCandles returns candles for a specific timeframe
+// handleGetCandles returns candles for a specific timeframe with technical analysis
 func (s *Server) handleGetCandles(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	symbol := query.Get("symbol")
@@ -166,13 +166,142 @@ func (s *Server) handleGetCandles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Calculate technical indicators
+	analysis := calculateTechnicalAnalysis(candles)
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"candles":   candles,
-		"symbol":    symbol,
-		"timeframe": timeframe,
-		"count":     len(candles),
+		"candles":    candles,
+		"symbol":     symbol,
+		"timeframe":  timeframe,
+		"count":      len(candles),
+		"indicators": analysis,
 	})
+}
+
+// calculateTechnicalAnalysis computes RSI, SMA, trend, and momentum from candle data
+func calculateTechnicalAnalysis(candles []map[string]interface{}) map[string]interface{} {
+	if len(candles) < 20 {
+		return map[string]interface{}{
+			"trend":       "NEUTRAL",
+			"momentum":    "NEUTRAL",
+			"rsi":         50.0,
+			"sma20":       nil,
+			"sma50":       nil,
+			"volumeRatio": 1.0,
+		}
+	}
+
+	// Extract closing prices
+	closes := make([]float64, len(candles))
+	volumes := make([]float64, len(candles))
+	for i, c := range candles {
+		if close, ok := c["close"].(float64); ok {
+			closes[i] = close
+		}
+		if vol, ok := c["volume"].(float64); ok {
+			volumes[i] = vol
+		}
+	}
+
+	// Calculate SMA 20 and SMA 50
+	sma20 := calculateSMA(closes, 20)
+	sma50 := calculateSMA(closes, 50)
+
+	// Calculate RSI (14 periods)
+	rsi := calculateRSI(closes, 14)
+
+	// Calculate volume ratio (current avg vs historical avg)
+	avgVolume := calculateAvgVolume(volumes, min(20, len(volumes)))
+	volumeRatio := 1.0
+	if avgVolume > 0 && len(volumes) >= 5 {
+		recentAvg := calculateAvgVolume(volumes[:5], 5)
+		volumeRatio = recentAvg / avgVolume
+	}
+
+	// Determine trend
+	trend := "NEUTRAL"
+	if len(closes) >= 20 && sma20 != nil && sma50 != nil {
+		if *sma20 > *sma50 {
+			trend = "BULLISH"
+		} else if *sma50 > *sma20 {
+			trend = "BEARISH"
+		}
+	}
+
+	// Determine momentum
+	momentum := "NEUTRAL"
+	if rsi != nil {
+		if *rsi > 60 {
+			momentum = "BULLISH"
+		} else if *rsi < 40 {
+			momentum = "BEARISH"
+		}
+	}
+
+	return map[string]interface{}{
+		"trend":       trend,
+		"momentum":    momentum,
+		"rsi":         rsi,
+		"sma20":       sma20,
+		"sma50":       sma50,
+		"volumeRatio": volumeRatio,
+	}
+}
+
+func calculateSMA(data []float64, period int) *float64 {
+	if len(data) < period {
+		return nil
+	}
+	sum := 0.0
+	for i := len(data) - period; i < len(data); i++ {
+		sum += data[i]
+	}
+	val := sum / float64(period)
+	return &val
+}
+
+func calculateRSI(data []float64, period int) *float64 {
+	if len(data) < period+1 {
+		return nil
+	}
+
+	gains := 0.0
+	losses := 0.0
+
+	// Calculate initial average gain/loss
+	for i := len(data) - period; i < len(data)-1; i++ {
+		change := data[i+1] - data[i]
+		if change > 0 {
+			gains += change
+		} else {
+			losses += -change
+		}
+	}
+
+	avgGain := gains / float64(period)
+	avgLoss := losses / float64(period)
+
+	if avgLoss == 0 {
+		val := 100.0
+		return &val
+	}
+
+	rs := avgGain / avgLoss
+	rsi := 100 - (100 / (1 + rs))
+	return &rsi
+}
+
+func calculateAvgVolume(volumes []float64, period int) float64 {
+	if len(volumes) == 0 || period <= 0 {
+		return 0
+	}
+	p := min(period, len(volumes))
+	sum := 0.0
+	for i := len(volumes) - p; i < len(volumes); i++ {
+		sum += volumes[i]
+	}
+	return sum / float64(p)
 }
 
 // handleGetWhaleFollowup returns followup data for a whale alert

@@ -6,7 +6,7 @@
 import { CONFIG } from './config.js';
 import { debounce, safeGetElement, setupTableInfiniteScroll, formatNumber, renderWhaleAlignmentBadge } from './utils.js';
 import * as API from './api.js';
-import { renderWhaleAlertsTable, renderRunningPositions, renderSummaryTable, updateStatsTicker, renderStockCorrelations, renderProfitLossHistory, renderDailyPerformance } from './render.js?v=11';
+import { renderWhaleAlertsTable, renderRunningPositions, renderSummaryTable, updateStatsTicker, renderStockCorrelations, renderProfitLossHistory, renderDailyPerformance, renderCandleTable, renderTechnicalAnalysis } from './render.js?v=12';
 import { createWhaleAlertSSE } from './sse-handler.js';
 import { initStrategySystem } from './strategy-manager.js';
 import { initWebhookManagement } from './webhook-config.js';
@@ -730,6 +730,10 @@ function setupAIAnalysisButton() {
 /**
  * Setup candle modal
  */
+let candleChart = null;
+let currentCandleSymbol = null;
+let currentCandleTimeframe = '5m';
+
 function setupCandleModal() {
     const modal = document.getElementById('candle-modal');
     const closeBtn = document.getElementById('candle-modal-close');
@@ -742,12 +746,215 @@ function setupCandleModal() {
     if (closeBtn) closeBtn.addEventListener('click', closeModal);
     if (overlay) overlay.addEventListener('click', closeModal);
 
+    // Timeframe tab switching
+    document.querySelectorAll('.c-tab').forEach(tab => {
+        tab.addEventListener('click', async () => {
+            document.querySelectorAll('.c-tab').forEach(t => t.classList.remove('active', 'border-accentInfo', 'text-accentInfo'));
+            tab.classList.add('active', 'border-accentInfo', 'text-accentInfo');
+            currentCandleTimeframe = tab.dataset.timeframe;
+            if (currentCandleSymbol) {
+                await loadCandleData(currentCandleSymbol, currentCandleTimeframe);
+            }
+        });
+    });
+
     // Make openCandleModal available globally
-    window.openCandleModal = (symbol) => {
+    window.openCandleModal = async (symbol) => {
         const title = document.getElementById('candle-modal-title');
         if (title) title.textContent = `📉 ${symbol} - Market Details`;
+        
+        // Reset to 5m timeframe
+        currentCandleTimeframe = '5m';
+        document.querySelectorAll('.c-tab').forEach(t => {
+            t.classList.remove('active', 'border-accentInfo', 'text-accentInfo');
+            if (t.dataset.timeframe === '5m') t.classList.add('active', 'border-accentInfo', 'text-accentInfo');
+        });
+        
         modal.classList.remove('hidden');
+        currentCandleSymbol = symbol;
+        await loadCandleData(symbol, currentCandleTimeframe);
     };
+}
+
+async function loadCandleData(symbol, timeframe) {
+    const tbody = document.getElementById('candle-list-body');
+    const chartCanvas = document.getElementById('candle-chart');
+    const chartLoading = document.getElementById('candle-chart-loading');
+    const analysisPanel = document.getElementById('analysis-panel');
+
+    if (!tbody || !chartCanvas || !analysisPanel) return;
+
+    // Show loading
+    if (chartLoading) chartLoading.classList.remove('hidden');
+    if (chartCanvas) chartCanvas.classList.add('hidden');
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center p-8 text-textSecondary">Loading...</td></tr>';
+    analysisPanel.innerHTML = '<div class="text-center p-4 text-textSecondary">Loading analysis...</div>';
+
+    try {
+        const data = await API.fetchCandles(symbol, timeframe);
+        
+        // Hide loading, show chart
+        if (chartLoading) chartLoading.classList.add('hidden');
+        if (chartCanvas) chartCanvas.classList.remove('hidden');
+
+        // Render candle table
+        if (data.candles && data.candles.length > 0) {
+            renderCandleTable(data.candles, tbody);
+            renderCandleChart(data.candles, chartCanvas);
+            renderTechnicalAnalysis(data.indicators || {}, analysisPanel);
+        } else {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center p-8 text-textSecondary">No candle data available</td></tr>';
+            analysisPanel.innerHTML = '<div class="text-center p-4 text-textSecondary">No data for analysis</div>';
+        }
+    } catch (error) {
+        console.error('Failed to load candle data:', error);
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center p-8 text-accentDanger">Failed to load data</td></tr>';
+        analysisPanel.innerHTML = '<div class="text-center p-4 text-accentDanger">Failed to load analysis</div>';
+        if (chartLoading) chartLoading.classList.add('hidden');
+        if (chartCanvas) chartCanvas.classList.remove('hidden');
+    }
+}
+
+function renderCandleChart(candles, canvas) {
+    if (!candles || candles.length === 0 || !canvas) return;
+
+    // Sort chronologically for chart
+    const sortedCandles = [...candles].sort((a, b) => new Date(a.time) - new Date(b.time)).slice(-50);
+
+    const labels = sortedCandles.map(c => {
+        const date = new Date(c.time);
+        return currentCandleTimeframe === '1d' 
+            ? date.toLocaleDateString('id-ID', { month: 'short', day: 'numeric' })
+            : date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    });
+
+    const chartData = sortedCandles.map(c => ({
+        x: c.time,
+        o: c.open,
+        h: c.high,
+        l: c.low,
+        c: c.close
+    }));
+
+    const volumes = sortedCandles.map(c => c.volume);
+    const colors = sortedCandles.map(c => c.close >= c.open ? 'rgba(14, 203, 129, 0.5)' : 'rgba(246, 70, 93, 0.5)');
+
+    // Destroy existing chart
+    if (candleChart) {
+        candleChart.destroy();
+    }
+
+    // Calculate SMA
+    const sma20 = calculateSMA(sortedCandles.map(c => c.close), 20);
+    const sma50 = calculateSMA(sortedCandles.map(c => c.close), 50);
+
+    candleChart = new Chart(canvas, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Price',
+                    data: sortedCandles.map(c => c.close),
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'transparent',
+                    yAxisID: 'y',
+                    tension: 0.1,
+                    pointRadius: 1,
+                    pointHoverRadius: 4
+                },
+                {
+                    label: 'SMA 20',
+                    data: sma20,
+                    borderColor: '#ffa500',
+                    backgroundColor: 'transparent',
+                    yAxisID: 'y',
+                    tension: 0.1,
+                    pointRadius: 0,
+                    borderWidth: 1
+                },
+                {
+                    label: 'SMA 50',
+                    data: sma50,
+                    borderColor: '#8b5cf6',
+                    backgroundColor: 'transparent',
+                    yAxisID: 'y',
+                    tension: 0.1,
+                    pointRadius: 0,
+                    borderWidth: 1
+                },
+                {
+                    label: 'Volume',
+                    data: volumes,
+                    type: 'bar',
+                    backgroundColor: colors,
+                    yAxisID: 'y1',
+                    barPercentage: 0.5
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        color: '#8b949e',
+                        boxWidth: 10,
+                        padding: 10,
+                        font: { size: 10 }
+                    }
+                },
+                tooltip: {
+                    backgroundColor: '#1a1d23',
+                    titleColor: '#e7e9ea',
+                    bodyColor: '#e7e9ea',
+                    borderColor: '#2f3339',
+                    borderWidth: 1
+                }
+            },
+            scales: {
+                x: {
+                    grid: { color: '#2f3339', drawBorder: false },
+                    ticks: { color: '#6e7681', maxTicksLimit: 10, font: { size: 9 } }
+                },
+                y: {
+                    type: 'linear',
+                    position: 'right',
+                    grid: { color: '#2f3339', drawBorder: false },
+                    ticks: { color: '#6e7681', font: { size: 10 } }
+                },
+                y1: {
+                    type: 'linear',
+                    position: 'left',
+                    grid: { display: false },
+                    ticks: { display: false }
+                }
+            }
+        }
+    });
+}
+
+function calculateSMA(data, period) {
+    const result = [];
+    for (let i = 0; i < data.length; i++) {
+        if (i < period - 1) {
+            result.push(null);
+        } else {
+            let sum = 0;
+            for (let j = 0; j < period; j++) {
+                sum += data[i - j];
+            }
+            result.push(sum / period);
+        }
+    }
+    return result;
 }
 
 /**
@@ -766,9 +973,168 @@ function setupFollowupModal() {
     if (overlay) overlay.addEventListener('click', closeModal);
 
     // Make openFollowupModal available globally
-    window.openFollowupModal = (alertId, symbol, price) => {
+    window.openFollowupModal = async (alertId, symbol, price) => {
+        // Update header info
+        const symbolEl = document.getElementById('followup-symbol');
+        const priceEl = document.getElementById('followup-trigger-price');
+        if (symbolEl) symbolEl.textContent = symbol;
+        if (priceEl) priceEl.textContent = 'Rp ' + formatNumber(price);
+        
+        // Show loading
+        const dataContainer = document.getElementById('followup-data');
+        if (dataContainer) {
+            dataContainer.innerHTML = `
+                <div class="flex justify-center p-8">
+                    <div class="animate-spin h-8 w-8 border-4 border-borderColor border-t-accentInfo rounded-full"></div>
+                </div>
+            `;
+        }
+        
         modal.classList.remove('hidden');
+        
+        // Load followup data
+        if (alertId) {
+            await loadFollowupData(alertId, symbol, price);
+        }
     };
+}
+
+async function loadFollowupData(alertId, symbol, triggerPrice) {
+    const dataContainer = document.getElementById('followup-data');
+    if (!dataContainer) return;
+
+    try {
+        const data = await API.fetchWhaleFollowup(alertId);
+        renderFollowupData(data, symbol, triggerPrice, dataContainer);
+    } catch (error) {
+        console.error('Failed to load followup data:', error);
+        dataContainer.innerHTML = `
+            <div class="text-center p-8 text-accentDanger">
+                <span class="text-3xl block mb-2">⚠️</span>
+                <p>Failed to load followup data</p>
+                <p class="text-sm mt-1 text-textMuted">${error.message}</p>
+            </div>
+        `;
+    }
+}
+
+function renderFollowupData(data, symbol, triggerPrice, container) {
+    if (!data || !data.followup) {
+        container.innerHTML = `
+            <div class="text-center p-8 text-textSecondary">
+                <span class="text-3xl block mb-2">📊</span>
+                <p>No followup data available</p>
+            </div>
+        `;
+        return;
+    }
+
+    const f = data.followup;
+    const currentPrice = f.current_price || triggerPrice;
+    const priceChange = triggerPrice > 0 ? ((currentPrice - triggerPrice) / triggerPrice * 100) : 0;
+    const changeClass = priceChange >= 0 ? 'text-accentSuccess' : 'text-accentDanger';
+    const changeSign = priceChange >= 0 ? '+' : '';
+
+    // Time analysis
+    const timeElapsed = f.minutes_elapsed || 0;
+    const timeText = timeElapsed >= 60 
+        ? `${Math.floor(timeElapsed/60)}h ${timeElapsed%60}m` 
+        : `${timeElapsed}m`;
+
+    // Performance metrics
+    const winRate = f.total_signals > 0 
+        ? ((f.winning_signals / f.total_signals) * 100).toFixed(1) 
+        : 0;
+    const avgProfit = f.avg_profit_pct || 0;
+    const avgLoss = f.avg_loss_pct || 0;
+
+    // Price history if available
+    let priceHistoryHtml = '';
+    if (f.price_history && f.price_history.length > 0) {
+        const historyItems = f.price_history.slice(0, 5).map(ph => `
+            <div class="flex justify-between items-center py-2 border-b border-borderColor last:border-0">
+                <span class="text-xs text-textMuted">${ph.time}</span>
+                <span class="font-mono text-sm text-textPrimary">${formatNumber(ph.price)}</span>
+                <span class="text-xs ${ph.change >= 0 ? 'text-accentSuccess' : 'text-accentDanger'}">
+                    ${ph.change >= 0 ? '+' : ''}${ph.change.toFixed(2)}%
+                </span>
+            </div>
+        `).join('');
+        
+        priceHistoryHtml = `
+            <div class="mt-4">
+                <h4 class="text-sm font-bold text-textPrimary mb-2">📈 Price Movement</h4>
+                <div class="bg-bgSecondary rounded-lg p-3 border border-borderColor">
+                    ${historyItems}
+                </div>
+            </div>
+        `;
+    }
+
+    container.innerHTML = `
+        <div class="space-y-4">
+            <!-- Price Movement -->
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-bgSecondary rounded-lg p-4 border border-borderColor">
+                    <div class="text-[10px] text-textMuted uppercase tracking-wider mb-1">Trigger Price</div>
+                    <div class="text-xl font-bold text-textPrimary">Rp ${formatNumber(triggerPrice)}</div>
+                </div>
+                <div class="bg-bgSecondary rounded-lg p-4 border border-borderColor">
+                    <div class="text-[10px] text-textMuted uppercase tracking-wider mb-1">Current Price</div>
+                    <div class="text-xl font-bold ${changeClass}">Rp ${formatNumber(currentPrice)}</div>
+                    <div class="text-sm ${changeClass}">${changeSign}${priceChange.toFixed(2)}%</div>
+                </div>
+            </div>
+
+            <!-- Time & Performance -->
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-bgSecondary rounded-lg p-4 border border-borderColor">
+                    <div class="text-[10px] text-textMuted uppercase tracking-wider mb-1">Time Elapsed</div>
+                    <div class="text-lg font-bold text-textPrimary">${timeText}</div>
+                </div>
+                <div class="bg-bgSecondary rounded-lg p-4 border border-borderColor">
+                    <div class="text-[10px] text-textMuted uppercase tracking-wider mb-1">Signal History</div>
+                    <div class="text-lg font-bold text-textPrimary">${f.total_signals || 0} signals</div>
+                    <div class="text-sm text-accentSuccess">Win Rate: ${winRate}%</div>
+                </div>
+            </div>
+
+            <!-- Profit/Loss Stats -->
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-bgSecondary rounded-lg p-4 border border-borderColor">
+                    <div class="text-[10px] text-textMuted uppercase tracking-wider mb-1">Avg Win</div>
+                    <div class="text-lg font-bold text-accentSuccess">+${avgProfit.toFixed(2)}%</div>
+                </div>
+                <div class="bg-bgSecondary rounded-lg p-4 border border-borderColor">
+                    <div class="text-[10px] text-textMuted uppercase tracking-wider mb-1">Avg Loss</div>
+                    <div class="text-lg font-bold text-accentDanger">${avgLoss.toFixed(2)}%</div>
+                </div>
+            </div>
+
+            <!-- Historical Performance -->
+            ${f.historical_performance ? `
+            <div class="bg-bgSecondary rounded-lg p-4 border border-borderColor">
+                <div class="text-[10px] text-textMuted uppercase tracking-wider mb-2">Historical Performance</div>
+                <div class="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                        <div class="text-lg font-bold text-accentSuccess">${f.historical_performance.wins || 0}</div>
+                        <div class="text-[10px] text-textMuted">Wins</div>
+                    </div>
+                    <div>
+                        <div class="text-lg font-bold text-accentDanger">${f.historical_performance.losses || 0}</div>
+                        <div class="text-[10px] text-textMuted">Losses</div>
+                    </div>
+                    <div>
+                        <div class="text-lg font-bold text-textPrimary">${f.historical_performance.total || 0}</div>
+                        <div class="text-[10px] text-textMuted">Total</div>
+                    </div>
+                </div>
+            </div>
+            ` : ''}
+
+            ${priceHistoryHtml}
+        </div>
+    `;
 }
 
 /**
