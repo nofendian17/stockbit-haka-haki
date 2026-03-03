@@ -63,7 +63,7 @@ async function fetchInitialSignals() {
 
         if (loading) loading.style.display = 'none';
 
-        if (data.signals && data.signals.length > 0) {
+        if (data && data.signals && data.signals.length > 0) {
             // Sort by timestamp descending (newest first)
             const signals = data.signals.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
@@ -78,7 +78,10 @@ async function fetchInitialSignals() {
     } catch (err) {
         console.error("Failed to fetch initial signals:", err);
         if (loading) loading.style.display = 'none';
-        if (placeholder) placeholder.style.display = 'flex';
+        if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center p-8 text-accentDanger"><span class="text-2xl block mb-2">⚠️</span>Gagal memuat data strategi trading. Silakan coba lagi.</td></tr>';
+        }
+        if (placeholder) placeholder.style.display = 'none';
     }
 }
 
@@ -211,10 +214,13 @@ async function fetchHistorySignals(reset = false) {
 
     } catch (err) {
         console.error("Failed to fetch history:", err);
-        historyState.isLoading = false;
+        if (reset && tbody) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center p-8 text-accentDanger"><span class="text-2xl block mb-2">⚠️</span>Gagal memuat data history sinyal. Silakan coba lagi.</td></tr>';
+        }
         if (reset && loading) loading.style.display = 'none';
         if (loadingMore) loadingMore.style.display = 'none';
-        if (reset && placeholder) placeholder.style.display = 'flex';
+        if (reset && placeholder) placeholder.style.display = 'none';
+        historyState.hasMore = false;
     } finally {
         historyState.isLoading = false;
     }

@@ -729,11 +729,18 @@ export function renderTechnicalAnalysis(analysis, container) {
     const momentumClass = momentum === 'BULLISH' ? 'text-accentSuccess' : momentum === 'BEARISH' ? 'text-accentDanger' : 'text-textSecondary';
     const momentumIcon = momentum === 'BULLISH' ? '🟢' : momentum === 'BEARISH' ? '🔴' : '⚪';
 
-    let rsiValue = ind.rsi || 0;
+    let rsiValue = ind.rsi !== undefined && ind.rsi !== null ? ind.rsi : null;
     let rsiStatus = 'NEUTRAL';
     let rsiClass = 'text-textSecondary';
-    if (rsiValue >= 70) { rsiStatus = 'OVERBOUGHT'; rsiClass = 'text-accentDanger'; }
-    else if (rsiValue <= 30) { rsiStatus = 'OVERSOLD'; rsiClass = 'text-accentSuccess'; }
+    if (rsiValue !== null) {
+        if (rsiValue >= 70) { rsiStatus = 'OVERBOUGHT'; rsiClass = 'text-accentDanger'; }
+        else if (rsiValue <= 30) { rsiStatus = 'OVERSOLD'; rsiClass = 'text-accentSuccess'; }
+    }
+
+    const rsiText = rsiValue !== null ? rsiValue.toFixed(1) : '-';
+    const volumeRatioText = (ind.volumeRatio !== undefined && ind.volumeRatio !== null) ? ind.volumeRatio.toFixed(1) + 'x' : '-';
+    const sma20Text = (ind.sma20 !== undefined && ind.sma20 !== null) ? formatNumber(ind.sma20) : '-';
+    const sma50Text = (ind.sma50 !== undefined && ind.sma50 !== null) ? formatNumber(ind.sma50) : '-';
 
     container.innerHTML = `
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -747,21 +754,21 @@ export function renderTechnicalAnalysis(analysis, container) {
             </div>
             <div class="bg-bgSecondary rounded-lg p-3 border border-borderColor flex flex-col justify-center items-center text-center">
                 <div class="text-[10px] text-textMuted uppercase tracking-wider mb-1">RSI (14)</div>
-                <div class="text-lg font-bold ${rsiClass}">${rsiValue ? rsiValue.toFixed(1) : '-'} <span class="text-xs font-normal block mt-0.5">${rsiStatus !== 'NEUTRAL' ? rsiStatus : ''}</span></div>
+                <div class="text-lg font-bold ${rsiClass}">${rsiText} <span class="text-xs font-normal block mt-0.5">${rsiStatus !== 'NEUTRAL' && rsiValue !== null ? rsiStatus : ''}</span></div>
             </div>
             <div class="bg-bgSecondary rounded-lg p-3 border border-borderColor flex flex-col justify-center items-center text-center">
                 <div class="text-[10px] text-textMuted uppercase tracking-wider mb-1">Volume</div>
-                <div class="text-lg font-bold text-textPrimary">${ind.volumeRatio ? ind.volumeRatio.toFixed(1) + 'x' : '-'}</div>
+                <div class="text-lg font-bold text-textPrimary">${volumeRatioText}</div>
             </div>
         </div>
         <div class="mt-3 grid grid-cols-2 gap-3">
             <div class="bg-bgSecondary rounded-lg p-3 border border-borderColor flex flex-col justify-center items-center text-center">
                 <div class="text-[10px] text-textMuted uppercase tracking-wider mb-1">SMA 20</div>
-                <div class="text-sm font-bold text-textPrimary">${ind.sma20 ? formatNumber(ind.sma20) : '-'}</div>
+                <div class="text-sm font-bold text-textPrimary">${sma20Text}</div>
             </div>
             <div class="bg-bgSecondary rounded-lg p-3 border border-borderColor flex flex-col justify-center items-center text-center">
                 <div class="text-[10px] text-textMuted uppercase tracking-wider mb-1">SMA 50</div>
-                <div class="text-sm font-bold text-textPrimary">${ind.sma50 ? formatNumber(ind.sma50) : '-'}</div>
+                <div class="text-sm font-bold text-textPrimary">${sma50Text}</div>
             </div>
         </div>
     `;

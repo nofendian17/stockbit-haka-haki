@@ -97,12 +97,29 @@ async function init() {
 
     // Initial data load
     try {
-        // Critical data - will block on error
+        // Critical data - will not fully block on individual module errors
         await Promise.all([
             fetchAlerts(true),
-            fetchStats(),
-            API.fetchAccumulationSummary().then(renderAccumulationSummary),
-            API.fetchRunningPositions().then(renderPositions)
+            fetchStats().catch(err => console.warn('Initial stats fetch failed:', err)),
+            API.fetchAccumulationSummary()
+                .then(renderAccumulationSummary)
+                .catch(err => {
+                    console.error('Initial accumulation fetch failed:', err);
+                    const timeEl = document.getElementById('bandar-timeframe');
+                    if (timeEl) timeEl.innerHTML = '<span class="text-accentDanger">⚠️ Gagal memuat data</span>';
+
+                    const accTbody = safeGetElement('accumulation-table-body');
+                    if (accTbody) accTbody.innerHTML = '<tr><td colspan="4" class="text-center p-8 text-accentDanger"><span class="text-2xl block mb-2">⚠️</span>Gagal memuat data Akumulasi.</td></tr>';
+
+                    const distTbody = safeGetElement('distribution-table-body');
+                    if (distTbody) distTbody.innerHTML = '<tr><td colspan="4" class="text-center p-8 text-accentDanger"><span class="text-2xl block mb-2">⚠️</span>Gagal memuat data Distribusi.</td></tr>';
+                }),
+            API.fetchRunningPositions()
+                .then(renderPositions)
+                .catch(err => {
+                    console.error('Initial positions fetch failed:', err);
+                    renderPositions(null); // Passing null triggers error UI in renderPositions
+                })
         ]);
     } catch (error) {
         console.error('Initial data load error:', error);
@@ -165,6 +182,8 @@ async function fetchAlerts(reset = false) {
         if (noMoreData) noMoreData.style.display = 'none';
     }
 
+    const tbody = safeGetElement('alerts-table-body');
+
     try {
         const offset = reset ? 0 : state.currentOffset;
         const data = await API.fetchAlerts(state.currentFilters, offset);
@@ -173,9 +192,6 @@ async function fetchAlerts(reset = false) {
         state.hasMore = data.has_more || false;
 
         console.log(`✅ Received ${alerts.length} alerts. Total: ${state.alerts.length + alerts.length}, HasMore: ${state.hasMore}`);
-
-        const tbody = safeGetElement('alerts-table-body');
-        const loadingDiv = safeGetElement('loading');
 
         if (reset) {
             state.alerts = alerts;
@@ -193,6 +209,10 @@ async function fetchAlerts(reset = false) {
         }
     } catch (error) {
         console.error('Failed to fetch alerts:', error);
+        if (tbody && reset) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center p-8 text-accentDanger"><span class="text-2xl block mb-2">⚠️</span>Gagal memuat data Whale Alerts. Silakan coba lagi.</td></tr>';
+        }
+        state.hasMore = false;
     } finally {
         state.isLoading = false;
         if (loadingDiv) loadingDiv.style.display = 'none';
@@ -209,6 +229,7 @@ async function fetchStats() {
         updateStatsTicker(state.stats);
     } catch (error) {
         console.error('Failed to fetch stats:', error);
+        updateStatsTicker({ total_whale_trades: '-', win_rate: null, avg_profit_pct: null });
     }
 }
 
@@ -219,12 +240,11 @@ async function refreshAllData() {
     // Critical data
     await Promise.all([
         fetchAlerts(true),
-        fetchStats()
+        fetchStats().catch(err => console.warn('Stats fetch failed:', err))
     ]);
 
     // Optional analytics - don't block on errors
     API.fetchAnalyticsHub().catch(err => console.warn('Analytics hub unavailable'));
-
 
     // Reload correlations if tab is active
     if (document.getElementById('correlations-view')?.classList.contains('active')) {
@@ -615,6 +635,11 @@ async function loadMoreAccumulation() {
         renderAccumulationSummary(data, false);
     } catch (error) {
         console.error('Failed to load more accumulation:', error);
+        state.tables.accumulation.hasMore = false;
+        const tbody = safeGetElement('accumulation-table-body');
+        if (tbody && state.tables.accumulation.data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center p-8 text-accentDanger"><span class="text-2xl block mb-2">⚠️</span>Gagal memuat data Akumulasi. Silakan coba lagi.</td></tr>';
+        }
     } finally {
         state.tables.accumulation.isLoading = false;
     }
@@ -633,6 +658,11 @@ async function loadMoreDistribution() {
         renderAccumulationSummary(data, false);
     } catch (error) {
         console.error('Failed to load more distribution:', error);
+        state.tables.distribution.hasMore = false;
+        const tbody = safeGetElement('distribution-table-body');
+        if (tbody && state.tables.distribution.data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center p-8 text-accentDanger"><span class="text-2xl block mb-2">⚠️</span>Gagal memuat data Distribusi. Silakan coba lagi.</td></tr>';
+        }
     } finally {
         state.tables.distribution.isLoading = false;
     }
@@ -664,9 +694,16 @@ function setupAccumulationTables() {
  * @param {Object} data - Positions data
  */
 function renderPositions(data) {
-    const positions = data.positions || [];
     const tbody = safeGetElement('positions-table-body');
     const placeholder = safeGetElement('positions-placeholder');
+
+    if (!data) {
+        if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center p-8 text-accentDanger"><span class="text-2xl block mb-2">⚠️</span>Gagal memuat posisi aktif. Silakan coba lagi.</td></tr>';
+        if (placeholder) placeholder.style.display = 'none';
+        return;
+    }
+
+    const positions = data.positions || [];
     renderRunningPositions(positions, tbody, placeholder);
 }
 
@@ -1501,9 +1538,10 @@ async function loadProfitLossHistory(reset = false) {
         }
     } catch (error) {
         console.error('Failed to load P&L history:', error);
-        if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="11" class="text-center p-8 text-accentDanger">Gagal memuat riwayat P&L</td></tr>';
+        if (tbody && reset) {
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center p-8 text-accentDanger"><span class="text-2xl block mb-2">⚠️</span>Gagal memuat riwayat trading. Silakan coba lagi.</td></tr>';
         }
+        state.tables.history.hasMore = false;
     } finally {
         state.tables.history.isLoading = false;
         if (loading) loading.style.display = 'none';
@@ -1552,9 +1590,10 @@ async function loadPerformance(reset = true) {
         renderDailyPerformance(state.tables.performance.data);
     } catch (error) {
         console.error('Failed to load performance:', error);
-        if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center p-8 text-accentDanger">Gagal memuat data</td></tr>';
+        if (tbody && reset) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center p-8 text-accentDanger"><span class="text-2xl block mb-2">⚠️</span>Gagal memuat data performa harian. Silakan coba lagi.</td></tr>';
         }
+        state.tables.performance.hasMore = false;
     } finally {
         state.tables.performance.isLoading = false;
     }
