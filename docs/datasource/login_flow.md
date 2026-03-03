@@ -179,7 +179,7 @@ Semua request ke backend Stockbit dilengkapi dengan header berikut (melalui inte
 
 ### Login Username/Password
 ```bash
-curl -X POST 'https://api.stockbit.com/login/v5/username' \
+curl -X POST 'https://api.stockbit.com/login/v6/username' \
   -H 'X-AppVersion: 3.17.3' \
   -H 'X-Platform: android' \
   -H 'Accept-Language: en-US' \

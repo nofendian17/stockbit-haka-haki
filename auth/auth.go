@@ -154,7 +154,7 @@ func (ac *AuthClient) Login() error {
 	}
 
 	// Create request
-	req, err := http.NewRequest("POST", "https://exodus.stockbit.com/login/v5/username", bytes.NewBuffer(jsonData))
+	req, err := http.NewRequest("POST", "https://exodus.stockbit.com/login/v6/username", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
