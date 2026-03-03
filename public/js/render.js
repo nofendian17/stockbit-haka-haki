@@ -671,7 +671,7 @@ export function renderCandleTable(candles, tbody) {
     tbody.innerHTML = '';
 
     if (!candles || candles.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center p-8 text-textSecondary">No candle data available</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center p-8 text-textSecondary">Data candle tidak tersedia.</td></tr>';
         return;
     }
 
@@ -715,8 +715,8 @@ export function renderCandleTable(candles, tbody) {
 export function renderTechnicalAnalysis(analysis, container) {
     if (!container) return;
 
-    if (!analysis) {
-        container.innerHTML = '<div class="text-center p-4 text-textSecondary">No analysis data available</div>';
+    if (!analysis || Object.keys(analysis).length === 0) {
+        container.innerHTML = '<div class="text-center p-8 text-textSecondary bg-bgSecondary rounded-lg border border-borderColor"><span class="text-2xl block mb-2 opacity-50">📉</span><p>Data analisis teknikal belum tersedia</p></div>';
         return;
     }
 
@@ -737,31 +737,31 @@ export function renderTechnicalAnalysis(analysis, container) {
 
     container.innerHTML = `
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div class="bg-bgSecondary rounded-lg p-3 border border-borderColor">
+            <div class="bg-bgSecondary rounded-lg p-3 border border-borderColor flex flex-col justify-center items-center text-center">
                 <div class="text-[10px] text-textMuted uppercase tracking-wider mb-1">Trend</div>
                 <div class="text-lg font-bold ${trendClass}">${trendIcon} ${trend}</div>
             </div>
-            <div class="bg-bgSecondary rounded-lg p-3 border border-borderColor">
+            <div class="bg-bgSecondary rounded-lg p-3 border border-borderColor flex flex-col justify-center items-center text-center">
                 <div class="text-[10px] text-textMuted uppercase tracking-wider mb-1">Momentum</div>
                 <div class="text-lg font-bold ${momentumClass}">${momentumIcon} ${momentum}</div>
             </div>
-            <div class="bg-bgSecondary rounded-lg p-3 border border-borderColor">
+            <div class="bg-bgSecondary rounded-lg p-3 border border-borderColor flex flex-col justify-center items-center text-center">
                 <div class="text-[10px] text-textMuted uppercase tracking-wider mb-1">RSI (14)</div>
-                <div class="text-lg font-bold ${rsiClass}">${rsiValue.toFixed(1)} <span class="text-xs font-normal">${rsiStatus}</span></div>
+                <div class="text-lg font-bold ${rsiClass}">${rsiValue ? rsiValue.toFixed(1) : '-'} <span class="text-xs font-normal block mt-0.5">${rsiStatus !== 'NEUTRAL' ? rsiStatus : ''}</span></div>
             </div>
-            <div class="bg-bgSecondary rounded-lg p-3 border border-borderColor">
+            <div class="bg-bgSecondary rounded-lg p-3 border border-borderColor flex flex-col justify-center items-center text-center">
                 <div class="text-[10px] text-textMuted uppercase tracking-wider mb-1">Volume</div>
-                <div class="text-lg font-bold text-textPrimary">${ind.volumeRatio ? ind.volumeRatio.toFixed(1) + 'x' : 'N/A'}</div>
+                <div class="text-lg font-bold text-textPrimary">${ind.volumeRatio ? ind.volumeRatio.toFixed(1) + 'x' : '-'}</div>
             </div>
         </div>
         <div class="mt-3 grid grid-cols-2 gap-3">
-            <div class="bg-bgSecondary rounded-lg p-3 border border-borderColor">
+            <div class="bg-bgSecondary rounded-lg p-3 border border-borderColor flex flex-col justify-center items-center text-center">
                 <div class="text-[10px] text-textMuted uppercase tracking-wider mb-1">SMA 20</div>
-                <div class="text-sm font-bold text-textPrimary">${ind.sma20 ? formatNumber(ind.sma20) : 'N/A'}</div>
+                <div class="text-sm font-bold text-textPrimary">${ind.sma20 ? formatNumber(ind.sma20) : '-'}</div>
             </div>
-            <div class="bg-bgSecondary rounded-lg p-3 border border-borderColor">
+            <div class="bg-bgSecondary rounded-lg p-3 border border-borderColor flex flex-col justify-center items-center text-center">
                 <div class="text-[10px] text-textMuted uppercase tracking-wider mb-1">SMA 50</div>
-                <div class="text-sm font-bold text-textPrimary">${ind.sma50 ? formatNumber(ind.sma50) : 'N/A'}</div>
+                <div class="text-sm font-bold text-textPrimary">${ind.sma50 ? formatNumber(ind.sma50) : '-'}</div>
             </div>
         </div>
     `;

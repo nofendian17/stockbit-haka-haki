@@ -798,18 +798,18 @@ async function loadCandleData(symbol, timeframe) {
         if (chartCanvas) chartCanvas.classList.remove('hidden');
 
         // Render candle table
-        if (data.candles && data.candles.length > 0) {
+        if (data && data.candles && data.candles.length > 0) {
             renderCandleTable(data.candles, tbody);
             renderCandleChart(data.candles, chartCanvas);
             renderTechnicalAnalysis(data.indicators || {}, analysisPanel);
         } else {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center p-8 text-textSecondary">No candle data available</td></tr>';
-            analysisPanel.innerHTML = '<div class="text-center p-4 text-textSecondary">No data for analysis</div>';
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center p-8 text-textSecondary">Data candle tidak tersedia untuk timeframe ini.</td></tr>';
+            analysisPanel.innerHTML = '<div class="text-center p-8 text-textSecondary bg-bgSecondary rounded-lg border border-borderColor"><span class="text-2xl block mb-2 opacity-50">📉</span><p>Data analisis teknikal belum tersedia</p></div>';
         }
     } catch (error) {
         console.error('Failed to load candle data:', error);
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center p-8 text-accentDanger">Failed to load data</td></tr>';
-        analysisPanel.innerHTML = '<div class="text-center p-4 text-accentDanger">Failed to load analysis</div>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center p-8 text-accentDanger"><span class="text-2xl block mb-2">⚠️</span>Gagal mengambil data candle. Silakan coba lagi.</td></tr>';
+        analysisPanel.innerHTML = '<div class="text-center p-8 text-accentDanger bg-bgSecondary rounded-lg border border-accentDanger/30"><span class="text-2xl block mb-2">⚠️</span><p>Gagal mengambil data analisis teknikal</p></div>';
         if (chartLoading) chartLoading.classList.add('hidden');
         if (chartCanvas) chartCanvas.classList.remove('hidden');
     }
