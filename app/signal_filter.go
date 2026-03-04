@@ -461,6 +461,8 @@ type TimeOfDayFilter struct{}
 func (f *TimeOfDayFilter) Name() string { return "Time of Day" }
 
 func (f *TimeOfDayFilter) Evaluate(ctx context.Context, signal *database.TradingSignalDB) (bool, string, float64) {
+	// RELAXED FOR MOCK TRADING:
+	// We disable all time-based rejections so signals can trigger at any hour of the day/night
 	loc, _ := time.LoadLocation("Asia/Jakarta")
 	if loc == nil {
 		loc = time.FixedZone("WIB", 7*60*60)
@@ -488,52 +490,8 @@ func (f *TimeOfDayFilter) Evaluate(ctx context.Context, signal *database.Trading
 		session = "AFTER_HOURS"
 	}
 
-	if session == "PRE_OPENING" || session == "LUNCH_BREAK" || session == "POST_MARKET" {
-		return false, fmt.Sprintf("Low liquidity session: %s", session), 0.0
-	}
-
-	// STRICT: Avoid first 15 minutes of session 1 (09:00-09:15) - high volatility
-	if session == "SESSION_1" && hour == 9 && minute < 15 {
-		return false, "First 15 minutes - high volatility", 0.0
-	}
-
-	// STRICT: Avoid last 30 minutes before lunch (11:30-12:00)
-	if session == "SESSION_1" && hour == 11 && minute >= 30 {
-		return false, "Approaching lunch break - low liquidity", 0.0
-	}
-
-	// STRICT: Avoid first 15 minutes after lunch (13:30-13:45)
-	if session == "SESSION_2" && hour == 13 && minute < 45 {
-		return false, "Post-lunch volatility", 0.0
-	}
-
-	// Best trading windows
-	if session == "SESSION_1" && hour >= 10 && hour < 11 {
-		// 10:00-11:00: Best morning window
-		return true, "Optimal morning window", 1.25
-	}
-
-	if session == "SESSION_1" && hour >= 9 && minute >= 15 {
-		// 09:15-12:00 (excluding 11:30-12:00)
-		return true, "Good morning session", 1.1
-	}
-
-	if session == "SESSION_2" && hour >= 13 && minute >= 45 && hour < 14 {
-		// 13:45-14:00
-		return true, "Post-lunch recovery", 1.0
-	}
-
-	if session == "SESSION_2" && hour >= 14 && hour < 14 {
-		// 14:00-14:50 (avoid pre-closing)
-		return true, "Afternoon session", 0.9
-	}
-
-	// Pre-closing (14:50-15:00) - only allow if very strong signal
-	if session == "PRE_CLOSING" {
-		return true, "Pre-closing", 0.7
-	}
-
-	return true, "", 1.0
+	// MOCK TRADING: Log the session but always return TRUE (1.0 multiplier)
+	return true, fmt.Sprintf("Mock Trading Allowed (Session: %s)", session), 1.0
 }
 
 // SwingTradingEvaluator evaluates if a signal is suitable for swing trading

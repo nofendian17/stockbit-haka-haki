@@ -14,6 +14,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.2.0/dist/chartjs-chart-financial.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@sgratzl/chartjs-chart-boxplot@4.2.0/build/index.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@2.0.2/dist/chartjs-chart-treemap.min.js"></script>
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -150,12 +151,25 @@
 
                 <!-- Actions -->
                 <div class="flex items-center gap-3">
+                    <!-- Notifications Control -->
+                    <button id="notification-toggle-btn"
+                        class="p-2 rounded-lg border border-borderColor hover:bg-bgHover transition-colors text-lg text-accentSuccess"
+                        title="Toggle Sound & Desktop Notifications">🔔</button>
+
+                    <!-- Mock Trading Control -->
+                    <button id="mock-trade-toggle-btn"
+                        class="px-3 py-1.5 rounded-lg border border-borderColor bg-bgSecondary hover:bg-bgHover transition-colors text-xs font-semibold flex items-center gap-2"
+                        title="Auto Trading Mock Controls">
+                        <span class="w-2 h-2 rounded-full bg-accentWarning animate-pulse" id="mock-trade-status-indicator"></span>
+                        <span class="hidden sm:inline">Mock Trading</span>
+                    </button>
+
                     <button id="ai-analysis-btn"
                         class="p-2 rounded-lg border border-borderColor hover:bg-bgHover transition-colors text-lg bg-gradient-to-r from-purple-500/10 to-blue-500/10 hover:from-purple-500/20 hover:to-blue-500/20"
                         title="AI Analysis">🤖</button>
                     <button id="webhook-config-btn"
                         class="p-2 rounded-lg border border-borderColor hover:bg-bgHover transition-colors text-lg"
-                        title="Webhook Config">🔔</button>
+                        title="Webhook Config" style="display:none;">🔔</button>
                     <button id="help-btn"
                         class="p-2 rounded-lg border border-borderColor hover:bg-bgHover transition-colors text-lg"
                         title="Help">❓</button>
@@ -168,6 +182,36 @@
             </div>
         </div>
     </nav>
+
+    <!-- Mock Trading Control Panel (Hidden by default) -->
+    <div id="mock-control-panel" class="hidden absolute top-16 right-4 sm:right-8 z-40 bg-bgCard border border-borderColor rounded-xl shadow-2xl p-4 w-72">
+        <h3 class="text-sm font-bold text-textPrimary mb-3 border-b border-borderColor pb-2">🎛️ Mock Trading Control</h3>
+        <div class="space-y-4">
+            <div class="flex items-center justify-between">
+                <label class="text-xs text-textSecondary font-semibold">Auto-Trading</label>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="mock-auto-trade" class="sr-only peer" checked>
+                    <div class="w-9 h-5 bg-bgSecondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-accentSuccess"></div>
+                </label>
+            </div>
+
+            <div class="space-y-1">
+                <div class="flex items-center justify-between">
+                    <label class="text-xs text-textSecondary font-semibold">Aggressiveness Level</label>
+                    <span id="mock-aggressiveness-val" class="text-xs font-bold text-accentInfo">Medium</span>
+                </div>
+                <input type="range" id="mock-aggressiveness" min="1" max="3" value="2" class="w-full h-1.5 bg-bgSecondary rounded-lg appearance-none cursor-pointer">
+                <div class="flex justify-between text-[9px] text-textMuted">
+                    <span>Safe</span>
+                    <span>High Risk</span>
+                </div>
+            </div>
+
+            <div class="bg-bgSecondary/50 p-2 rounded text-[10px] text-textMuted border border-borderColor">
+                Note: These controls simulate frontend logic rules for accepting signals. Actual backend configs must be changed in .env or config files.
+            </div>
+        </div>
+    </div>
 
     <!-- Main Content -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -534,7 +578,18 @@
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="mb-4">
+                    <div class="flex gap-2 border-b border-borderColor overflow-x-auto pb-1 scrollbar-hide">
+                        <button class="bandar-tab active px-3 py-1.5 text-xs font-semibold text-accentInfo border-b-2 border-accentInfo transition-all whitespace-nowrap" data-target="bandar-tables-view">📊 Detail Data</button>
+                        <button class="bandar-tab px-3 py-1.5 text-xs font-semibold text-textMuted hover:text-textPrimary transition-all whitespace-nowrap" data-target="bandar-heatmap-view">🗺️ Heatmap (Visual)</button>
+                    </div>
+                </div>
+
+                <div id="bandar-heatmap-view" class="hidden h-[400px] mb-4">
+                    <canvas id="bandar-treemap"></canvas>
+                </div>
+
+                <div id="bandar-tables-view" class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <!-- Accumulation Table -->
                     <div>
                         <h3 class="flex items-center gap-2 text-sm font-semibold mb-2">

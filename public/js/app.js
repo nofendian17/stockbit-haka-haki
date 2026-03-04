@@ -11,6 +11,7 @@ import { createWhaleAlertSSE } from './sse-handler.js';
 import { initStrategySystem } from './strategy-manager.js';
 import { initWebhookManagement } from './webhook-config.js';
 import { initAIAnalysis, openAIAnalysisModal } from './ai-analysis.js';
+import { initNotifications, requestNotificationPermission, playSound, showDesktopNotification, AppSettings } from './notifications.js';
 
 // Configure marked.js for markdown rendering
 if (typeof marked !== 'undefined') {
@@ -149,11 +150,20 @@ async function init() {
     // Setup running trades toggle
     setupRunningTradesToggle();
 
+    // Setup newly added feature controls
+    setupFeatureControls();
+
+    // Setup bandar heatmap tabs
+    setupBandarTabs();
+
     // Connect SSE for real-time updates
     connectWhaleAlertSSE();
 
     // Start polling for analytics
     startAnalyticsPolling();
+
+    // Initialize notification system
+    initNotifications();
 
     console.log('Application initialized successfully');
 }
@@ -331,6 +341,170 @@ function setupMobileFilterToggle() {
 /**
  * Setup running trades toggle functionality
  */
+function setupBandarTabs() {
+    const tabs = document.querySelectorAll('.bandar-tab');
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            tabs.forEach(t => {
+                t.classList.remove('active', 'text-accentInfo', 'border-b-2', 'border-accentInfo');
+                t.classList.add('text-textMuted');
+            });
+            tab.classList.add('active', 'text-accentInfo', 'border-b-2', 'border-accentInfo');
+            tab.classList.remove('text-textMuted');
+
+            const target = tab.dataset.target;
+            const tablesView = document.getElementById('bandar-tables-view');
+            const heatmapView = document.getElementById('bandar-heatmap-view');
+
+            if (target === 'bandar-tables-view') {
+                tablesView.classList.remove('hidden');
+                heatmapView.classList.add('hidden');
+            } else {
+                tablesView.classList.add('hidden');
+                heatmapView.classList.remove('hidden');
+                renderBandarTreemap();
+            }
+        });
+    });
+}
+
+function renderBandarTreemap() {
+    const canvas = document.getElementById('bandar-treemap');
+    if (!canvas) return;
+
+    // Combine data
+    const allData = [
+        ...state.tables.accumulation.data.map(d => ({ ...d, type: 'acc', value: d.total_value })),
+        ...state.tables.distribution.data.map(d => ({ ...d, type: 'dist', value: d.total_value }))
+    ];
+
+    if (allData.length === 0) return;
+
+    if (window.bandarChart) {
+        window.bandarChart.destroy();
+    }
+
+    const ctx = canvas.getContext('2d');
+    window.bandarChart = new Chart(ctx, {
+        type: 'treemap',
+        data: {
+            datasets: [{
+                label: 'Aktivitas Bandar',
+                tree: allData,
+                key: 'value',
+                groups: ['type', 'stock_symbol'],
+                backgroundColor: (ctx) => {
+                    if (ctx.type !== 'data') return 'transparent';
+                    const data = ctx.raw._data;
+                    // Opacity based on magnitude of dominance
+                    const isAcc = data.type === 'acc';
+                    const pct = isAcc ? data.buy_percentage : data.sell_percentage;
+                    const opacity = Math.min(Math.max((pct - 50) / 50, 0.3), 1.0);
+
+                    return isAcc ? `rgba(14, 203, 129, ${opacity})` : `rgba(246, 70, 93, ${opacity})`;
+                },
+                borderColor: '#2f3339',
+                borderWidth: 1,
+                spacing: 1,
+                labels: {
+                    align: 'center',
+                    display: true,
+                    color: '#fff',
+                    font: { size: 11, weight: 'bold' },
+                    formatter: (ctx) => {
+                        if (ctx.type !== 'data') return;
+                        const d = ctx.raw._data;
+                        const pct = d.type === 'acc' ? d.buy_percentage : d.sell_percentage;
+                        return [d.stock_symbol, `${pct.toFixed(0)}%`];
+                    }
+                }
+            }]
+        },
+        options: {
+            maintainAspectRatio: false,
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        title: (items) => items[0].raw._data.stock_symbol,
+                        label: (item) => {
+                            const d = item.raw._data;
+                            const formatVal = (val) => {
+                                if (val >= 1_000_000_000) return `Rp ${(val / 1_000_000_000).toFixed(1)}M`;
+                                return `Rp ${(val / 1_000_000).toFixed(1)}Jt`;
+                            };
+                            return d.type === 'acc'
+                                ? `Akumulasi ${d.buy_percentage.toFixed(1)}% | Val: ${formatVal(d.total_value)}`
+                                : `Distribusi ${d.sell_percentage.toFixed(1)}% | Val: ${formatVal(d.total_value)}`;
+                        }
+                    }
+                },
+                legend: { display: false }
+            }
+        }
+    });
+}
+
+function setupFeatureControls() {
+    // Notification Toggle
+    const notifBtn = document.getElementById('notification-toggle-btn');
+    if (notifBtn) {
+        // Init icon based on current state
+        notifBtn.className = AppSettings.soundEnabled ?
+            'p-2 rounded-lg border border-borderColor hover:bg-bgHover transition-colors text-lg text-accentSuccess' :
+            'p-2 rounded-lg border border-borderColor hover:bg-bgHover transition-colors text-lg text-textMuted opacity-50';
+
+        notifBtn.innerHTML = AppSettings.soundEnabled ? '🔔' : '🔕';
+
+        notifBtn.addEventListener('click', () => {
+            AppSettings.soundEnabled = !AppSettings.soundEnabled;
+            AppSettings.desktopNotifications = AppSettings.soundEnabled; // tie them together for simplicity
+
+            if (AppSettings.soundEnabled) {
+                requestNotificationPermission();
+                notifBtn.className = 'p-2 rounded-lg border border-borderColor hover:bg-bgHover transition-colors text-lg text-accentSuccess';
+                notifBtn.innerHTML = '🔔';
+                showToast('Notifications Enabled', 'success');
+            } else {
+                notifBtn.className = 'p-2 rounded-lg border border-borderColor hover:bg-bgHover transition-colors text-lg text-textMuted opacity-50';
+                notifBtn.innerHTML = '🔕';
+                showToast('Notifications Disabled', 'info');
+            }
+        });
+    }
+
+    // Mock Trading Panel Toggle
+    const mockToggleBtn = document.getElementById('mock-trade-toggle-btn');
+    const mockPanel = document.getElementById('mock-control-panel');
+    if (mockToggleBtn && mockPanel) {
+        mockToggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            mockPanel.classList.toggle('hidden');
+        });
+
+        // Close when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!mockPanel.contains(e.target) && !mockToggleBtn.contains(e.target)) {
+                mockPanel.classList.add('hidden');
+            }
+        });
+    }
+
+    // Mock Aggressiveness Slider
+    const aggSlider = document.getElementById('mock-aggressiveness');
+    const aggVal = document.getElementById('mock-aggressiveness-val');
+    if (aggSlider && aggVal) {
+        aggSlider.addEventListener('input', (e) => {
+            const val = e.target.value;
+            if (val === '1') { aggVal.textContent = 'Safe'; aggVal.className = 'text-xs font-bold text-accentSuccess'; }
+            else if (val === '2') { aggVal.textContent = 'Medium'; aggVal.className = 'text-xs font-bold text-accentInfo'; }
+            else { aggVal.textContent = 'High Risk'; aggVal.className = 'text-xs font-bold text-accentDanger'; }
+        });
+    }
+}
+
+/**
+ * Setup running trades toggle functionality
+ */
 function setupRunningTradesToggle() {
     const toggleBtn = document.getElementById('toggle-running-trades');
     const container = document.getElementById('running-trades-container');
@@ -454,6 +628,18 @@ function connectWhaleAlertSSE() {
             if (hasActiveFilters) {
                 // console.log('⏸️ SSE update blocked - filters active');
                 return;
+            }
+
+            // Play sound and show notification if enabled
+            if (AppSettings.soundEnabled) {
+                playSound(newAlert.action === 'BUY' ? 'BUY' : (newAlert.action === 'SELL' ? 'SELL' : 'WHALE'));
+            }
+            if (AppSettings.desktopNotifications) {
+                const act = newAlert.action === 'BUY' ? '🟢 HAKA' : '🔴 HAKI';
+                showDesktopNotification(
+                    `Whale Alert: ${newAlert.stock_symbol} ${act}`,
+                    `Rp ${(newAlert.trigger_value / 1000000).toFixed(1)}M di harga ${newAlert.trigger_price}`
+                );
             }
 
             // Prepend new alert
@@ -620,6 +806,11 @@ function renderAccumulationSummary(data, reset = true) {
     const distTbody = safeGetElement('distribution-table-body');
     const distPlaceholder = safeGetElement('distribution-placeholder');
     renderSummaryTable('distribution', state.tables.distribution.data, distTbody, distPlaceholder);
+
+    // If heatmap is active, update it too
+    if (document.getElementById('bandar-heatmap-view') && !document.getElementById('bandar-heatmap-view').classList.contains('hidden')) {
+        renderBandarTreemap();
+    }
 }
 
 /**
