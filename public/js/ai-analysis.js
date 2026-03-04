@@ -682,7 +682,8 @@ class StreamingTextRenderer {
     
     finalize() {
         this.render();
-        this.buffer = '';
+        // Jangan mengosongkan buffer agar jika ada render tambahan yang tertunda,
+        // ia tidak merender string kosong yang membuat teks menghilang.
     }
 }
 
@@ -728,8 +729,12 @@ function sendChatMessage() {
             contentDiv.classList.add('border', 'border-accentDanger');
         },
         onDone: (finalText) => {
-            contentDiv.innerHTML = formatAnalysisText(finalText || responseText);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            // Pastikan rendering terakhir menggunakan state text terakhir yang utuh
+            const finalRenderText = finalText || responseText;
+            requestAnimationFrame(() => {
+                contentDiv.innerHTML = formatAnalysisText(finalRenderText);
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            });
         }
     });
 }
