@@ -122,32 +122,32 @@ func LoadFromEnv() *Config {
 			Model:    getEnvOrDefault("LLM_MODEL", "qwen3-max"),
 		},
 
-		// Trading configuration - Enhanced for better signal quality
+		// Trading configuration - Relaxed for mock trading / active signals
 		Trading: TradingConfig{
-			// Position Management - More conservative
-			MinSignalIntervalMinutes: getEnvInt("TRADING_MIN_SIGNAL_INTERVAL", 20), // Increased from 15 to reduce over-trading
-			MaxOpenPositions:         getEnvInt("TRADING_MAX_OPEN_POSITIONS", 8),   // Reduced from 10 for better focus
-			MaxPositionsPerSymbol:    getEnvInt("TRADING_MAX_POSITIONS_PER_SYMBOL", 1),
-			SignalTimeWindowMinutes:  getEnvInt("TRADING_SIGNAL_TIME_WINDOW", 10), // Increased from 5 to avoid duplicates
+			// Position Management - Allow more active testing
+			MinSignalIntervalMinutes: getEnvInt("TRADING_MIN_SIGNAL_INTERVAL", 5), // Reduced for testing
+			MaxOpenPositions:         getEnvInt("TRADING_MAX_OPEN_POSITIONS", 20),
+			MaxPositionsPerSymbol:    getEnvInt("TRADING_MAX_POSITIONS_PER_SYMBOL", 3),
+			SignalTimeWindowMinutes:  getEnvInt("TRADING_SIGNAL_TIME_WINDOW", 2),
 
-			// Thresholds - Stricter for better quality
-			OrderFlowBuyThreshold:       getEnvFloat("TRADING_ORDER_FLOW_THRESHOLD", 0.55),     // Increased from 0.50
-			AggressiveBuyThreshold:      getEnvFloat("TRADING_AGGRESSIVE_BUY_THRESHOLD", 60.0), // Increased from 55.0
-			MinBaselineSampleSize:       getEnvInt("TRADING_MIN_BASELINE_SAMPLE", 50),          // Increased from 30
-			MinBaselineSampleSizeStrict: getEnvInt("TRADING_MIN_BASELINE_SAMPLE_STRICT", 100),  // Increased from 50
+			// Thresholds - Relaxed for mock testing
+			OrderFlowBuyThreshold:       getEnvFloat("TRADING_ORDER_FLOW_THRESHOLD", 0.40),     // Reduced to allow more buys
+			AggressiveBuyThreshold:      getEnvFloat("TRADING_AGGRESSIVE_BUY_THRESHOLD", 40.0), // Reduced
+			MinBaselineSampleSize:       getEnvInt("TRADING_MIN_BASELINE_SAMPLE", 5),           // Dropped to 5 for quick mock
+			MinBaselineSampleSizeStrict: getEnvInt("TRADING_MIN_BASELINE_SAMPLE_STRICT", 10),
 
-			// Strategy Performance - Higher standards
-			MinStrategySignals:   getEnvInt("TRADING_MIN_STRATEGY_SIGNALS", 15), // Increased from 10
-			LowWinRateThreshold:  getEnvFloat("TRADING_LOW_WIN_RATE", 45.0),     // Increased from 40.0
-			HighWinRateThreshold: getEnvFloat("TRADING_HIGH_WIN_RATE", 70.0),    // Increased from 65.0
+			// Strategy Performance - Allow newer strategies to trade
+			MinStrategySignals:   getEnvInt("TRADING_MIN_STRATEGY_SIGNALS", 0),  // 0 so new DB instances can start mock trading
+			LowWinRateThreshold:  getEnvFloat("TRADING_LOW_WIN_RATE", 0.0),      // 0% to allow testing
+			HighWinRateThreshold: getEnvFloat("TRADING_HIGH_WIN_RATE", 50.0),
 
-			// Fail-Safe - Enabled by default for safety
-			RequireOrderFlow: getEnvOrDefault("TRADING_REQUIRE_ORDER_FLOW", "true") == "true", // CHANGED: Enabled by default
+			// Fail-Safe - Disabled by default for mock
+			RequireOrderFlow: getEnvOrDefault("TRADING_REQUIRE_ORDER_FLOW", "false") == "true", // Disabled for easier mock
 
 			// Risk Management - Tighter to prevent large losses
-			MaxHoldingLossPct:    getEnvFloat("TRADING_MAX_HOLDING_LOSS_PCT", 3.0), // Reduced from 5.0
-			MaxDailyLossPct:      getEnvFloat("TRADING_MAX_DAILY_LOSS_PCT", 5.0),   // NEW: Daily loss limit
-			MaxConsecutiveLosses: getEnvInt("TRADING_MAX_CONSECUTIVE_LOSSES", 3),   // NEW: Circuit breaker
+			MaxHoldingLossPct:    getEnvFloat("TRADING_MAX_HOLDING_LOSS_PCT", 10.0), // Relaxed
+			MaxDailyLossPct:      getEnvFloat("TRADING_MAX_DAILY_LOSS_PCT", 20.0),   // Relaxed
+			MaxConsecutiveLosses: getEnvInt("TRADING_MAX_CONSECUTIVE_LOSSES", 10),  // Relaxed
 
 			// ATR Multipliers - Optimized for risk/reward
 			StopLossATRMultiplier:     getEnvFloat("TRADING_SL_ATR_MULT", 1.5), // Reduced from 2.0 for tighter stops
