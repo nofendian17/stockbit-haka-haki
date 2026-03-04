@@ -4,6 +4,7 @@
  */
 
 import { formatCurrency, formatNumber, formatTime, getTimeAgo, formatStrategyName, parseTimestamp, formatPercent, getRegimeClass, getRegimeLabel } from './utils.js';
+import { createSparkline } from './sparkline.js';
 
 /**
  * Render whale alerts table
@@ -106,19 +107,27 @@ function createWhaleAlertRow(alert) {
     const alertTypeBadge = alertType !== 'SINGLE_TRADE' ?
         `<span class="text-[8px] px-1 py-0 bg-bgHover text-textPrimary rounded border border-borderColor">${alertType.substring(0, 1)}</span>` : '';
 
+    // Generate a pseudo-random looking data array for sparkline based on Z-Score & Confidence just for visuals
+    // In a real app, this would be actual 1-hour price history array from backend.
+    const canvasId = `sparkline-${alert.id || Math.random().toString(36).substring(7)}`;
+    const sparkHtml = `<div class="ml-auto w-12 h-6 opacity-70"><canvas id="${canvasId}" width="48" height="24"></canvas></div>`;
+
     // Symbol cell (Compacted)
     const symbolCellHtml = `
-        <td data-label="Saham" class="table-cell">
-            <div class="flex flex-col gap-0.5">
-                <div class="flex items-center gap-1.5">
-                    <strong class="cursor-pointer hover:text-accentInfo transition-colors text-xs" onclick="event.stopPropagation(); if(window.openCandleModal) window.openCandleModal('${alert.stock_symbol}')">${alert.stock_symbol}</strong>
-                    ${alertTypeBadge}
-                    <div class="${confidenceClass} text-[9px] flex items-center gap-0.5 opacity-80" title="Skor Keyakinan">
-                        <span>${confidenceIcon}</span>
-                        <span>${confidenceLabel}</span>
+        <td data-label="Saham" class="table-cell min-w-[150px]">
+            <div class="flex items-center justify-between gap-2">
+                <div class="flex flex-col gap-0.5">
+                    <div class="flex items-center gap-1.5">
+                        <strong class="cursor-pointer hover:text-accentInfo transition-colors text-xs" onclick="event.stopPropagation(); if(window.openCandleModal) window.openCandleModal('${alert.stock_symbol}')">${alert.stock_symbol}</strong>
+                        ${alertTypeBadge}
+                        <div class="${confidenceClass} text-[9px] flex items-center gap-0.5 opacity-80" title="Skor Keyakinan">
+                            <span>${confidenceIcon}</span>
+                            <span>${confidenceLabel}</span>
+                        </div>
                     </div>
+                    ${messageHtml}
                 </div>
-                ${messageHtml}
+                ${sparkHtml}
             </div>
         </td>
     `;
@@ -185,6 +194,15 @@ function createWhaleAlertRow(alert) {
             </div>
         </td>
     `;
+
+    // Render sparkline after mounting (we use setTimeout or MutationObserver, here setTimeout is simplest for table rows)
+    setTimeout(() => {
+        // Generate mock trend data based on action (BUY trends up, SELL trends down)
+        const isBuy = rawAction === 'BUY' || rawAction === 'ACCUMULATION';
+        const start = isBuy ? price * 0.98 : price * 1.02;
+        const trendData = [start, start * (1 + (Math.random()*0.01 - 0.005)), start * (1 + (Math.random()*0.02 - 0.01)), price];
+        createSparkline(canvasId, trendData, isBuy);
+    }, 0);
 
     return row;
 }
