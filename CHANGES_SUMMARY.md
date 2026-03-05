@@ -42,16 +42,15 @@ SWING_REQUIRE_TREND=true
 ### 3. Signal Filter (`app/signal_filter.go`)
 **Changes:**
 - Enhanced confidence calculation with sigmoid-like curve
-- Stricter thresholds across all filters
+- Removed all strict rejection rules (`TimeOfDayFilter`, `OrderFlowFilter`, and strict confidence/winrate cutoffs).
+- Kept the statistical `StrategyPerformanceFilter` and `DynamicConfidenceFilter` to calculate continuous multipliers instead of outright rejecting signals.
 - Added `SwingTradingEvaluator` - Determines if signal qualifies for swing
 - Added trend strength and volume confirmation calculations
 - New method: `IsSwingSignal()` - Public API to check swing qualification
 
 **Key Improvements:**
-- BUY signals must be above VWAP (no counter-trend)
 - Volume Z-score threshold increased from 2.5 to 3.0
-- Order flow buy threshold increased from 50% to 55%
-- Time filters: Skip volatile periods (09:00-09:15, 11:30-12:00, 13:30-13:45)
+- Replaced boolean rejection logic with pure probability multipliers, reducing missed opportunities.
 
 ### 4. Signal Tracker (`app/signal_tracker.go`)
 **Changes:**
@@ -96,18 +95,15 @@ SWING_REQUIRE_TREND=true
 
 ## 🎯 Key Features Implemented
 
-### 1. Enhanced Signal Filtering
+### 1. Purely Statistical Signal Filtering
 **Before:**
-- Relaxed thresholds, many false positives
-- No order flow requirement
+- Strict threshold rejections, Time of day filtering, and order flow requirement limits
 - 30 sample minimum baseline
 
 **After:**
-- Strict thresholds, higher quality signals
-- Order flow data required (`RequireOrderFlow: true`)
-- 50 sample minimum baseline
-- Time-based filters to avoid volatile periods
-- Trend alignment mandatory (above VWAP)
+- Removed strict rules to fully embrace statistical analysis via multiplier adjustments.
+- 50 sample minimum baseline.
+- `DynamicConfidenceFilter` and `StrategyPerformanceFilter` only append reason warnings instead of dropping trades.
 
 ### 2. Swing Trading
 **New Capability:**
@@ -210,20 +206,17 @@ curl http://localhost:8080/api/positions/open
 ## ⚠️ Breaking Changes
 
 ### Configuration Changes
-- `TRADING_REQUIRE_ORDER_FLOW` now defaults to `true` (was `false`)
-- `TRADING_ORDER_FLOW_THRESHOLD` now 0.55 (was 0.50)
+- Removed unused configuration properties: `TRADING_REQUIRE_ORDER_FLOW`, `TRADING_ORDER_FLOW_THRESHOLD`, `TRADING_AGGRESSIVE_BUY_THRESHOLD`
 - `TRADING_MIN_BASELINE_SAMPLE` now 50 (was 30)
-- Higher thresholds across all filters
 
 ### API Changes
 - Signal `OutcomeStatus` now defaults to "PENDING" instead of empty string
 - New endpoint: `GET /api/signals/stats`
 
 ### Behavior Changes
-- Fewer signals generated (stricter filters)
-- Signals outside trading windows rejected
-- All BUY signals must be above VWAP
-- Daily loss limit enforced
+- Signals are no longer strictly rejected based on order flow, winrate, or time-of-day.
+- Statistical multipliers are calculated per signal instead of boolean rejection blocks.
+- Daily loss limit enforced.
 
 ---
 

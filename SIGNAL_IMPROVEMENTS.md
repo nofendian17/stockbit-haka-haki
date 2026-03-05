@@ -19,14 +19,11 @@ Kodebase telah diperbaiki secara signifikan untuk menghasilkan sinyal trading ya
 | MinSignalIntervalMinutes | 15 | 20 | Mengurangi over-trading |
 | MaxOpenPositions | 10 | 8 | Fokus pada posisi berkualitas |
 | SignalTimeWindowMinutes | 5 | 10 | Menghindari duplikat lebih baik |
-| OrderFlowBuyThreshold | 0.50 | 0.55 | Sinyal lebih kuat |
-| AggressiveBuyThreshold | 55.0 | 60.0 | Konfirmasi lebih kuat |
 | MinBaselineSampleSize | 30 | 50 | Data baseline lebih reliable |
 | MinBaselineSampleSizeStrict | 50 | 100 | Standar lebih tinggi |
 | MinStrategySignals | 10 | 15 | Evaluasi strategi lebih akurat |
 | LowWinRateThreshold | 40.0 | 45.0 | Reject strategi underperform lebih cepat |
 | HighWinRateThreshold | 65.0 | 70.0 | Standar "bagus" lebih tinggi |
-| RequireOrderFlow | false | **true** | Wajib ada data order flow |
 | MaxHoldingLossPct | 5.0 | 3.0 | Cut loss lebih ketat |
 | StopLossATRMultiplier | 2.0 | 1.5 | Stop loss lebih ketat |
 | TrailingStopATRMultiplier | 2.5 | 2.0 | Trailing stop lebih ketat |
@@ -41,33 +38,19 @@ Kodebase telah diperbaiki secara signifikan untuk menghasilkan sinyal trading ya
 
 ---
 
-## 2. Filter Pipeline yang Diperketat (app/signal_filter.go)
+## 2. Filter Pipeline Berbasis Statistik (app/signal_filter.go)
 
 ### Strategy Performance Filter:
-- ✅ **Baseline recency check**: Data baseline harus kurang dari 2 jam
-- ✅ **Consecutive losses circuit breaker**: Reject strategi setelah 3 loss berturut-turut
-- ✅ **Stricter thresholds**: Win rate < 45% langsung reject
+- ✅ **Baseline recency check**: Data baseline harus kurang dari 2 jam untuk mendapat multiplier optimal.
+- ✅ **Consecutive losses circuit breaker**: Modifikasi multiplier jika strategi mengalami banyak loss berturut-turut.
+- ✅ **Purely Statistical**: Filter ini tidak lagi menolak (reject) sinyal secara sepihak jika threshold tidak terpenuhi, melainkan hanya menyesuaikan multiplier probabilitas.
 
 ### Dynamic Confidence Filter:
-- ✅ **BUY hanya jika above VWAP**: Counter-trend signals ditolak
 - ✅ **High volume threshold**: Volume Z-Score > 3.0 (dari 2.5)
 - ✅ **Very high volume bonus**: Z > 4.0 + trend aligned = 1.3x multiplier
-- ❌ **Removed**: Relaxation hanya untuk trend alignment (terlalu berisiko)
+- ✅ **Purely Statistical**: Filter ini tidak lagi menolak sinyal yang confidence-nya di bawah batas optimal, melainkan membiarkannya lewat dengan mencatat alasannya. VWAP trend rejection juga telah dihapus.
 
-### Order Flow Filter:
-- ✅ **Higher aggressive buy threshold**: 60% (dari 55%)
-- ✅ **Higher buy pressure threshold**: 50% minimum (dari 45%)
-- ✅ **Enhanced multipliers**:
-  - >70% buy pressure = 1.4x
-  - >60% buy pressure = 1.25x
-  - >55% buy pressure = 1.1x
-
-### Time of Day Filter:
-- ✅ **Avoid first 15 minutes**: 09:00-09:15 (volatilitas tinggi)
-- ✅ **Avoid pre-lunch**: 11:30-12:00 (likuiditas rendah)
-- ✅ **Avoid post-lunch**: 13:30-13:45 (volatilitas)
-- ✅ **Best window**: 10:00-11:00 (1.25x multiplier)
-- ✅ **Pre-closing discount**: 14:50-15:00 (0.7x multiplier)
+*(Catatan: `OrderFlowFilter` dan `TimeOfDayFilter` beserta aturan ketat lainnya telah dihapus sepenuhnya untuk memberi jalan pada sistem filter yang 100% berbasis statistik dan multiplier.)*
 
 ---
 
@@ -196,9 +179,8 @@ if confidence < 0.3 { confidence = 0.3 }
 ## 8. Catatan Penting
 
 ### ⚠️ Perubahan Breaking:
-1. **RequireOrderFlow**: Sekarang default `true` - pastikan data order flow tersedia
-2. **Stricter thresholds**: Sinyal akan lebih sedikit tapi berkualitas lebih tinggi
-3. **BUY only**: Sistem masih hanya support long positions (Indonesia market)
+1. **Penghapusan Aturan Ketat**: Sistem filter tidak lagi menolak sinyal berdasarkan win rate, confidence, order flow, atau waktu trading. Semua sinyal akan diproses dan dievaluasi kemungkinannya murni menggunakan *statistical multiplier*.
+2. **BUY only**: Sistem masih hanya support long positions (Indonesia market)
 
 ### ✅ Keuntungan:
 1. **Signal quality > quantity**: Lebih sedikit sinyal tapi win rate lebih tinggi
