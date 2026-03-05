@@ -39,8 +39,6 @@ func NewSignalFilterService(repo *database.TradeRepository, redis *cache.RedisCl
 	service.filters = []SignalFilter{
 		&StrategyPerformanceFilter{repo: repo, redis: redis, cfg: cfg},
 		&DynamicConfidenceFilter{repo: repo, redis: redis, cfg: cfg},
-		&OrderFlowFilter{repo: repo, redis: redis, cfg: cfg},
-		&TimeOfDayFilter{cfg: cfg},
 	}
 
 	return service
@@ -103,48 +101,38 @@ func (f *StrategyPerformanceFilter) Evaluate(ctx context.Context, signal *databa
 		cacheKey := fmt.Sprintf("strategy:perf:%s", strategy)
 		type CachedPerf struct {
 			Multiplier float64
-			ShouldSkip bool
 			Reason     string
 		}
 		var cached CachedPerf
 		if err := f.redis.Get(ctx, cacheKey, &cached); err == nil {
-			if cached.ShouldSkip {
-				return false, cached.Reason, 0.0
-			}
 			return true, cached.Reason, cached.Multiplier
 		}
 	}
 
-	multiplier, shouldSkip, reason := f.calculate(strategy, signal.StockSymbol)
+	multiplier, reason := f.calculate(strategy, signal.StockSymbol)
 
 	if f.redis != nil {
 		cacheKey := fmt.Sprintf("strategy:perf:%s", strategy)
 		cached := struct {
 			Multiplier float64
-			ShouldSkip bool
 			Reason     string
-		}{Multiplier: multiplier, ShouldSkip: shouldSkip, Reason: reason}
+		}{Multiplier: multiplier, Reason: reason}
 		_ = f.redis.Set(ctx, cacheKey, cached, 5*time.Minute)
 	}
 
-	if shouldSkip {
-		return false, reason, 0.0
-	}
 	return true, reason, multiplier
 }
 
-func (f *StrategyPerformanceFilter) calculate(strategy string, symbol string) (float64, bool, string) {
+func (f *StrategyPerformanceFilter) calculate(strategy string, symbol string) (float64, string) {
 	// Get baseline data first
 	baseline, err := f.repo.GetLatestBaseline(symbol)
 	baselineMultiplier := 1.0
 	var baselineReason string
 
 	if err != nil || baseline == nil {
-		// No baseline data is a critical issue - reject signal
-		return 0.0, true, "No statistical baseline available"
+		return 1.0, "No statistical baseline available"
 	}
 
-	// STRICT: Reject if baseline sample size is insufficient
 	// Make sure the required baseline isn't completely zero, but respect config.
 	// Hardcap fallback to at least 2 trades if config somehow returns incredibly high by mistake.
 	requiredBaseline := f.cfg.Trading.MinBaselineSampleSize
@@ -154,7 +142,7 @@ func (f *StrategyPerformanceFilter) calculate(strategy string, symbol string) (f
 	}
 
 	if baseline.SampleSize < requiredBaseline {
-		return 0.0, true, fmt.Sprintf("Insufficient baseline data (%d < %d trades)", baseline.SampleSize, requiredBaseline)
+		baselineReason = fmt.Sprintf("Insufficient baseline data (%d < %d trades)", baseline.SampleSize, requiredBaseline)
 	}
 
 	// Reduce multiplier for limited baseline
@@ -164,19 +152,25 @@ func (f *StrategyPerformanceFilter) calculate(strategy string, symbol string) (f
 	}
 	if baseline.SampleSize < requiredStrict {
 		baselineMultiplier = 0.7 // Reduced from 0.6 for better quality signals
-		baselineReason = fmt.Sprintf("Limited baseline data (%d trades)", baseline.SampleSize)
+		if baselineReason == "" {
+			baselineReason = fmt.Sprintf("Limited baseline data (%d trades)", baseline.SampleSize)
+		}
 	}
 
-	// NEW: Check baseline recency (must be calculated within last 2 hours)
+	// Check baseline recency (must be calculated within last 2 hours)
 	if time.Since(baseline.CalculatedAt) > 2*time.Hour {
 		baselineMultiplier *= 0.9
-		baselineReason += "; Stale baseline (>2h old)"
+		if baselineReason != "" {
+			baselineReason += "; Stale baseline (>2h old)"
+		} else {
+			baselineReason = "Stale baseline (>2h old)"
+		}
 	}
 
 	// Get strategy performance data
 	outcomes, err := f.repo.GetSignalOutcomes(symbol, "", time.Now().Add(-24*time.Hour), time.Time{}, 0, 0)
 	if err != nil {
-		return baselineMultiplier, false, baselineReason
+		return baselineMultiplier, baselineReason
 	}
 
 	var totalSignals, wins int
@@ -193,19 +187,18 @@ func (f *StrategyPerformanceFilter) calculate(strategy string, symbol string) (f
 	}
 
 	if totalSignals < f.cfg.Trading.MinStrategySignals {
-		return baselineMultiplier, false, baselineReason
+		return baselineMultiplier, baselineReason
 	}
 
 	winRate := float64(wins) / float64(totalSignals) * 100
 	var strategyReason string
 	strategyMultiplier := 1.0
 
-	// STRICT: Reject if strategy is underperforming
 	if winRate < f.cfg.Trading.LowWinRateThreshold {
-		return 0.0, true, fmt.Sprintf("Strategy %s underperforming (WR: %.1f%% < %.0f%%)", strategy, winRate, f.cfg.Trading.LowWinRateThreshold)
+		strategyReason = fmt.Sprintf("Strategy %s underperforming (WR: %.1f%% < %.0f%%)", strategy, winRate, f.cfg.Trading.LowWinRateThreshold)
 	}
 
-	// NEW: Check for consecutive losses (circuit breaker logic)
+	// Check for consecutive losses (circuit breaker logic)
 	recentOutcomes, _ := f.repo.GetSignalOutcomes("", "", time.Now().Add(-24*time.Hour), time.Time{}, 20, 0)
 	consecutiveLosses := 0
 	for _, outcome := range recentOutcomes {
@@ -219,19 +212,35 @@ func (f *StrategyPerformanceFilter) calculate(strategy string, symbol string) (f
 		}
 	}
 	if consecutiveLosses >= f.cfg.Trading.MaxConsecutiveLosses {
-		return 0.0, true, fmt.Sprintf("Strategy %s hit circuit breaker (%d consecutive losses)", strategy, consecutiveLosses)
+		if strategyReason != "" {
+			strategyReason += fmt.Sprintf("; Strategy %s hit circuit breaker (%d consecutive losses)", strategy, consecutiveLosses)
+		} else {
+			strategyReason = fmt.Sprintf("Strategy %s hit circuit breaker (%d consecutive losses)", strategy, consecutiveLosses)
+		}
 	}
 
 	// Multiplier based on performance
 	if winRate > f.cfg.Trading.HighWinRateThreshold {
 		strategyMultiplier = 1.25
-		strategyReason = fmt.Sprintf("Strategy %s excellent (WR: %.1f%%)", strategy, winRate)
+		if strategyReason != "" {
+			strategyReason += fmt.Sprintf("; Strategy %s excellent (WR: %.1f%%)", strategy, winRate)
+		} else {
+			strategyReason = fmt.Sprintf("Strategy %s excellent (WR: %.1f%%)", strategy, winRate)
+		}
 	} else if winRate > 55 {
 		strategyMultiplier = 1.1
-		strategyReason = fmt.Sprintf("Strategy %s good (WR: %.1f%%)", strategy, winRate)
+		if strategyReason != "" {
+			strategyReason += fmt.Sprintf("; Strategy %s good (WR: %.1f%%)", strategy, winRate)
+		} else {
+			strategyReason = fmt.Sprintf("Strategy %s good (WR: %.1f%%)", strategy, winRate)
+		}
 	} else if winRate >= f.cfg.Trading.LowWinRateThreshold {
 		strategyMultiplier = 1.0
-		strategyReason = fmt.Sprintf("Strategy %s acceptable (WR: %.1f%%)", strategy, winRate)
+		if strategyReason != "" {
+			strategyReason += fmt.Sprintf("; Strategy %s acceptable (WR: %.1f%%)", strategy, winRate)
+		} else {
+			strategyReason = fmt.Sprintf("Strategy %s acceptable (WR: %.1f%%)", strategy, winRate)
+		}
 	}
 
 	// Combine multipliers and reasons
@@ -245,7 +254,7 @@ func (f *StrategyPerformanceFilter) calculate(strategy string, symbol string) (f
 		finalReason = strategyReason
 	}
 
-	return finalMultiplier, false, finalReason
+	return finalMultiplier, finalReason
 }
 
 // 2. Dynamic Confidence Filter
@@ -272,14 +281,6 @@ func (f *DynamicConfidenceFilter) Evaluate(ctx context.Context, signal *database
 		}
 	}
 
-	// STRICT: For BUY signals, must be above VWAP (trend aligned)
-	// Bypassed if MockTradingMode is active to allow counter-trend signal simulation
-	if !f.cfg.Trading.MockTradingMode {
-		if signal.Decision == "BUY" && !isTrendAligned {
-			return false, "BUY signal rejected: Price below VWAP (counter-trend)", 0.0
-		}
-	}
-
 	optimalThreshold, thresholdReason := f.getOptimalThreshold(ctx, signal.Strategy)
 
 	// ENHANCED: Adaptive thresholds - only relax for very strong signals
@@ -295,14 +296,12 @@ func (f *DynamicConfidenceFilter) Evaluate(ctx context.Context, signal *database
 		confidenceMultiplier = 1.15
 		thresholdReason += " (Good signal: Above average volume)"
 	}
-	// Removed: No relaxation for trend-only signals (too risky)
 
 	if signal.Confidence < optimalThreshold {
-		return false, fmt.Sprintf("Below optimal confidence threshold (%.2f < %.2f): %s",
-			signal.Confidence, optimalThreshold, thresholdReason), 0.0
+		thresholdReason = fmt.Sprintf("Below optimal confidence threshold (%.2f < %.2f): %s", signal.Confidence, optimalThreshold, thresholdReason)
 	}
 
-	return true, "", confidenceMultiplier
+	return true, thresholdReason, confidenceMultiplier
 }
 
 func (f *DynamicConfidenceFilter) getOptimalThreshold(ctx context.Context, strategy string) (float64, string) {
