@@ -303,20 +303,29 @@ function renderSignalRow(signal, isInitialLoad = false) {
     row.className = 'border-b border-borderColor last:border-0 hover:bg-bgHover transition-colors';
 
     row.innerHTML = `
-        <td data-label="Waktu" class="table-cell whitespace-nowrap text-textMuted text-xs" title="${fullTime}">${timeAgo}</td>
-        <td data-label="Saham" class="table-cell font-bold">
-            <strong class="cursor-pointer hover:text-accentInfo transition-colors" onclick="if(window.openCandleModal) window.openCandleModal('${signal.stock_symbol}')">${signal.stock_symbol}</strong>
+        <td data-label="Waktu" class="table-cell whitespace-nowrap text-textMuted text-[11px] md:text-xs" title="${fullTime}">
+            <span class="flex items-center gap-1.5">
+                <span class="md:hidden">🕒</span>
+                ${timeAgo}
+            </span>
+        </td>
+        <td data-label="Saham" class="table-cell font-bold text-sm tracking-wide">
+            <strong class="cursor-pointer hover:text-accentInfo transition-colors text-textPrimary" onclick="if(window.openCandleModal) window.openCandleModal('${signal.stock_symbol}')">${signal.stock_symbol}</strong>
             <div class="flex gap-1 mt-1">
                 ${whaleBadge}
             </div>
         </td>
-        <td data-label="Strategi" class="table-cell text-xs" title="${signal.strategy.replace(/_/g, ' ')}">${formatStrategyName(signal.strategy)}</td>
-        <td data-label="Aksi" class="table-cell"><span class="px-2 py-0.5 rounded text-xs font-bold ${badgeClass}">${decisionIcon} ${signal.decision}</span></td>
-        <td data-label="Harga" class="table-cell text-right font-medium text-sm">Rp ${price}</td>
-        <td data-label="Perubahan" class="table-cell text-right text-sm">
-            <span class="${changeClass}">${changeSign}${change}%</span>
+        <td data-label="Strategi" class="table-cell">
+            <span class="px-2.5 py-1 bg-bgCard border border-borderColor rounded-md text-[10px] uppercase font-semibold shadow-sm text-textSecondary" title="${signal.strategy.replace(/_/g, ' ')}">${formatStrategyName(signal.strategy)}</span>
         </td>
-        <td data-label="Result" class="table-cell text-center">
+        <td data-label="Aksi" class="table-cell text-right md:text-left">
+            <span class="px-2.5 py-1 rounded-md text-xs font-bold shadow-sm ${badgeClass} inline-flex items-center justify-center min-w-[70px] uppercase tracking-wider">${decisionIcon} ${signal.decision}</span>
+        </td>
+        <td data-label="Harga" class="table-cell text-right font-medium text-xs md:text-sm text-textPrimary">Rp ${price}</td>
+        <td data-label="Perubahan" class="table-cell text-right text-xs md:text-sm font-semibold">
+            <span class="${changeClass} bg-bgSecondary/30 px-1.5 py-0.5 rounded-md border ${changeClass === 'text-accentSuccess' ? 'border-accentSuccess/10' : (changeClass === 'text-accentDanger' ? 'border-accentDanger/10' : 'border-transparent')}">${changeSign}${change}%</span>
+        </td>
+        <td data-label="Result" class="table-cell text-right md:text-center">
             ${renderOutcome(signal)}
         </td>
     `;
