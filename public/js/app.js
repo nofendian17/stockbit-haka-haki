@@ -810,17 +810,43 @@ function renderRunningTrade(trade) {
 
 /**
  * Render accumulation summary
+ * Supports both legacy (whale_only) and combined data structures
  * @param {Object} data - Summary data
  * @param {boolean} reset - Reset pagination
  */
 function renderAccumulationSummary(data, reset = true) {
-    const accumulation = data.accumulation || [];
-    const distribution = data.distribution || [];
+    // Handle new combined data structure
+    let accumulation = [];
+    let distribution = [];
+    
+    // Check if this is the new combined response
+    if (data.combined_data && data.combined_data.length > 0) {
+        // Split combined data by status
+        accumulation = data.combined_data.filter(item => item.status === 'ACCUMULATION');
+        distribution = data.combined_data.filter(item => item.status === 'DISTRIBUTION');
+        
+        console.log(`[Accumulation] Combined data: ${accumulation.length} accumulation, ${distribution.length} distribution`);
+    } else {
+        // Legacy whale_only data
+        accumulation = data.accumulation || [];
+        distribution = data.distribution || [];
+    }
 
     // Update timeframe display
     const timeframeEl = document.getElementById('bandar-timeframe');
     if (timeframeEl && data.timeframe) {
-        timeframeEl.textContent = data.timeframe;
+        let timeHtml = data.timeframe;
+        
+        // Add data source indicator
+        if (data.data_source) {
+            const sourceColors = {
+                'combined': 'text-green-400',
+                'whale_only': 'text-blue-400'
+            };
+            const sourceClass = sourceColors[data.data_source] || 'text-textSecondary';
+            timeHtml += ` <span class="${sourceClass} text-xs">(${data.data_source})</span>`;
+        }
+        
         // Add market status indicator
         if (data.market_status) {
             const statusColors = {
@@ -833,8 +859,10 @@ function renderAccumulationSummary(data, reset = true) {
                 'CLOSED': 'text-gray-500'
             };
             const statusClass = statusColors[data.market_status] || 'text-textSecondary';
-            timeframeEl.innerHTML = `${data.timeframe} <span class="${statusClass}">(${data.market_status})</span>`;
+            timeHtml += ` <span class="${statusClass}">(${data.market_status})</span>`;
         }
+        
+        timeframeEl.innerHTML = timeHtml;
     }
 
     // Update state

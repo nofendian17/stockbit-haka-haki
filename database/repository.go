@@ -378,6 +378,10 @@ func (r *TradeRepository) createIndexes() error {
 		"CREATE INDEX IF NOT EXISTS idx_statistical_baselines_symbol_calculated ON statistical_baselines(stock_symbol, calculated_at DESC)",
 		"CREATE INDEX IF NOT EXISTS idx_whale_alerts_composite ON whale_alerts(stock_symbol, detected_at DESC, market_board) WHERE market_board != 'NG'",
 		"CREATE INDEX IF NOT EXISTS idx_order_flow_symbol_bucket ON order_flow_imbalance(stock_symbol, bucket DESC)",
+
+		// NEW: Indexes for combined accumulation/distribution queries
+		"CREATE INDEX IF NOT EXISTS idx_whale_alerts_detected_symbol ON whale_alerts(detected_at, stock_symbol) WHERE market_board != 'NG'",
+		"CREATE INDEX IF NOT EXISTS idx_order_flow_bucket_symbol ON order_flow_imbalance(bucket DESC, stock_symbol)",
 	}
 
 	for _, idx := range indexes {
@@ -987,6 +991,18 @@ func (r *TradeRepository) GetOrderFlowImbalance(symbol string, startTime, endTim
 
 func (r *TradeRepository) GetLatestOrderFlow(symbol string) (*models.OrderFlowImbalance, error) {
 	return r.analytics.GetLatestOrderFlow(symbol)
+}
+
+// GetCombinedAccumulationDistribution returns combined A/D data from whale alerts and order flow
+// Provides more accurate classification using weighted score:
+// - 35% Whale Alerts (institutional activity)
+// - 65% Order Flow (market sentiment)
+func (r *TradeRepository) GetCombinedAccumulationDistribution(
+	startTime time.Time,
+	minWhaleAlerts int,
+	minOrderFlowBuckets int,
+) ([]types.CombinedAccumulationDistribution, error) {
+	return r.analytics.GetCombinedAccumulationDistribution(startTime, minWhaleAlerts, minOrderFlowBuckets)
 }
 
 // Webhook management methods (kept for backward compatibility)

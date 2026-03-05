@@ -121,3 +121,29 @@ type SignalExpectedValue struct {
 	TotalSignals   int64   `json:"total_signals"`
 	Recommendation string  `json:"recommendation"` // "STRONG", "MODERATE", "WEAK", "AVOID"
 }
+
+// CombinedAccumulationDistribution combines whale alerts and order flow data
+// for more accurate accumulation/distribution classification
+type CombinedAccumulationDistribution struct {
+	StockSymbol string `json:"stock_symbol"`
+
+	// Whale Alert Data (Institutional Activity - 35% weight)
+	WhaleBuyCount      int64   `json:"whale_buy_count"`
+	WhaleSellCount     int64   `json:"whale_sell_count"`
+	WhaleBuyValue      float64 `json:"whale_buy_value"`
+	WhaleSellValue     float64 `json:"whale_sell_value"`
+	WhaleNetValue      float64 `json:"whale_net_value"`
+	WhaleTotalValue    float64 `json:"whale_total_value"`
+	WhaleBuyPercentage float64 `json:"whale_buy_percentage"`
+
+	// Order Flow Data (Market Sentiment - 65% weight)
+	OrderFlowBuyVolume   float64 `json:"order_flow_buy_volume"`
+	OrderFlowSellVolume  float64 `json:"order_flow_sell_volume"`
+	OrderFlowDelta       float64 `json:"order_flow_delta"`
+	OrderFlowImbalance   float64 `json:"order_flow_imbalance_ratio"`
+	OrderFlowBucketCount int     `json:"order_flow_bucket_count"`
+
+	// Combined Score
+	CombinedScore float64 `json:"combined_score"`
+	Status        string  `json:"status"` // "ACCUMULATION", "DISTRIBUTION", "NEUTRAL"
+}

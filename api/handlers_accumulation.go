@@ -7,12 +7,32 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+
+	"stockbit-haka-haki/database/types"
 )
 
-// handleAccumulationSummary returns separate top 20 accumulation and distribution lists
-// Smart timeframe selection:
-// - Before 08:30 WIB: show last 24 hours (previous day's data)
-// - 08:30 WIB onwards: show data since market open (09:00 WIB)
+// AccumulationSummaryResponse is the response structure for accumulation/distribution endpoint
+type AccumulationSummaryResponse struct {
+	// Combined data (new)
+	CombinedData []types.CombinedAccumulationDistribution `json:"combined_data,omitempty"`
+
+	// Legacy whale-based data (kept for backward compatibility)
+	Accumulation []types.AccumulationDistributionSummary `json:"accumulation,omitempty"`
+	Distribution []types.AccumulationDistributionSummary `json:"distribution,omitempty"`
+
+	AccumulationCount int     `json:"accumulation_count"`
+	DistributionCount int     `json:"distribution_count"`
+	HoursBack         float64 `json:"hours_back"`
+	Timeframe         string  `json:"timeframe"`
+	CurrentTime       string  `json:"current_time"`
+	MarketStatus      string  `json:"market_status"`
+
+	// Metadata about the data source
+	DataSource string `json:"data_source"` // "whale_only", "combined"
+}
+
+// handleAccumulationSummary returns combined accumulation and distribution lists
+// Uses weighted combination of whale alerts (35%) and order flow (65%)
 func (s *Server) handleAccumulationSummary(w http.ResponseWriter, r *http.Request) {
 	// Parse query params
 	query := r.URL.Query()
@@ -54,24 +74,83 @@ func (s *Server) handleAccumulationSummary(w http.ResponseWriter, r *http.Reques
 		now.Format("2006-01-02 15:04:05"), startTime.Format("2006-01-02 15:04:05"),
 		hoursBack, timeframeDescription)
 
-	// Get accumulation/distribution summary (now returns 2 separate lists)
-	accumulation, distribution, err := s.repo.GetAccumulationDistributionSummary(startTime)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	// Get query params for min thresholds
+	minWhaleAlerts := 3
+	minOrderFlowBuckets := 30
+
+	if mw := query.Get("min_whale_alerts"); mw != "" {
+		if parsed, err := strconv.Atoi(mw); err == nil {
+			minWhaleAlerts = parsed
+		}
+	}
+	if mo := query.Get("min_orderflow_buckets"); mo != "" {
+		if parsed, err := strconv.Atoi(mo); err == nil {
+			minOrderFlowBuckets = parsed
+		}
+	}
+
+	// Check if client wants legacy data only
+	useCombined := query.Get("combined") != "false" // Default to combined
+
+	var response AccumulationSummaryResponse
+
+	if useCombined {
+		// Get combined accumulation/distribution data
+		combinedData, err := s.repo.GetCombinedAccumulationDistribution(
+			startTime,
+			minWhaleAlerts,
+			minOrderFlowBuckets,
+		)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Separate combined data into accumulation and distribution for backward compatibility
+		var accumulation []types.CombinedAccumulationDistribution
+		var distribution []types.CombinedAccumulationDistribution
+
+		for _, c := range combinedData {
+			if c.Status == "ACCUMULATION" {
+				accumulation = append(accumulation, c)
+			} else if c.Status == "DISTRIBUTION" {
+				distribution = append(distribution, c)
+			}
+		}
+
+		response = AccumulationSummaryResponse{
+			CombinedData:      combinedData,
+			AccumulationCount: len(accumulation),
+			DistributionCount: len(distribution),
+			HoursBack:         hoursBack,
+			Timeframe:         timeframeDescription,
+			CurrentTime:       now.Format("2006-01-02 15:04:05"),
+			MarketStatus:      getMarketStatus(now),
+			DataSource:        "combined",
+		}
+	} else {
+		// Legacy whale-only data
+		accumulation, distribution, err := s.repo.GetAccumulationDistributionSummary(startTime)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		response = AccumulationSummaryResponse{
+			Accumulation:      accumulation,
+			Distribution:      distribution,
+			AccumulationCount: len(accumulation),
+			DistributionCount: len(distribution),
+			HoursBack:         hoursBack,
+			Timeframe:         timeframeDescription,
+			CurrentTime:       now.Format("2006-01-02 15:04:05"),
+			MarketStatus:      getMarketStatus(now),
+			DataSource:        "whale_only",
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"accumulation":       accumulation,
-		"distribution":       distribution,
-		"accumulation_count": len(accumulation),
-		"distribution_count": len(distribution),
-		"hours_back":         hoursBack,
-		"timeframe":          timeframeDescription,
-		"current_time":       now.Format("2006-01-02 15:04:05"),
-		"market_status":      getMarketStatus(now),
-	})
+	json.NewEncoder(w).Encode(response)
 }
 
 // getSmartTimeframe determines the appropriate timeframe based on current time

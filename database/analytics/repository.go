@@ -3,9 +3,12 @@ package analytics
 import (
 	"fmt"
 	"log"
+	"math"
+	"sort"
 	"time"
 
 	models "stockbit-haka-haki/database/models_pkg"
+	"stockbit-haka-haki/database/types"
 
 	"gorm.io/gorm"
 )
@@ -395,4 +398,243 @@ func (r *Repository) GetLatestOrderFlow(symbol string) (*models.OrderFlowImbalan
 		return nil, fmt.Errorf("GetLatestOrderFlow: %w", err)
 	}
 	return &flow, nil
+}
+
+// Combined Accumulation/Distribution Configuration
+const (
+	WhaleWeight             = 0.35 // 35% - institutional activity
+	OrderFlowWeight         = 0.65 // 65% - market sentiment (retail + institution)
+	MinWhaleAlerts          = 3    // Minimum whale alerts for classification
+	MinOrderFlowBuckets     = 30   // Minimum order flow buckets (~30 minutes)
+	ClassificationThreshold = 0.25 // Score threshold for A/D classification
+)
+
+// GetCombinedAccumulationDistribution retrieves combined A/D data from whale alerts and order flow
+// This provides more accurate classification by combining institutional activity with market sentiment
+func (r *Repository) GetCombinedAccumulationDistribution(
+	startTime time.Time,
+	minWhaleAlerts int,
+	minOrderFlowBuckets int,
+) ([]types.CombinedAccumulationDistribution, error) {
+	if startTime.IsZero() {
+		startTime = time.Now().Add(-24 * time.Hour)
+	}
+
+	if minWhaleAlerts == 0 {
+		minWhaleAlerts = MinWhaleAlerts
+	}
+	if minOrderFlowBuckets == 0 {
+		minOrderFlowBuckets = MinOrderFlowBuckets
+	}
+
+	// Step 1: Get whale alerts aggregation by symbol
+	whaleQuery := `
+		SELECT 
+			stock_symbol,
+			SUM(CASE WHEN action = 'BUY' THEN 1 ELSE 0 END) as whale_buy_count,
+			SUM(CASE WHEN action = 'SELL' THEN 1 ELSE 0 END) as whale_sell_count,
+			SUM(CASE WHEN action = 'BUY' THEN trigger_value ELSE 0 END) as whale_buy_value,
+			SUM(CASE WHEN action = 'SELL' THEN trigger_value ELSE 0 END) as whale_sell_value,
+			COUNT(*) as total_alerts
+		FROM whale_alerts
+		WHERE detected_at >= ? 
+			AND (market_board != 'NG' OR market_board IS NULL)
+		GROUP BY stock_symbol
+		HAVING COUNT(*) >= ?
+	`
+
+	whaleRows, err := r.db.Raw(whaleQuery, startTime, minWhaleAlerts).Rows()
+	if err != nil {
+		return nil, fmt.Errorf("whale query failed: %w", err)
+	}
+	defer whaleRows.Close()
+
+	whaleData := make(map[string]struct {
+		buyCount    int64
+		sellCount   int64
+		buyValue    float64
+		sellValue   float64
+		totalAlerts int64
+	})
+
+	for whaleRows.Next() {
+		var symbol string
+		var w struct {
+			buyCount    int64
+			sellCount   int64
+			buyValue    float64
+			sellValue   float64
+			totalAlerts int64
+		}
+		if err := whaleRows.Scan(&symbol, &w.buyCount, &w.sellCount, &w.buyValue, &w.sellValue, &w.totalAlerts); err != nil {
+			continue
+		}
+		whaleData[symbol] = w
+	}
+
+	// Step 2: Get order flow aggregation by symbol
+	flowQuery := `
+		SELECT 
+			stock_symbol,
+			SUM(buy_volume_lots) as total_buy_volume,
+			SUM(sell_volume_lots) as total_sell_volume,
+			SUM(delta_volume) as total_delta,
+			AVG(volume_imbalance_ratio) as avg_imbalance,
+			COUNT(*) as bucket_count
+		FROM order_flow_imbalance
+		WHERE bucket >= ?
+		GROUP BY stock_symbol
+		HAVING COUNT(*) >= ?
+	`
+
+	flowRows, err := r.db.Raw(flowQuery, startTime, minOrderFlowBuckets).Rows()
+	if err != nil {
+		return nil, fmt.Errorf("order flow query failed: %w", err)
+	}
+	defer flowRows.Close()
+
+	flowData := make(map[string]struct {
+		buyVolume   float64
+		sellVolume  float64
+		delta       float64
+		imbalance   float64
+		bucketCount int
+	})
+
+	for flowRows.Next() {
+		var symbol string
+		var f struct {
+			buyVolume   float64
+			sellVolume  float64
+			delta       float64
+			imbalance   float64
+			bucketCount int
+		}
+		if err := flowRows.Scan(&symbol, &f.buyVolume, &f.sellVolume, &f.delta, &f.imbalance, &f.bucketCount); err != nil {
+			continue
+		}
+		flowData[symbol] = f
+	}
+
+	// Step 3: Combine and calculate scores
+	combined := make([]types.CombinedAccumulationDistribution, 0)
+
+	// Get all unique symbols from both sources
+	symbols := make(map[string]bool)
+	for symbol := range whaleData {
+		symbols[symbol] = true
+	}
+	for symbol := range flowData {
+		symbols[symbol] = true
+	}
+
+	for symbol := range symbols {
+		var entry types.CombinedAccumulationDistribution
+		entry.StockSymbol = symbol
+
+		// Whale data
+		if w, ok := whaleData[symbol]; ok {
+			entry.WhaleBuyCount = w.buyCount
+			entry.WhaleSellCount = w.sellCount
+			entry.WhaleBuyValue = w.buyValue
+			entry.WhaleSellValue = w.sellValue
+			entry.WhaleNetValue = w.buyValue - w.sellValue
+			entry.WhaleTotalValue = w.buyValue + w.sellValue
+			if w.totalAlerts > 0 {
+				entry.WhaleBuyPercentage = float64(w.buyCount) / float64(w.totalAlerts) * 100
+			}
+		}
+
+		// Order flow data
+		if f, ok := flowData[symbol]; ok {
+			entry.OrderFlowBuyVolume = f.buyVolume
+			entry.OrderFlowSellVolume = f.sellVolume
+			entry.OrderFlowDelta = f.delta
+			entry.OrderFlowImbalance = f.imbalance
+			entry.OrderFlowBucketCount = f.bucketCount
+		}
+
+		// Calculate combined score
+		entry.CombinedScore = calculateCombinedScore(entry)
+
+		// Classify
+		if entry.CombinedScore > ClassificationThreshold {
+			entry.Status = "ACCUMULATION"
+		} else if entry.CombinedScore < -ClassificationThreshold {
+			entry.Status = "DISTRIBUTION"
+		} else {
+			entry.Status = "NEUTRAL"
+		}
+
+		// Only include A/D (not neutral)
+		if entry.Status != "NEUTRAL" {
+			combined = append(combined, entry)
+		}
+	}
+
+	// Step 4: Sort by combined score
+	// Accumulation: highest positive score first
+	// Distribution: lowest negative score first
+	sort.Slice(combined, func(i, j int) bool {
+		if combined[i].Status == combined[j].Status {
+			// Same status - sort by absolute score descending
+			return math.Abs(combined[i].CombinedScore) > math.Abs(combined[j].CombinedScore)
+		}
+		// Accumulation before Distribution
+		return combined[i].Status == "ACCUMULATION"
+	})
+
+	// Step 5: Split into accumulation and distribution
+	var accumulation []types.CombinedAccumulationDistribution
+	var distribution []types.CombinedAccumulationDistribution
+
+	for _, c := range combined {
+		if c.Status == "ACCUMULATION" {
+			accumulation = append(accumulation, c)
+		} else if c.Status == "DISTRIBUTION" {
+			distribution = append(distribution, c)
+		}
+	}
+
+	// Limit to top 10 each for display (total top 20)
+	if len(accumulation) > 10 {
+		accumulation = accumulation[:10]
+	}
+	if len(distribution) > 10 {
+		distribution = distribution[:10]
+	}
+
+	// Combine and return
+	result := make([]types.CombinedAccumulationDistribution, 0, len(accumulation)+len(distribution))
+	result = append(result, accumulation...)
+	result = append(result, distribution...)
+
+	return result, nil
+}
+
+// calculateCombinedScore computes the weighted score from whale and order flow data
+func calculateCombinedScore(data types.CombinedAccumulationDistribution) float64 {
+	// Whale Score: -1 (full sell) to +1 (full buy)
+	var whaleScore float64
+	if data.WhaleTotalValue > 0 {
+		whaleScore = data.WhaleNetValue / data.WhaleTotalValue
+	}
+
+	// Order Flow Score: already -1 to +1 from volume_imbalance_ratio
+	flowScore := data.OrderFlowImbalance
+
+	// If no order flow data, rely only on whale
+	if data.OrderFlowBucketCount == 0 && data.WhaleTotalValue > 0 {
+		return whaleScore * 1.0 // Use whale only
+	}
+
+	// If no whale data but has order flow, rely only on order flow
+	if data.WhaleTotalValue == 0 && data.OrderFlowBucketCount > 0 {
+		return flowScore * 1.0
+	}
+
+	// Combined weighted score
+	combined := (whaleScore * WhaleWeight) + (flowScore * OrderFlowWeight)
+
+	return combined
 }

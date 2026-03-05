@@ -379,6 +379,7 @@ function createPositionRow(pos) {
 
 /**
  * Render accumulation/distribution summary table
+ * Supports both legacy (whale_only) and combined data structures
  * @param {string} type - 'accumulation' or 'distribution'
  * @param {Array} data - Summary data
  * @param {HTMLElement} tbody - Table body element
@@ -400,21 +401,71 @@ export function renderSummaryTable(type, data, tbody, placeholder) {
         const row = document.createElement('tr');
         row.className = 'border-b border-borderColor last:border-0 hover:bg-bgHover transition-colors';
 
-        const netValueClass = item.net_value >= 0 ? 'text-accentSuccess' : 'text-accentDanger';
-        const netValueSign = item.net_value >= 0 ? '+' : '';
+        // Check if this is combined data (has combined_score) or legacy data
+        const isCombined = item.combined_score !== undefined;
+        
+        // Determine values based on data type
+        let buyPercentage, sellPercentage, netValue, totalValue, combinedScore;
+        
+        if (isCombined) {
+            // Combined data structure
+            buyPercentage = item.whale_buy_percentage || 0;
+            sellPercentage = 100 - buyPercentage;
+            netValue = item.whale_net_value || 0;
+            totalValue = item.whale_total_value || 0;
+            combinedScore = item.combined_score;
+        } else {
+            // Legacy whale_only data structure
+            buyPercentage = item.buy_percentage || 0;
+            sellPercentage = item.sell_percentage || 0;
+            netValue = item.net_value || 0;
+            totalValue = item.total_value || 0;
+        }
 
-        row.innerHTML = `
+        const netValueClass = netValue >= 0 ? 'text-accentSuccess' : 'text-accentDanger';
+        const netValueSign = netValue >= 0 ? '+' : '';
+
+        // Build the row HTML
+        let rowHTML = `
             <td data-label="Saham" class="table-cell font-bold">${item.stock_symbol}</td>
-            ${type === 'accumulation' ?
-                `<td data-label="Beli %" class="table-cell text-right font-semibold text-accentSuccess">${item.buy_percentage.toFixed(1)}%</td>` :
-                `<td data-label="Jual %" class="table-cell text-right font-semibold text-accentDanger">${item.sell_percentage.toFixed(1)}%</td>`
-            }
-            <td data-label="Net Value" class="table-cell text-right">
-                <span class="${netValueClass} font-semibold">${netValueSign}${formatCurrency(Math.abs(item.net_value))}</span>
-            </td>
-            <td data-label="Total Value" class="table-cell text-right font-bold text-textPrimary">${formatCurrency(item.total_value)}</td>
         `;
 
+        if (type === 'accumulation') {
+            rowHTML += `<td data-label="Beli %" class="table-cell text-right font-semibold text-accentSuccess">${buyPercentage.toFixed(1)}%</td>`;
+        } else {
+            rowHTML += `<td data-label="Jual %" class="table-cell text-right font-semibold text-accentDanger">${sellPercentage.toFixed(1)}%</td>`;
+        }
+
+        // Add net value column
+        rowHTML += `
+            <td data-label="Net Value" class="table-cell text-right">
+                <span class="${netValueClass} font-semibold">${netValueSign}${formatCurrency(Math.abs(netValue))}</span>
+            </td>
+            <td data-label="Total Value" class="table-cell text-right font-bold text-textPrimary">${formatCurrency(totalValue)}</td>
+        `;
+
+        // Add combined score column if available
+        if (isCombined) {
+            const scoreClass = combinedScore > 0.25 ? 'text-accentSuccess' : (combinedScore < -0.25 ? 'text-accentDanger' : 'text-textSecondary');
+            const scoreSign = combinedScore >= 0 ? '+' : '';
+            rowHTML += `
+                <td data-label="Score" class="table-cell text-right">
+                    <span class="${scoreClass} font-semibold text-xs">${scoreSign}${combinedScore.toFixed(3)}</span>
+                </td>
+            `;
+            
+            // Add whale count and order flow columns for combined data
+            if (item.whale_buy_count !== undefined || item.order_flow_bucket_count !== undefined) {
+                const whaleCount = (item.whale_buy_count || 0) + (item.whale_sell_count || 0);
+                const flowBuckets = item.order_flow_bucket_count || 0;
+                rowHTML += `
+                    <td data-label="Whales" class="table-cell text-center text-xs text-textSecondary">${whaleCount}</td>
+                    <td data-label="Flow" class="table-cell text-center text-xs text-textSecondary">${flowBuckets}</td>
+                `;
+            }
+        }
+
+        row.innerHTML = rowHTML;
         tbody.appendChild(row);
     });
 }

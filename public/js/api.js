@@ -71,12 +71,27 @@ export async function fetchStats() {
  * Fetch accumulation/distribution summary
  * @param {number} limit - Number of records per type (accumulation/distribution)
  * @param {number} offset - Pagination offset
+ * @param {Object} options - Additional options
+ * @param {number} options.minWhaleAlerts - Minimum whale alerts (default: 3)
+ * @param {number} options.minOrderFlowBuckets - Minimum order flow buckets (default: 30)
+ * @param {boolean} options.useCombined - Use combined data (default: true)
  * @returns {Promise<Object>} Summary data
  */
-export async function fetchAccumulationSummary(limit = 50, offset = 0) {
+export async function fetchAccumulationSummary(limit = 50, offset = 0, options = {}) {
     const params = new URLSearchParams();
     params.append('limit', limit);
     params.append('offset', offset);
+    
+    // Add new parameters for combined data
+    if (options.minWhaleAlerts !== undefined) {
+        params.append('min_whale_alerts', options.minWhaleAlerts);
+    }
+    if (options.minOrderFlowBuckets !== undefined) {
+        params.append('min_orderflow_buckets', options.minOrderFlowBuckets);
+    }
+    if (options.useCombined !== undefined) {
+        params.append('combined', options.useCombined ? 'true' : 'false');
+    }
 
     const url = `${API_ENDPOINTS.ACCUMULATION_SUMMARY}?${params.toString()}`;
     return apiFetch(url);
