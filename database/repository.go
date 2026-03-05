@@ -441,12 +441,14 @@ func (r *TradeRepository) createPerformanceView() error {
 	r.db.db.Exec(`CREATE INDEX IF NOT EXISTS idx_strategy_performance_daily_strategy ON strategy_performance_daily(strategy)`)
 	r.db.db.Exec(`CREATE INDEX IF NOT EXISTS idx_strategy_performance_daily_lookup ON strategy_performance_daily(day, strategy, stock_symbol)`)
 
-	fmt.Println("🔄 Performing initial refresh of strategy_performance_daily...")
-	if err := r.db.db.Exec(`REFRESH MATERIALIZED VIEW strategy_performance_daily`).Error; err != nil {
-		fmt.Printf("⚠️ Warning: Failed to refresh view: %v (This is normal if there's no data yet)\n", err)
-	} else {
-		fmt.Println("✅ Initial refresh completed")
-	}
+	fmt.Println("🔄 Scheduling initial refresh of strategy_performance_daily in background...")
+	go func() {
+		if err := r.db.db.Exec(`REFRESH MATERIALIZED VIEW strategy_performance_daily`).Error; err != nil {
+			fmt.Printf("⚠️ Warning: Failed to refresh view: %v (This is normal if there's no data yet)\n", err)
+		} else {
+			fmt.Println("✅ Initial background refresh completed")
+		}
+	}()
 
 	return nil
 }
