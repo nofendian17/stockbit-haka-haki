@@ -395,10 +395,10 @@ function renderBandarTreemap() {
                 groups: ['type', 'stock_symbol'],
                 backgroundColor: (ctx) => {
                     if (ctx.type !== 'data') return 'transparent';
-                    const data = ctx.raw._data;
+                    const data = ctx.raw._data || {};
                     // Opacity based on magnitude of dominance
                     const isAcc = data.type === 'acc';
-                    const pct = isAcc ? data.buy_percentage : data.sell_percentage;
+                    const pct = isAcc ? (data.buy_percentage || 0) : (data.sell_percentage || 0);
                     const opacity = Math.min(Math.max((pct - 50) / 50, 0.3), 1.0);
 
                     return isAcc ? `rgba(14, 203, 129, ${opacity})` : `rgba(246, 70, 93, ${opacity})`;
@@ -413,8 +413,8 @@ function renderBandarTreemap() {
                     font: { size: 11, weight: 'bold' },
                     formatter: (ctx) => {
                         if (ctx.type !== 'data') return;
-                        const d = ctx.raw._data;
-                        const pct = d.type === 'acc' ? d.buy_percentage : d.sell_percentage;
+                        const d = ctx.raw._data || {};
+                        const pct = d.type === 'acc' ? (d.buy_percentage || 0) : (d.sell_percentage || 0);
                         return [d.stock_symbol, `${pct.toFixed(0)}%`];
                     }
                 }
@@ -425,16 +425,16 @@ function renderBandarTreemap() {
             plugins: {
                 tooltip: {
                     callbacks: {
-                        title: (items) => items[0].raw._data.stock_symbol,
+                        title: (items) => (items[0].raw._data && items[0].raw._data.stock_symbol) || '',
                         label: (item) => {
-                            const d = item.raw._data;
+                            const d = item.raw._data || {};
                             const formatVal = (val) => {
                                 if (val >= 1_000_000_000) return `Rp ${(val / 1_000_000_000).toFixed(1)}M`;
-                                return `Rp ${(val / 1_000_000).toFixed(1)}Jt`;
+                                return `Rp ${((val || 0) / 1_000_000).toFixed(1)}Jt`;
                             };
                             return d.type === 'acc'
-                                ? `Akumulasi ${d.buy_percentage.toFixed(1)}% | Val: ${formatVal(d.total_value)}`
-                                : `Distribusi ${d.sell_percentage.toFixed(1)}% | Val: ${formatVal(d.total_value)}`;
+                                ? `Akumulasi ${(d.buy_percentage || 0).toFixed(1)}% | Val: ${formatVal(d.total_value)}`
+                                : `Distribusi ${(d.sell_percentage || 0).toFixed(1)}% | Val: ${formatVal(d.total_value)}`;
                         }
                     }
                 },
