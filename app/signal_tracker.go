@@ -337,8 +337,6 @@ func (st *SignalTracker) shouldCreateOutcome(signal *database.TradingSignalDB) (
 func (st *SignalTracker) createSignalOutcome(signal *database.TradingSignalDB) (bool, error) {
 	// Indonesian market: Only track BUY signals (no short selling)
 	if signal.Decision != "BUY" {
-		reason := "Only BUY signals are supported"
-		st.createSkippedOutcome(signal, reason)
 		return false, nil
 	}
 
@@ -348,7 +346,6 @@ func (st *SignalTracker) createSignalOutcome(signal *database.TradingSignalDB) (
 		if err == nil && alert != nil && alert.MarketBoard == "NG" {
 			reason := "NG (Negotiated Trading) excluded"
 			log.Printf("⏭️ Skipping signal %d (%s): %s", signal.ID, signal.StockSymbol, reason)
-			st.createSkippedOutcome(signal, reason)
 			return false, nil
 		}
 	}
@@ -359,7 +356,6 @@ func (st *SignalTracker) createSignalOutcome(signal *database.TradingSignalDB) (
 			session := getTradingSession(signal.GeneratedAt)
 			reason := fmt.Sprintf("Generated outside trading hours (session: %s)", session)
 			log.Printf("⏰ Skipping signal %d (%s): %s", signal.ID, signal.StockSymbol, reason)
-			st.createSkippedOutcome(signal, reason)
 			return false, nil
 		}
 	} else if !isTradingTime(signal.GeneratedAt) {
@@ -371,7 +367,6 @@ func (st *SignalTracker) createSignalOutcome(signal *database.TradingSignalDB) (
 	shouldCreate, reason, multiplier := st.shouldCreateOutcome(signal)
 	if !shouldCreate {
 		log.Printf("⏭️ Skipping signal %d (%s %s): %s", signal.ID, signal.StockSymbol, signal.Decision, reason)
-		st.createSkippedOutcome(signal, reason)
 		return false, nil
 	}
 
@@ -416,24 +411,6 @@ func (st *SignalTracker) createSignalOutcome(signal *database.TradingSignalDB) (
 		return false, err
 	}
 	return true, nil
-}
-
-// createSkippedOutcome creates a closed/skipped outcome to prevent reprocessing
-func (st *SignalTracker) createSkippedOutcome(signal *database.TradingSignalDB, reason string) {
-	now := time.Now()
-	outcome := &database.SignalOutcome{
-		SignalID:      signal.ID,
-		StockSymbol:   signal.StockSymbol,
-		EntryTime:     signal.GeneratedAt,
-		EntryPrice:    signal.TriggerPrice,
-		EntryDecision: signal.Decision,
-		OutcomeStatus: "SKIPPED",
-		ExitReason:    &reason,
-		ExitTime:      &now,
-	}
-	if err := st.repo.SaveSignalOutcome(outcome); err != nil {
-		log.Printf("❌ Error saving SKIPPED outcome for signal %d: %v", signal.ID, err)
-	}
 }
 
 // updateSignalOutcome updates an existing outcome with current price data
