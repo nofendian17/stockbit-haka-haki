@@ -51,8 +51,6 @@ type TradingConfig struct {
 	SignalTimeWindowMinutes  int
 
 	// Thresholds
-	OrderFlowBuyThreshold       float64
-	AggressiveBuyThreshold      float64
 	MinBaselineSampleSize       int
 	MinBaselineSampleSizeStrict int
 
@@ -60,9 +58,6 @@ type TradingConfig struct {
 	MinStrategySignals   int
 	LowWinRateThreshold  float64 // Percent
 	HighWinRateThreshold float64 // Percent
-
-	// Fail-Safe
-	RequireOrderFlow bool // If true, reject signals if order flow data is missing
 
 	// Risk Management
 	MaxHoldingLossPct    float64 // Cut loss if held too long and loss exceeds this (positive value representing negative %)
@@ -134,8 +129,6 @@ func LoadFromEnv() *Config {
 			SignalTimeWindowMinutes:  getEnvInt("TRADING_SIGNAL_TIME_WINDOW", 2),
 
 			// Thresholds - Relaxed for mock testing
-			OrderFlowBuyThreshold:       getEnvFloat("TRADING_ORDER_FLOW_THRESHOLD", 0.40),     // Reduced to allow more buys
-			AggressiveBuyThreshold:      getEnvFloat("TRADING_AGGRESSIVE_BUY_THRESHOLD", 40.0), // Reduced
 			MinBaselineSampleSize:       getEnvInt("TRADING_MIN_BASELINE_SAMPLE", 5),           // Dropped to 5 for quick mock
 			MinBaselineSampleSizeStrict: getEnvInt("TRADING_MIN_BASELINE_SAMPLE_STRICT", 10),
 
@@ -143,9 +136,6 @@ func LoadFromEnv() *Config {
 			MinStrategySignals:   getEnvInt("TRADING_MIN_STRATEGY_SIGNALS", 0),  // 0 so new DB instances can start mock trading
 			LowWinRateThreshold:  getEnvFloat("TRADING_LOW_WIN_RATE", 0.0),      // 0% to allow testing
 			HighWinRateThreshold: getEnvFloat("TRADING_HIGH_WIN_RATE", 50.0),
-
-			// Fail-Safe - Disabled by default for mock
-			RequireOrderFlow: getEnvOrDefault("TRADING_REQUIRE_ORDER_FLOW", "false") == "true", // Disabled for easier mock
 
 			// Risk Management - Tighter to prevent large losses
 			MaxHoldingLossPct:    getEnvFloat("TRADING_MAX_HOLDING_LOSS_PCT", 10.0), // Relaxed
