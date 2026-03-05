@@ -172,15 +172,18 @@ func (r *Repository) GetSignalOutcomeBySignalID(signalID int64) (*models.SignalO
 }
 
 // GetOpenSignals retrieves signals that don't have outcomes yet
+// Only retrieves recent BUY signals to avoid processing stale or non-actionable signals over and over
 func (r *Repository) GetOpenSignals(limit int) ([]models.TradingSignalDB, error) {
 	var signals []models.TradingSignalDB
 
 	// Subquery to find signal IDs that already have outcomes
 	subQuery := r.db.Model(&models.SignalOutcome{}).Select("signal_id")
 
-	// Get signals NOT IN the subquery
+	// Get recent BUY signals NOT IN the subquery
 	query := r.db.Where("id NOT IN (?)", subQuery).
-		Order("generated_at DESC") // Removed restrictive decision filter to ensure WAIT signals are also processed (marked as SKIPPED)
+		Where("decision = ?", "BUY").
+		Where("generated_at >= ?", time.Now().Add(-15*time.Minute)).
+		Order("generated_at DESC")
 
 	if limit > 0 {
 		query = query.Limit(limit)
