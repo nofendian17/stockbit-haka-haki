@@ -395,7 +395,24 @@ function renderBandarTreemap() {
                 groups: ['type', 'stock_symbol'],
                 backgroundColor: (ctx) => {
                     if (ctx.type !== 'data') return 'transparent';
-                    const data = ctx.raw._data || {};
+                    // Treemap stores the original data item(s) in _data. For grouped items, it wraps them.
+                    let data = {};
+                    if (ctx.type === 'data' && ctx.raw._data) {
+                        if (ctx.raw._data.children && ctx.raw._data.children.length > 0) {
+                            data = ctx.raw._data.children[0];
+                        } else if (Array.isArray(ctx.raw._data)) {
+                            data = ctx.raw._data[0];
+                        } else {
+                            data = ctx.raw._data;
+                        }
+                    }
+
+                    // For the group nodes (like "acc" root node), it might not have children array easily accessible,
+                    // but we can check if it's the group node itself.
+                    if (ctx.raw.g === 'acc' || ctx.raw.g === 'dist') {
+                        return ctx.raw.g === 'acc' ? `rgba(14, 203, 129, 0.2)` : `rgba(246, 70, 93, 0.2)`;
+                    }
+
                     // Opacity based on magnitude of dominance
                     const isAcc = data.type === 'acc';
                     const pct = isAcc ? (data.buy_percentage || 0) : (data.sell_percentage || 0);
@@ -413,7 +430,22 @@ function renderBandarTreemap() {
                     font: { size: 11, weight: 'bold' },
                     formatter: (ctx) => {
                         if (ctx.type !== 'data') return;
-                        const d = ctx.raw._data || {};
+                        if (ctx.raw.g === 'acc' || ctx.raw.g === 'dist') {
+                            return ctx.raw.g === 'acc' ? 'AKUMULASI' : 'DISTRIBUSI';
+                        }
+
+                        let d = {};
+                        if (ctx.raw._data) {
+                            if (ctx.raw._data.children && ctx.raw._data.children.length > 0) {
+                                d = ctx.raw._data.children[0];
+                            } else if (Array.isArray(ctx.raw._data)) {
+                                d = ctx.raw._data[0];
+                            } else {
+                                d = ctx.raw._data;
+                            }
+                        }
+
+                        if (!d.stock_symbol) return '';
                         const pct = d.type === 'acc' ? (d.buy_percentage || 0) : (d.sell_percentage || 0);
                         return [d.stock_symbol, `${pct.toFixed(0)}%`];
                     }
@@ -425,13 +457,46 @@ function renderBandarTreemap() {
             plugins: {
                 tooltip: {
                     callbacks: {
-                        title: (items) => (items[0].raw._data && items[0].raw._data.stock_symbol) || '',
+                        title: (items) => {
+                            const raw = items[0].raw;
+                            if (raw.g === 'acc' || raw.g === 'dist') {
+                                return raw.g === 'acc' ? 'Total Akumulasi' : 'Total Distribusi';
+                            }
+
+                            let d = {};
+                            if (raw._data) {
+                                if (raw._data.children && raw._data.children.length > 0) {
+                                    d = raw._data.children[0];
+                                } else if (Array.isArray(raw._data)) {
+                                    d = raw._data[0];
+                                } else {
+                                    d = raw._data;
+                                }
+                            }
+                            return d.stock_symbol || '';
+                        },
                         label: (item) => {
-                            const d = item.raw._data || {};
+                            const raw = item.raw;
                             const formatVal = (val) => {
                                 if (val >= 1_000_000_000) return `Rp ${(val / 1_000_000_000).toFixed(1)}M`;
                                 return `Rp ${((val || 0) / 1_000_000).toFixed(1)}Jt`;
                             };
+
+                            if (raw.g === 'acc' || raw.g === 'dist') {
+                                return `Total Val: ${formatVal(raw.v)}`;
+                            }
+
+                            let d = {};
+                            if (raw._data) {
+                                if (raw._data.children && raw._data.children.length > 0) {
+                                    d = raw._data.children[0];
+                                } else if (Array.isArray(raw._data)) {
+                                    d = raw._data[0];
+                                } else {
+                                    d = raw._data;
+                                }
+                            }
+
                             return d.type === 'acc'
                                 ? `Akumulasi ${(d.buy_percentage || 0).toFixed(1)}% | Val: ${formatVal(d.total_value)}`
                                 : `Distribusi ${(d.sell_percentage || 0).toFixed(1)}% | Val: ${formatVal(d.total_value)}`;
