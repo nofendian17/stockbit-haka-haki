@@ -115,21 +115,19 @@ function createWhaleAlertRow(alert) {
     // Symbol cell (Compacted)
     const symbolCellHtml = `
         <td data-label="Saham" class="table-cell min-w-[150px]">
-            <div class="flex items-center justify-between gap-2 w-full">
-                <div class="flex flex-col gap-0.5 flex-1">
-                    <div class="flex items-center gap-1.5 flex-wrap">
-                        <strong class="cursor-pointer hover:text-accentInfo transition-colors text-sm text-textPrimary" onclick="event.stopPropagation(); if(window.openCandleModal) window.openCandleModal('${alert.stock_symbol}')">${alert.stock_symbol}</strong>
+            <div class="flex items-center justify-between gap-2">
+                <div class="flex flex-col gap-0.5">
+                    <div class="flex items-center gap-1.5">
+                        <strong class="cursor-pointer hover:text-accentInfo transition-colors text-xs" onclick="event.stopPropagation(); if(window.openCandleModal) window.openCandleModal('${alert.stock_symbol}')">${alert.stock_symbol}</strong>
                         ${alertTypeBadge}
-                        <div class="${confidenceClass} text-[9px] flex items-center gap-0.5 opacity-80 bg-bgCard px-1.5 py-0.5 rounded border border-borderColor" title="Skor Keyakinan">
+                        <div class="${confidenceClass} text-[9px] flex items-center gap-0.5 opacity-80" title="Skor Keyakinan">
                             <span>${confidenceIcon}</span>
                             <span>${confidenceLabel}</span>
                         </div>
                     </div>
                     ${messageHtml}
                 </div>
-                <div class="hidden md:block">
-                    ${sparkHtml}
-                </div>
+                ${sparkHtml}
             </div>
         </td>
     `;
@@ -144,7 +142,28 @@ function createWhaleAlertRow(alert) {
         }
     })() : '-';
 
-    // Legacy mapping code - no longer needed since we replaced this exact row.innerHTML assignment entirely below.
+    row.innerHTML = `
+        <td data-label="Waktu" class="table-cell text-textMuted whitespace-nowrap text-[11px]" title="${detectedTime}">${detectedTime}</td>
+        ${symbolCellHtml}
+        <td data-label="Aksi" class="table-cell text-center"><span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${badgeClass}">${actionText}</span></td>
+        <td data-label="Harga" class="table-cell whitespace-nowrap font-medium text-right text-[11px]">${formatNumber(price)}</td>
+        <td data-label="Nilai" class="table-cell text-right font-bold text-textPrimary whitespace-nowrap text-[11px]" title="Total Nilai: Rp ${formatNumber(val)}">${formatCurrency(val)}</td>
+        <td data-label="Details" class="table-cell">
+            <div class="flex flex-col gap-0.5 justify-center">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                    <span class="text-[9px] font-bold px-1 py-0 rounded border ${alert.market_board === 'NG' ? 'bg-purple-900/30 text-purple-400 border-purple-500/30' : 'bg-bgSecondary text-textSecondary border-borderColor'}">
+                        ${alert.market_board || 'RG'}
+                    </span>
+                    ${anomalyHtml}
+                    <span class="text-[10px] text-textMuted" title="Z-Score">Z:${zScore.toFixed(1)}</span>
+                </div>
+                <div class="flex items-center gap-2 text-[10px] text-textMuted leading-none">
+                    <span title="Volume vs Average">V:${volumeVsAvg.toFixed(0)}%</span>
+                    ${alert.adaptive_threshold ? `<span title="Threshold" class="opacity-70">T:${alert.adaptive_threshold.toFixed(1)}</span>` : ''}
+                </div>
+            </div>
+        </td>
+    `;
 
     // Remove Volume column to save space (merged context into Details)
     // Or keep it but make it smaller. Let's keep existing structure but update index.html to match columns if needed.
@@ -154,29 +173,22 @@ function createWhaleAlertRow(alert) {
     // Re-adding Volume column.
 
     row.innerHTML = `
-        <td data-label="Waktu" class="table-cell text-textMuted whitespace-nowrap text-[11px] md:text-xs" title="${detectedTime}">
-            <span class="flex items-center gap-1.5">
-                <span class="md:hidden">🕒</span>
-                ${detectedTime}
-            </span>
-        </td>
+        <td data-label="Waktu" class="table-cell text-textMuted whitespace-nowrap text-[11px]" title="${detectedTime}">${detectedTime}</td>
         ${symbolCellHtml}
-        <td data-label="Aksi" class="table-cell text-center md:text-left">
-            <span class="px-2 py-1 rounded-md text-[10px] font-bold shadow-sm ${badgeClass} inline-flex items-center justify-center min-w-[50px]">${actionText.substring(0, 3)}</span>
-        </td>
-        <td data-label="Harga" class="table-cell whitespace-nowrap font-medium text-right text-[11px] md:text-sm text-textPrimary">${price.toLocaleString('id-ID')}</td>
-        <td data-label="Nilai" class="table-cell text-right font-bold text-accentInfo whitespace-nowrap text-xs md:text-sm" title="Total Nilai: Rp ${formatNumber(val)}">${formatCurrency(val)}</td>
-        <td data-label="Volume" class="table-cell text-right text-textSecondary whitespace-nowrap text-[11px] md:text-xs font-mono">${formatNumber(volume)} Lot</td>
+        <td data-label="Aksi" class="table-cell text-center"><span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${badgeClass}">${actionText.substring(0, 3)}</span></td>
+        <td data-label="Harga" class="table-cell whitespace-nowrap font-medium text-right text-[11px]">${price.toLocaleString('id-ID')}</td>
+        <td data-label="Nilai" class="table-cell text-right font-bold text-textPrimary whitespace-nowrap text-[11px]" title="Total Nilai: Rp ${formatNumber(val)}">${formatCurrency(val)}</td>
+        <td data-label="Volume" class="table-cell text-right text-textSecondary whitespace-nowrap text-[11px]">${formatNumber(volume)}</td>
         <td data-label="Details" class="table-cell">
-            <div class="flex flex-col gap-1 justify-center items-start md:items-end">
-                <div class="flex items-center gap-1.5 flex-wrap justify-end">
-                    <span class="text-[9px] font-bold px-1.5 py-0.5 rounded-md border shadow-sm ${alert.market_board === 'NG' ? 'bg-purple-900/30 text-purple-400 border-purple-500/30' : 'bg-bgCard text-textSecondary border-borderColor'}">
+            <div class="flex flex-col gap-0.5 justify-center">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                    <span class="text-[9px] font-bold px-1 py-0 rounded border ${alert.market_board === 'NG' ? 'bg-purple-900/30 text-purple-400 border-purple-500/30' : 'bg-bgSecondary text-textSecondary border-borderColor'}">
                         ${alert.market_board || 'RG'}
                     </span>
-                    <span class="text-[10px] text-textMuted bg-bgSecondary px-1.5 py-0.5 rounded-md border border-borderColor" title="Z-Score">Z:${zScore.toFixed(1)}</span>
+                    <span class="text-[10px] text-textMuted" title="Z-Score">Z:${zScore.toFixed(1)}</span>
                     ${anomalyHtml}
                 </div>
-                <div class="flex items-center gap-2 text-[10px] text-textMuted leading-none bg-bgSecondary px-1.5 py-0.5 rounded-md border border-borderColor">
+                <div class="flex items-center gap-2 text-[10px] text-textMuted leading-none">
                     <span title="Volume vs Average">Vol:${volumeVsAvg.toFixed(0)}%</span>
                 </div>
             </div>
@@ -350,16 +362,16 @@ function createPositionRow(pos) {
     const strategyText = formatStrategyName(pos.strategy || 'TRACKING');
 
     row.innerHTML = `
-        <td data-label="Saham" class="table-cell"><strong class="text-sm tracking-wide">${pos.stock_symbol}</strong></td>
-        <td data-label="Strategi" class="table-cell text-[11px] md:text-xs text-textSecondary">${strategyText}</td>
-        <td data-label="Entry Time" class="table-cell text-[11px] md:text-xs text-textSecondary whitespace-nowrap">${entryTime}</td>
-        <td data-label="Entry Price" class="table-cell text-right font-medium text-xs md:text-sm">${formatNumber(pos.entry_price)}</td>
+        <td data-label="Saham" class="table-cell"><strong>${pos.stock_symbol}</strong></td>
+        <td data-label="Strategi" class="table-cell text-xs">${strategyText}</td>
+        <td data-label="Entry Time" class="table-cell text-xs text-textSecondary whitespace-nowrap">${entryTime}</td>
+        <td data-label="Entry Price" class="table-cell text-right font-medium">${formatNumber(pos.entry_price)}</td>
         <td data-label="P&L %" class="table-cell text-right">
-            <span class="${profitClass} font-bold text-sm md:text-base bg-bgSecondary/50 px-2 py-1 rounded-md border ${profitClass === 'text-accentSuccess' ? 'border-accentSuccess/20' : 'border-accentDanger/20'}">
+            <span class="${profitClass} font-bold text-base">
                 ${profitSign}${profitLoss.toFixed(2)}%
             </span>
         </td>
-        <td data-label="Status" class="table-cell text-right md:text-center"><span class="px-2.5 py-1 bg-bgCard rounded-md border border-borderColor text-[10px] md:text-xs font-semibold text-center inline-block min-w-[60px] tracking-wider shadow-sm uppercase">${pos.outcome_status}</span></td>
+        <td data-label="Status" class="table-cell text-right"><span class="px-2 py-0.5 bg-bgSecondary rounded text-xs text-center inline-block min-w-[60px]">${pos.outcome_status}</span></td>
     `;
 
     return row;
@@ -392,15 +404,15 @@ export function renderSummaryTable(type, data, tbody, placeholder) {
         const netValueSign = item.net_value >= 0 ? '+' : '';
 
         row.innerHTML = `
-            <td data-label="Saham" class="table-cell font-bold text-sm tracking-wide">${item.stock_symbol}</td>
+            <td data-label="Saham" class="table-cell font-bold">${item.stock_symbol}</td>
             ${type === 'accumulation' ?
-                `<td data-label="Beli %" class="table-cell text-right font-bold text-accentSuccess text-sm">${item.buy_percentage.toFixed(1)}%</td>` :
-                `<td data-label="Jual %" class="table-cell text-right font-bold text-accentDanger text-sm">${item.sell_percentage.toFixed(1)}%</td>`
+                `<td data-label="Beli %" class="table-cell text-right font-semibold text-accentSuccess">${item.buy_percentage.toFixed(1)}%</td>` :
+                `<td data-label="Jual %" class="table-cell text-right font-semibold text-accentDanger">${item.sell_percentage.toFixed(1)}%</td>`
             }
             <td data-label="Net Value" class="table-cell text-right">
-                <span class="${netValueClass} font-semibold text-xs md:text-sm bg-bgSecondary/30 px-2 py-1 rounded-md border ${netValueClass === 'text-accentSuccess' ? 'border-accentSuccess/10' : 'border-accentDanger/10'}">${netValueSign}${formatCurrency(Math.abs(item.net_value))}</span>
+                <span class="${netValueClass} font-semibold">${netValueSign}${formatCurrency(Math.abs(item.net_value))}</span>
             </td>
-            <td data-label="Total Value" class="table-cell text-right font-bold text-textPrimary text-xs md:text-sm">${formatCurrency(item.total_value)}</td>
+            <td data-label="Total Value" class="table-cell text-right font-bold text-textPrimary">${formatCurrency(item.total_value)}</td>
         `;
 
         tbody.appendChild(row);
@@ -599,19 +611,19 @@ function createHistoryRow(record) {
     const strategyText = formatStrategyName(record.strategy || 'N/A');
 
     row.innerHTML = `
-        <td data-label="Saham" class="table-cell font-bold text-sm tracking-wide">${record.stock_symbol}</td>
-        <td data-label="Strategi" class="table-cell text-[11px] md:text-xs text-textSecondary">${strategyText}</td>
-        <td data-label="Entry Time" class="table-cell text-[11px] md:text-xs whitespace-nowrap">${entryTime}</td>
-        <td data-label="Entry Price" class="table-cell text-right text-xs md:text-sm font-medium">${formatNumber(record.entry_price)}</td>
-        <td data-label="Exit Price" class="table-cell text-right text-xs md:text-sm font-medium">${record.exit_price ? formatNumber(record.exit_price) : '-'}</td>
+        <td data-label="Saham" class="table-cell font-bold">${record.stock_symbol}</td>
+        <td data-label="Strategi" class="table-cell text-xs text-textSecondary">${strategyText}</td>
+        <td data-label="Entry Time" class="table-cell text-xs whitespace-nowrap">${entryTime}</td>
+        <td data-label="Entry Price" class="table-cell text-right text-sm">${formatNumber(record.entry_price)}</td>
+        <td data-label="Exit Price" class="table-cell text-right text-sm">${record.exit_price ? formatNumber(record.exit_price) : '-'}</td>
         <td data-label="P&L" class="table-cell text-right">
-            <span class="${profitClass} font-bold text-sm md:text-base bg-bgSecondary/50 px-2 py-1 rounded-md border ${profitClass === 'text-accentSuccess' ? 'border-accentSuccess/20' : (profitClass === 'text-accentDanger' ? 'border-accentDanger/20' : 'border-borderColor')}">
+            <span class="${profitClass} font-bold">
                 ${profitSign}${profitLoss.toFixed(2)}%
             </span>
         </td>
-        <td data-label="Duration" class="table-cell text-right text-[11px] md:text-xs text-textSecondary">${record.holding_duration_display || '-'}</td>
-        <td data-label="Status" class="table-cell text-right md:text-center">${statusBadge}</td>
-        <td data-label="Reason" class="table-cell text-[11px] md:text-xs text-textMuted text-right md:text-left">${exitReasonText}</td>
+        <td data-label="Duration" class="table-cell text-right text-xs">${record.holding_duration_display || '-'}</td>
+        <td data-label="Status" class="table-cell">${statusBadge}</td>
+        <td data-label="Reason" class="table-cell text-xs text-textMuted">${exitReasonText}</td>
     `;
 
     return row;
@@ -648,23 +660,19 @@ export function renderDailyPerformance(data) {
         const day = new Date(row.day).toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' });
 
         tr.innerHTML = `
-        <td data-label="Saham" class="table-cell font-bold text-sm tracking-wide">${row.stock_symbol}</td>
-        <td data-label="Hari" class="table-cell text-xs md:text-sm text-textSecondary">${day}</td>
-        <td data-label="Strategi" class="table-cell">
-            <span class="px-2.5 py-1 bg-bgCard border border-borderColor rounded-md text-[10px] uppercase font-semibold shadow-sm text-textSecondary">${formatStrategyName(row.strategy)}</span>
-        </td>
-        <td data-label="Win Rate" class="table-cell text-right md:text-center ${wrClass} font-bold text-sm md:text-base">
-            ${wr.toFixed(1)}% <span class="text-[10px] font-normal text-textMuted block md:inline-block">(${row.wins}/${row.total_signals})</span>
-        </td>
+            <td data-label="Saham" class="table-cell font-bold">${row.stock_symbol}</td>
+            <td data-label="Hari" class="table-cell">${day}</td>
+            <td data-label="Strategi" class="table-cell"><span class="px-2 py-0.5 bg-bgSecondary border border-borderColor rounded text-[10px] uppercase">${formatStrategyName(row.strategy)}</span></td>
+            <td data-label="Win Rate" class="table-cell text-right ${wrClass} font-bold">${wr.toFixed(1)}% <span class="text-[10px] font-normal text-textMuted">(${row.wins}/${row.total_signals})</span></td>
             <td data-label="Profit" class="table-cell text-right">
-            <span class="${profitClass} font-bold text-sm md:text-base bg-bgSecondary/50 px-2 py-1 rounded-md border ${profitClass === 'text-accentSuccess' ? 'border-accentSuccess/20' : 'border-accentDanger/20'} block w-fit ml-auto mb-1">${profitSign}${profit.toFixed(2)}%</span>
-            <span class="text-[10px] text-textMuted block">@ ${formatNumber(row.avg_entry_price)}</span>
+                <span class="${profitClass} font-bold text-sm block">${profitSign}${profit.toFixed(2)}%</span>
+                <span class="text-[10px] text-textMuted">@ ${formatNumber(row.avg_entry_price)}</span>
             </td>
-        <td data-label="Avg Win/Loss" class="table-cell text-right bg-bgSecondary/20 rounded-lg p-2 md:bg-transparent md:p-0">
-            <div class="text-accentSuccess text-xs font-medium flex justify-between md:justify-end gap-2"><span>Win:</span><span>+${(row.avg_win_pct || 0).toFixed(2)}%</span></div>
-            <div class="text-accentDanger text-xs font-medium flex justify-between md:justify-end gap-2"><span>Loss:</span><span>${(row.avg_loss_pct || 0).toFixed(2)}%</span></div>
+            <td data-label="Avg Win/Loss" class="table-cell text-right">
+                <div class="text-accentSuccess text-xs font-medium">Win: +${(row.avg_win_pct || 0).toFixed(2)}%</div>
+                <div class="text-accentDanger text-xs font-medium">Loss: ${(row.avg_loss_pct || 0).toFixed(2)}%</div>
             </td>
-        <td data-label="Avg Hold" class="table-cell text-right text-sm font-mono text-textSecondary">${(row.avg_holding_minutes || 0).toFixed(0)}m</td>
+            <td data-label="Avg Hold" class="table-cell text-right text-sm">${(row.avg_holding_minutes || 0).toFixed(0)}m</td>
         `;
         tbody.appendChild(tr);
     });

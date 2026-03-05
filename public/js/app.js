@@ -727,16 +727,12 @@ function renderRunningTrade(trade) {
     };
 
     row.innerHTML = `
-        <td class="px-4 py-2 text-textMuted text-[10px] md:text-xs">${timeStr}</td>
-        <td class="px-4 py-2 font-bold text-textPrimary text-xs md:text-sm tracking-wide">${trade.symbol}</td>
-        <td class="px-4 py-2 text-right font-semibold ${priceClass} text-xs md:text-sm">${trade.price.toLocaleString('id-ID')}</td>
-        <td class="px-4 py-2 text-right text-textSecondary text-[10px] md:text-xs font-mono">${trade.volume_lot.toLocaleString('id-ID')}</td>
-        <td class="px-4 py-2 text-right font-medium text-textPrimary text-[10px] md:text-xs">${formatValue(trade.value)}</td>
-        <td class="px-4 py-2 text-center">
-            <span class="inline-flex items-center justify-center w-6 h-6 rounded-md font-bold text-xs shadow-sm ${trade.action === 'BUY' ? 'bg-accentSuccess/20 text-accentSuccess border border-accentSuccess/30' : (trade.action === 'SELL' ? 'bg-accentDanger/20 text-accentDanger border border-accentDanger/30' : 'bg-bgSecondary text-textSecondary border border-borderColor')}">
-                ${trade.action === 'BUY' ? 'B' : (trade.action === 'SELL' ? 'S' : '-')}
-            </span>
-        </td>
+        <td class="px-4 py-1.5 text-textMuted">${timeStr}</td>
+        <td class="px-4 py-1.5 font-bold text-textPrimary">${trade.symbol}</td>
+        <td class="px-4 py-1.5 text-right font-bold ${priceClass}">${trade.price}</td>
+        <td class="px-4 py-1.5 text-right text-textSecondary">${trade.volume_lot.toLocaleString('id-ID')}</td>
+        <td class="px-4 py-1.5 text-right text-textPrimary">${formatValue(trade.value)}</td>
+        <td class="px-4 py-1.5 text-center font-bold ${actionClass}">${trade.action === 'BUY' ? 'B' : (trade.action === 'SELL' ? 'S' : 'U')}</td>
     `;
 
     // Prepend and limit rows
