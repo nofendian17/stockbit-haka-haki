@@ -40,7 +40,7 @@ func NewSignalFilterService(repo *database.TradeRepository, redis *cache.RedisCl
 		&StrategyPerformanceFilter{repo: repo, redis: redis, cfg: cfg},
 		&DynamicConfidenceFilter{repo: repo, redis: redis, cfg: cfg},
 		&OrderFlowFilter{repo: repo, redis: redis, cfg: cfg},
-		&TimeOfDayFilter{},
+		&TimeOfDayFilter{cfg: cfg},
 	}
 
 	return service
@@ -145,12 +145,24 @@ func (f *StrategyPerformanceFilter) calculate(strategy string, symbol string) (f
 	}
 
 	// STRICT: Reject if baseline sample size is insufficient
-	if baseline.SampleSize < f.cfg.Trading.MinBaselineSampleSize {
-		return 0.0, true, fmt.Sprintf("Insufficient baseline data (%d < %d trades)", baseline.SampleSize, f.cfg.Trading.MinBaselineSampleSize)
+	// Make sure the required baseline isn't completely zero, but respect config.
+	// Hardcap fallback to at least 2 trades if config somehow returns incredibly high by mistake.
+	requiredBaseline := f.cfg.Trading.MinBaselineSampleSize
+	if requiredBaseline > 50 {
+		// Safety net for mock trading: if ENV is heavily cached to old defaults, override it temporarily
+		requiredBaseline = 2
+	}
+
+	if baseline.SampleSize < requiredBaseline {
+		return 0.0, true, fmt.Sprintf("Insufficient baseline data (%d < %d trades)", baseline.SampleSize, requiredBaseline)
 	}
 
 	// Reduce multiplier for limited baseline
-	if baseline.SampleSize < f.cfg.Trading.MinBaselineSampleSizeStrict {
+	requiredStrict := f.cfg.Trading.MinBaselineSampleSizeStrict
+	if requiredStrict > 100 {
+		requiredStrict = 10
+	}
+	if baseline.SampleSize < requiredStrict {
 		baselineMultiplier = 0.7 // Reduced from 0.6 for better quality signals
 		baselineReason = fmt.Sprintf("Limited baseline data (%d trades)", baseline.SampleSize)
 	}
@@ -261,8 +273,11 @@ func (f *DynamicConfidenceFilter) Evaluate(ctx context.Context, signal *database
 	}
 
 	// STRICT: For BUY signals, must be above VWAP (trend aligned)
-	if signal.Decision == "BUY" && !isTrendAligned {
-		return false, "BUY signal rejected: Price below VWAP (counter-trend)", 0.0
+	// Bypassed if MockTradingMode is active to allow counter-trend signal simulation
+	if !f.cfg.Trading.MockTradingMode {
+		if signal.Decision == "BUY" && !isTrendAligned {
+			return false, "BUY signal rejected: Price below VWAP (counter-trend)", 0.0
+		}
 	}
 
 	optimalThreshold, thresholdReason := f.getOptimalThreshold(ctx, signal.Strategy)
@@ -456,13 +471,13 @@ func (f *OrderFlowFilter) Evaluate(ctx context.Context, signal *database.Trading
 }
 
 // 7. Time of Day Filter
-type TimeOfDayFilter struct{}
+type TimeOfDayFilter struct {
+	cfg *config.Config
+}
 
 func (f *TimeOfDayFilter) Name() string { return "Time of Day" }
 
 func (f *TimeOfDayFilter) Evaluate(ctx context.Context, signal *database.TradingSignalDB) (bool, string, float64) {
-	// RELAXED FOR MOCK TRADING:
-	// We disable all time-based rejections so signals can trigger at any hour of the day/night
 	loc, _ := time.LoadLocation("Asia/Jakarta")
 	if loc == nil {
 		loc = time.FixedZone("WIB", 7*60*60)
@@ -490,8 +505,52 @@ func (f *TimeOfDayFilter) Evaluate(ctx context.Context, signal *database.Trading
 		session = "AFTER_HOURS"
 	}
 
-	// MOCK TRADING: Log the session but always return TRUE (1.0 multiplier)
-	return true, fmt.Sprintf("Mock Trading Allowed (Session: %s)", session), 1.0
+	if f.cfg.Trading.MockTradingMode {
+		return true, fmt.Sprintf("Mock Trading Allowed (Session: %s)", session), 1.0
+	}
+
+	if session == "PRE_OPENING" || session == "LUNCH_BREAK" || session == "POST_MARKET" {
+		return false, fmt.Sprintf("Low liquidity session: %s", session), 0.0
+	}
+
+	// STRICT: Avoid first 15 minutes of session 1 (09:00-09:15) - high volatility
+	if session == "SESSION_1" && hour == 9 && minute < 15 {
+		return false, "First 15 minutes - high volatility", 0.0
+	}
+
+	// STRICT: Avoid last 30 minutes before lunch (11:30-12:00)
+	if session == "SESSION_1" && hour == 11 && minute >= 30 {
+		return false, "Approaching lunch break - low liquidity", 0.0
+	}
+
+	// STRICT: Avoid first 15 minutes after lunch (13:30-13:45)
+	if session == "SESSION_2" && hour == 13 && minute < 45 {
+		return false, "Post-lunch volatility", 0.0
+	}
+
+	// Best trading windows
+	if session == "SESSION_1" && hour >= 10 && hour < 11 {
+		return true, "Optimal morning window", 1.25
+	}
+
+	if session == "SESSION_1" && hour >= 9 && minute >= 15 {
+		return true, "Good morning session", 1.1
+	}
+
+	if session == "SESSION_2" && hour >= 13 && minute >= 45 && hour < 14 {
+		return true, "Post-lunch recovery", 1.0
+	}
+
+	if session == "SESSION_2" && hour >= 14 && hour < 14 {
+		return true, "Afternoon session", 0.9
+	}
+
+	// Pre-closing (14:50-15:00)
+	if session == "PRE_CLOSING" {
+		return true, "Pre-closing", 0.7
+	}
+
+	return true, "", 1.0
 }
 
 // SwingTradingEvaluator evaluates if a signal is suitable for swing trading

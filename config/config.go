@@ -87,6 +87,9 @@ type TradingConfig struct {
 	SwingMinBaselineDays int     // Minimum baseline data in days for swing
 	SwingPositionSizePct float64 // Position size as % of portfolio for swing
 	SwingRequireTrend    bool    // Require strong trend confirmation for swing
+
+	// Testing & Simulation
+	MockTradingMode bool // Bypass strict market hours and trend checks for simulation
 }
 
 // LoadFromEnv loads configuration from environment variables
@@ -168,6 +171,9 @@ func LoadFromEnv() *Config {
 			SwingMinBaselineDays: getEnvInt("SWING_MIN_BASELINE_DAYS", 20),                    // Need 20 days of history
 			SwingPositionSizePct: getEnvFloat("SWING_POSITION_SIZE_PCT", 5.0),                 // 5% of portfolio
 			SwingRequireTrend:    getEnvOrDefault("SWING_REQUIRE_TREND", "true") == "true",    // Require trend confirmation
+
+			// Testing & Simulation
+			MockTradingMode: getEnvOrDefault("MOCK_TRADING_MODE", "true") == "true",
 		},
 	}
 }
@@ -204,14 +210,4 @@ func getEnvOrDefault(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
-}
-
-// DefaultConfig returns default configuration (deprecated - use LoadFromEnv)
-func DefaultConfig(playerID, email, password string) *Config {
-	return &Config{
-		PlayerID:     playerID,
-		Username:     email,
-		Password:     password,
-		TradingWSURL: "wss://wss-trading.stockbit.com/ws",
-	}
 }
