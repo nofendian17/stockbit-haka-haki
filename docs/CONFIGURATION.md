@@ -44,11 +44,7 @@ The trading strategy parameters are now fully configurable without code changes.
 
 ### Entry Thresholds (Filters)
 
-| Variable | Description | Default | Note |
-| :--- | :--- | :--- | :--- |
-| `TRADING_ORDER_FLOW_THRESHOLD` | Minimum Buy Pressure (0.0-1.0) required | `0.5` (50%) | Primary filter |
-| `TRADING_AGGRESSIVE_BUY_THRESHOLD` | Minimum Aggressive Buy % at Offer | `60.0` | Used for override |
-| `TRADING_REQUIRE_ORDER_FLOW` | Strict Mode for Bandarmology | `false` | If `true`, rejects signals when data missing |
+*(Note: Strict order flow and aggressive buy threshold configuration fields have been removed in favor of pure statistical multiplier filtering)*
 
 ### Exit Strategy (ATR Based)
 
