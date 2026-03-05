@@ -353,12 +353,18 @@ func (st *SignalTracker) createSignalOutcome(signal *database.TradingSignalDB) (
 		}
 	}
 
-	// Validate trading time - RELAXED FOR MOCK TRADING
-	// Instead of strictly rejecting, we just log a warning but allow it to pass
-	if !isTradingTime(signal.GeneratedAt) {
+	// Validate trading time
+	if !st.cfg.Trading.MockTradingMode {
+		if !isTradingTime(signal.GeneratedAt) {
+			session := getTradingSession(signal.GeneratedAt)
+			reason := fmt.Sprintf("Generated outside trading hours (session: %s)", session)
+			log.Printf("⏰ Skipping signal %d (%s): %s", signal.ID, signal.StockSymbol, reason)
+			st.createSkippedOutcome(signal, reason)
+			return false, nil
+		}
+	} else if !isTradingTime(signal.GeneratedAt) {
 		session := getTradingSession(signal.GeneratedAt)
 		log.Printf("⚠️ MOCK TRADING: Allowing signal %d (%s) generated outside trading hours (session: %s)", signal.ID, signal.StockSymbol, session)
-		// We DO NOT skip outcome anymore so mock trading can happen at night/weekend
 	}
 
 	// Check duplicate prevention and position limits (with ALL optimizations)
@@ -371,15 +377,22 @@ func (st *SignalTracker) createSignalOutcome(signal *database.TradingSignalDB) (
 
 	session := getTradingSession(signal.GeneratedAt)
 
-	// MOCK TRADING: Skip Swing checks for now to simplify outcomes. Everything is a DAY trade.
-	isSwing := false // , swingScore, swingReason := st.filterService.IsSwingSignal(signal)
+	// Check if this signal qualifies for swing trading
+	isSwing := false
+	var swingScore float64
+	var swingReason string
+
+	if !st.cfg.Trading.MockTradingMode {
+		isSwing, swingScore, swingReason = st.filterService.IsSwingSignal(signal)
+	}
 
 	var exitLevels *ExitLevels
 	positionType := "DAY"
 	if isSwing {
 		positionType = "SWING"
 		exitLevels = st.exitCalc.GetSwingExitLevels(signal.StockSymbol, signal.TriggerPrice)
-		log.Printf("📈 SWING TRADE detected for signal %d (%s)", signal.ID, signal.StockSymbol)
+		log.Printf("📈 SWING TRADE detected for signal %d (%s): score=%.2f, %s",
+			signal.ID, signal.StockSymbol, swingScore, swingReason)
 	} else {
 		exitLevels = st.exitCalc.GetExitLevels(signal.StockSymbol, signal.TriggerPrice)
 	}
@@ -443,11 +456,13 @@ func (st *SignalTracker) updateSignalOutcome(signal *database.TradingSignalDB, o
 	// Check if this is a swing trade
 	isSwing := st.isSwingTrade(signal, outcome)
 
-	// Auto-close positions at market close (16:00 WIB) - RELAXED FOR MOCK TRADING
-	// Disabled to prevent positions from immediately closing during after-hours testing
-	// if !isSwing && currentSession == "AFTER_HOURS" && outcome.ExitTime == nil {
-	// 	log.Printf("🔔 Market closed - Auto-closing DAY position for signal %d (%s)", signal.ID, signal.StockSymbol)
-	// }
+	// Auto-close positions at market close (16:00 WIB)
+	if !st.cfg.Trading.MockTradingMode {
+		if !isSwing && currentSession == "AFTER_HOURS" && outcome.ExitTime == nil {
+			log.Printf("🔔 Market closed - Auto-closing DAY position for signal %d (%s)", signal.ID, signal.StockSymbol)
+			// Will force exit below
+		}
+	}
 
 	// Get current price from latest candle with fallback to latest trade
 	var currentPrice float64
@@ -537,12 +552,14 @@ func (st *SignalTracker) updateSignalOutcome(signal *database.TradingSignalDB, o
 			signal.StockSymbol, currentTrailingStop, newTrailingStop)
 	}
 
-	// Force exit at market close - RELAXED FOR MOCK TRADING
-	// if !shouldExit && currentSession == "AFTER_HOURS" {
-	// 	shouldExit = true
-	// 	exitReason = "MARKET_CLOSE"
-	// 	log.Printf("⏰ Force exit due to market close for signal %d (%s)", signal.ID, signal.StockSymbol)
-	// }
+	// Force exit at market close
+	if !st.cfg.Trading.MockTradingMode {
+		if !shouldExit && currentSession == "AFTER_HOURS" {
+			shouldExit = true
+			exitReason = "MARKET_CLOSE"
+			log.Printf("⏰ Force exit due to market close for signal %d (%s)", signal.ID, signal.StockSymbol)
+		}
+	}
 
 	// Auto-exit in pre-closing session (14:50-15:00) if profitable
 	if !shouldExit && currentSession == "PRE_CLOSING" && profitLossPct > 1.0 {

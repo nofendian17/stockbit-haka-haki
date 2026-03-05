@@ -626,7 +626,6 @@ function connectWhaleAlertSSE() {
             );
 
             if (hasActiveFilters) {
-                // console.log('⏸️ SSE update blocked - filters active');
                 return;
             }
 
