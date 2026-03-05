@@ -296,13 +296,31 @@ func (s *Server) handleGetOpenPositions(w http.ResponseWriter, r *http.Request) 
 
 	log.Printf("✅ Found %d open positions", len(positions))
 
+	// Extract unique signal IDs for batch fetching
+	signalIDMap := make(map[int64]bool)
+	signalIDs := make([]int64, 0, len(positions))
+	for _, pos := range positions {
+		if !signalIDMap[pos.SignalID] {
+			signalIDMap[pos.SignalID] = true
+			signalIDs = append(signalIDs, pos.SignalID)
+		}
+	}
+
+	// OPTIMIZATION: Batch fetch signals to avoid N+1 query problem
+	signalsMap, err := s.repo.GetSignalsByIDs(signalIDs)
+	if err != nil {
+		log.Printf("❌ Failed to batch fetch signals for open positions: %v", err)
+		http.Error(w, "Failed to fetch signal details", http.StatusInternalServerError)
+		return
+	}
+
 	// Enrich positions with signal details for UI
 	enrichedPositions := make([]map[string]interface{}, 0, len(positions))
 	for _, pos := range positions {
-		// Get the signal details to include strategy and confidence
-		signal, err := s.repo.GetSignalByID(pos.SignalID)
-		if err != nil {
-			log.Printf("⚠️ Failed to get signal %d: %v", pos.SignalID, err)
+		// Get the signal details from the pre-fetched map
+		signal, ok := signalsMap[pos.SignalID]
+		if !ok || signal == nil {
+			log.Printf("⚠️ Signal %d not found in batch", pos.SignalID)
 			continue
 		}
 
@@ -389,13 +407,31 @@ func (s *Server) handleGetProfitLossHistory(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// Extract unique signal IDs for batch fetching
+	signalIDMap := make(map[int64]bool)
+	signalIDs := make([]int64, 0, len(outcomes))
+	for _, outcome := range outcomes {
+		if !signalIDMap[outcome.SignalID] {
+			signalIDMap[outcome.SignalID] = true
+			signalIDs = append(signalIDs, outcome.SignalID)
+		}
+	}
+
+	// OPTIMIZATION: Batch fetch signals to avoid N+1 query problem
+	signalsMap, err := s.repo.GetSignalsByIDs(signalIDs)
+	if err != nil {
+		log.Printf("❌ Failed to batch fetch signals for P&L history: %v", err)
+		http.Error(w, "Failed to fetch signal details", http.StatusInternalServerError)
+		return
+	}
+
 	// Enrich with signal details
 	enrichedOutcomes := make([]map[string]interface{}, 0, len(outcomes))
 	for _, outcome := range outcomes {
-		// Get signal details
-		signal, err := s.repo.GetSignalByID(outcome.SignalID)
-		if err != nil {
-			log.Printf("⚠️ Failed to get signal %d: %v", outcome.SignalID, err)
+		// Get signal details from pre-fetched map
+		signal, ok := signalsMap[outcome.SignalID]
+		if !ok || signal == nil {
+			log.Printf("⚠️ Signal %d not found in batch", outcome.SignalID)
 			continue
 		}
 
